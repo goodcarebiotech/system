@@ -1,18 +1,16 @@
-/* ══ CONFIG：部署 GAS 後填入網址並把 USE_MOCK 改 false ══ */
-const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec',USE_MOCK:false};
-// 是否真的連上 GAS：兩個條件都要滿足才算數，缺一不可
-const IS_LIVE = (!CFG.USE_MOCK && CFG.GAS_URL && CFG.GAS_URL.trim() !== '');
+/* ══ CONFIG：GAS 部署網址 ══ */
+const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec'};
 
 const COLS=[
   {k:'stockDate',n:'備貨日期',w:85,role:'s'},
-  {k:'batch',n:'批號',w:65,role:'s'},
-  {k:'shipDate',n:'送貨日期',w:90,role:'s'},
+  {k:'batch',n:'批號',w:85,role:'s'},
+  {k:'shipDate',n:'送貨日期',w:105,role:'s'},
   {k:'item',n:'品項',w:158,role:'s'},
   {k:'customer',n:'客戶',w:70,role:'s'},
   {k:'category',n:'科別',w:50,role:'s'},
   {k:'type',n:'賣備樣',w:50,role:'s'},
   {k:'orderNo',n:'訂購單號',w:80,role:'s'},
-  {k:'remark',n:'備註',w:280,role:'s'},
+  {k:'remark',n:'備註',w:300,role:'s'},
   {k:'invoiceDate',n:'發票日期',w:85,role:'a'},
   {k:'invoiceNo',n:'發票號碼',w:100,role:'a'},
   {k:'erp',n:'ERP銷帳',w:175,role:'a'},
@@ -24,42 +22,12 @@ const COLS=[
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
 
-function r(id,sd,ba,hd,it,cu,ca,ty,on,rm,idt,ino,erp,lr,lo,nt,sa){
-  return{recordId:id,stockDate:sd,batch:ba,shipDate:hd,item:it,customer:cu,category:ca,type:ty,orderNo:on,remark:rm,
-    invoiceDate:idt,invoiceNo:ino,erp:erp,loanReturn:lr,loanOut:lo,note:nt,sales:sa,updatedAt:new Date().toISOString()};
-}
-// ══ SERVER：僅在 USE_MOCK=true 時當作「假的雲端試算表」，所有讀寫都經過 mock() 存取這裡
-// （USE_MOCK=false 時完全不會用到這個物件，資料改由真正的 GAS 讀寫）
-let SERVER={
-  records:[
-    r('r1','2026-08-05','CD12AA','2026-08-06','速原2.5ml-2級','健仁醫院','Gs','賣','964484','1/8洪秋乾 張醫師','2026-08-06','XH43243056','S20240110028','W20240110016','N20231225014','簽回','王大明'),
-    r('r2','2026-08-05','CD12AA','2026-08-06','速原2.5ml-2級','健仁醫院','Gs','賣','964485','1/9曾欣藍 張醫師','2026-08-06','XH43243056','S20240110028','W20240110016','N20231225014','簽回','王大明'),
-    r('r3','2026-08-05','CD12AA','2026-08-06','速原2.5ml-2級','健仁醫院','Gs','賣','964486','1/9王素玲 張醫師','','','','','','','王大明'),
-    r('r4','2026-08-03','CD12AB','','樂業5ml','中正診所','骨科','賣','179584','','','','','','','','王大明'),
-    r('r5','2026-08-02','CD12AC','','薇基因(盒裝)','健仁醫院','採購','備','','','','','收回醫院備貨','W20240111007','','','王大明'),
-    r('r6','','','','速原10ml-2級','','','','','','2026-08-06','XH43243151','S20240116021','W20240116012','','','王大明'),
-    r('r7','','','','樂業10ml','','','','','','2026-08-06','XH43243158','','','N20231225014','','王大明'),
-    r('r8','2026-07-20','CD11AA','2026-07-22','妙癒修復霜-20ml(盒裝)','中正診所','骨科','賣','247600','','2026-07-23','XH43200011','S20240116001','','','簽回','李小美'),
-    r('r9','2026-08-04','CD12AD','2026-08-05','歐儷芙舒口噴劑','和平醫院','刀房','樣','247292','','','','','','','','陳建志')
-  ],
-  logs:[
-    {t:'08-05 14:22',actor:'王大明',act:'新增紀錄',ok:true,rid:'r1',desc:'新增客戶「健仁醫院」／速原2.5ml-2級 備貨紀錄（批次建立 3 筆）',src:'業務端網頁'},
-    {t:'08-03 09:10',actor:'王大明',act:'新增紀錄',ok:true,rid:'r4',desc:'新增客戶「中正診所」／樂業5ml 備貨紀錄',src:'業務端網頁'}
-  ],
-  stock:[ // 期初庫存 mock 種子資料（模擬「上個月已設定過」）
-    {yearMonth:'2026-07',sales:'王大明',item:'速原2.5ml-2級',qty:20},
-    {yearMonth:'2026-07',sales:'王大明',item:'樂業5ml',qty:12},
-    {yearMonth:'2026-07',sales:'王大明',item:'薇基因(盒裝)',qty:8}
-  ],
-  items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml','薇基因(盒裝)','妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)','歐儷芙舒口噴劑'],
-  sales:['王大明','李小美','陳建志']
-};
-// ══ DB：畫面實際渲染用的「目前這次讀到的資料」，登入 / 重新整理時透過 API 從 SERVER（或真正的 GAS）載入
-let DB={records:[],logs:[]}, ITEM_CATALOG=SERVER.items.slice(), SALES_NAMES=SERVER.sales.slice();
+// ══ DB：畫面實際渲染用的資料，登入時透過 API 從 GAS 載入 ══
+let DB={records:[],logs:[]};
+let ITEM_CATALOG=['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml','薇基因(盒裝)','妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)','歐儷芙舒口噴劑'];
+let SALES_NAMES=['王大明','李小美','陳建志']; // 這會在載入時由後端真實資料自動擴充
 
-// 品牌家族分類：速原／樂業都掛在 NewEpi 底下（同一支噴劑產品線的不同規格）。
-// 顏色取自各品牌實際包裝色：NewEpi 深藍＋金（醫療科技感）、薇基因粉紫漸層、
-// 妙癒修復霜墨綠、歐儷芙藍綠。用在庫存統計跟主管儀表板的分類色條。
+// 品牌家族分類
 const PRODUCT_FAMILIES=[
   {key:'newepi',name:'NEW EPI',color:'#1B4E8C',g1:'#7FB3E0',g2:'#3D7FC4',items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml']},
   {key:'vaginne',name:'薇基因',color:'#9B5FB5',g1:'#D2A0DC',g2:'#9B5FB5',items:['薇基因(盒裝)']},
@@ -69,147 +37,24 @@ const PRODUCT_FAMILIES=[
 function familyOf(item){ return PRODUCT_FAMILIES.find(f=>f.items.includes(item)) || {key:'other',name:'其他',color:'var(--tx-3)',g1:'#ccc',g2:'#999',items:[]}; }
 
 async function api(a,p){
-  if(IS_LIVE){
-    try{
-      const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p})});
-      const text=await res.text();
-      try{ return JSON.parse(text); }
-      catch(parseErr){
-        // 常見情況：GAS 部署權限不對，回傳的是 Google 登入頁或錯誤頁（HTML），不是 JSON
-        return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定（誰可以存取／是否為最新部署版本）。'};
-      }
-    }catch(e){return{status:'error',message:'連線失敗：'+e.message};}
-  }
-  return mock(a,p);
-}
-// mock()：完全比照真正 GAS 後端的動作介面（createRecords/updateRecord/deleteRecord/batchUpdate/
-// adminQuickCreate/listBySales/adminList/getOptions/getLogs/getStockLevels/setOpeningStock），
-// 讀寫對象一律是 SERVER（模擬雲端試算表），前端切換 USE_MOCK=false 時完全不用改任何呼叫端程式碼。
-function mock(a,p){
-  const now=()=>new Date().toISOString();
-  const genId=()=>'r'+Math.random().toString(36).slice(2,8);
-  function pushLog(rid,actor,act,diffs,src,ok,err,desc){
-    SERVER.logs.push({t:nowT(),actor,act,ok:ok!==false,rid:rid||'',diffs:(diffs&&diffs.length)?diffs:null,desc:desc||'',src:src||'',err:err||''});
-  }
-  if(a==='createRecords'){
-    const ids=[];
-    for(let i=0;i<p.qty;i++){const id=genId();ids.push(id);
-      SERVER.records.push({recordId:id,...p.item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:p.actor,updatedAt:now()});}
-    pushLog(ids[0],p.actor,'新增紀錄',[],p.source,true,'',`新增客戶「${p.item.customer}」／${p.item.item} 備貨紀錄`+(p.qty>1?`（批次建立 ${p.qty} 筆）`:''));
-    return{status:'success',createdCount:p.qty,ids};
-  }
-  if(a==='updateRecord'){
-    const x=SERVER.records.find(v=>v.recordId===p.recordId);
-    if(!x){pushLog(p.recordId,p.actor,'修改紀錄',[],p.source,false,'找不到這筆紀錄，可能已被刪除');return{status:'error',message:'找不到這筆紀錄，可能已被刪除'};}
-    const diffs=[];
-    Object.keys(p.changes||{}).forEach(k=>{if(String(x[k]||'')!==String(p.changes[k]||''))diffs.push({label:LBL[k]||k,before:x[k]||'',after:p.changes[k]||''});});
-    Object.assign(x,p.changes);x.updatedAt=now();
-    if(diffs.length)pushLog(p.recordId,p.actor,'修改紀錄',diffs,p.source,true,'');
-    return{status:'success',updatedAt:x.updatedAt};
-  }
-  if(a==='batchUpdate'){
-    let ok=0;
-    (p.updates||[]).forEach(u=>{
-      const x=SERVER.records.find(v=>v.recordId===u.recordId);
-      if(!x){pushLog(u.recordId,p.actor,'修改紀錄',[],'行政端總表',false,'找不到這筆紀錄');return;}
-      const diffs=[];Object.keys(u.changes||{}).forEach(k=>{if(String(x[k]||'')!==String(u.changes[k]||''))diffs.push({label:LBL[k]||k,before:x[k]||'',after:u.changes[k]||''});});
-      Object.assign(x,u.changes);x.updatedAt=now();
-      if(diffs.length){pushLog(u.recordId,p.actor,'修改紀錄',diffs,'行政端總表',true,'');ok++;}
-    });
-    return{status:'success',count:ok};
-  }
-  if(a==='deleteRecord'){
-    const before=SERVER.records.length;
-    SERVER.records=SERVER.records.filter(v=>v.recordId!==p.recordId);
-    const removed=before>SERVER.records.length;
-    pushLog(p.recordId,p.actor,'刪除紀錄',[],p.source,removed,removed?'':'找不到這筆紀錄');
-    return removed?{status:'success'}:{status:'error',message:'找不到這筆紀錄'};
-  }
-  if(a==='adminQuickCreate'){
-    const ids=[];
-    for(let i=0;i<p.qty;i++){const id=genId();ids.push(id);
-      SERVER.records.push({recordId:id,stockDate:'',batch:'',shipDate:'',item:p.item,customer:'',category:'',type:'',orderNo:'',remark:'',
-        invoiceDate:p.invoiceDate||'',invoiceNo:p.invoiceNo||'',erp:p.erp||'',loanReturn:p.loanReturn||'',loanOut:p.loanOut||'',note:'',sales:p.sales||'',updatedAt:now()});}
-    pushLog(ids[0],'行政','新增紀錄（行政）',[],'行政端網頁',true,'',`為${p.sales?'業務「'+p.sales+'」':'（尚未指定業務）'}建立 ${p.qty} 筆「${p.item}」，待補齊明細`);
-    return{status:'success',createdCount:p.qty};
-  }
-  if(a==='listBySales'){
-    return{status:'success',data:SERVER.records.filter(x=>x.sales===p.salesName)};
-  }
-  if(a==='salesInit'){
-    const records=SERVER.records.filter(x=>x.sales===p.salesName);
-    const logs=SERVER.logs.filter(l=>l.actor===p.salesName);
-    const stock=mock('getStockLevels',{salesName:p.salesName,yearMonth:p.yearMonth});
-    return{status:'success',records,logs,stock:{items:stock.items,yearMonth:stock.yearMonth,prevYearMonth:stock.prevYearMonth}};
-  }
-  if(a==='adminInit'){
-    const uniq=arr=>[...new Set(arr.filter(v=>v))];
-    return{status:'success',data:SERVER.records.slice(),options:{
-      salesNames:uniq(SERVER.records.map(r=>r.sales).concat(SERVER.sales))
-    }};
-  }
-  if(a==='adminList'){
-    let rows=SERVER.records.slice();
-    if(p.sales)rows=rows.filter(x=>x.sales===p.sales);
-    if(p.item)rows=rows.filter(x=>x.item===p.item);
-    if(p.emptyCols&&p.emptyCols.length)rows=rows.filter(x=>p.emptyCols.some(k=>!x[k]));
-    return{status:'success',data:rows};
-  }
-  if(a==='managerInit'){
-    return{status:'success',records:SERVER.records.slice(),stock:SERVER.stock.slice()};
-  }
-  if(a==='getOptions'){
-    const uniq=arr=>[...new Set(arr.filter(v=>v))];
-    return{status:'success',
-      customers:uniq(SERVER.records.map(r=>r.customer)),
-      items:SERVER.items.slice(),
-      categories:uniq(SERVER.records.map(r=>r.category)),
-      types:uniq(SERVER.records.map(r=>r.type)),
-      salesNames:uniq(SERVER.records.map(r=>r.sales).concat(SERVER.sales))
-    };
-  }
-  if(a==='getLogs'){
-    let logs=SERVER.logs.slice();
-    if(p.salesName)logs=logs.filter(l=>l.actor===p.salesName);
-    if(p.actor)logs=logs.filter(l=>l.actor===p.actor);
-    if(p.keyword){const kw=p.keyword.toLowerCase();
-      logs=logs.filter(l=>[l.actor,l.act,l.rid,l.desc,l.src,l.err,
-        (l.diffs||[]).map(d=>d.label+d.before+d.after).join(' ')].join(' ').toLowerCase().includes(kw));}
-    return{status:'success',data:logs};
-  }
-  if(a==='getStockLevels'){
-    const shiftMonth=(ym,d)=>{let[y,m]=ym.split('-').map(Number);m+=d;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return y+'-'+String(m).padStart(2,'0');};
-    const prevYM=shiftMonth(p.yearMonth,-1);
-    const openingThis={};SERVER.stock.filter(r=>r.sales===p.salesName&&r.yearMonth===p.yearMonth).forEach(r=>openingThis[r.item]=r.qty);
-    const openingPrev={};SERVER.stock.filter(r=>r.sales===p.salesName&&r.yearMonth===prevYM).forEach(r=>openingPrev[r.item]=r.qty);
-    const usedThis={},usedPrev={};
-    SERVER.records.forEach(r=>{if(r.sales!==p.salesName||!r.item)return;
-      if(r.stockDate&&r.stockDate.indexOf(p.yearMonth)===0)usedThis[r.item]=(usedThis[r.item]||0)+1;
-      if(r.stockDate&&r.stockDate.indexOf(prevYM)===0)usedPrev[r.item]=(usedPrev[r.item]||0)+1;});
-    const itemSet=new Set([...Object.keys(openingThis),...Object.keys(openingPrev),...Object.keys(usedThis)]);
-    const items=[...itemSet].map(item=>{
-      const opening=openingThis[item]!==undefined?Number(openingThis[item]):null;
-      const shipped=usedThis[item]||0;
-      const remaining=opening!==null?Math.max(0,opening-shipped):null;
-      const prevOpening=openingPrev[item]!==undefined?Number(openingPrev[item]):null;
-      const prevShipped=usedPrev[item]||0;
-      const suggestedOpening=prevOpening!==null?Math.max(0,prevOpening-prevShipped):null;
-      return{item,opening,shipped,remaining,suggestedOpening,isSet:openingThis[item]!==undefined};
-    });
-    return{status:'success',yearMonth:p.yearMonth,prevYearMonth:prevYM,items};
-  }
-  if(a==='setOpeningStock'){
-    const idx=SERVER.stock.findIndex(r=>r.sales===p.salesName&&r.yearMonth===p.yearMonth&&r.item===p.item);
-    if(idx>=0)SERVER.stock[idx].qty=p.qty;else SERVER.stock.push({yearMonth:p.yearMonth,sales:p.salesName,item:p.item,qty:p.qty});
-    pushLog('',p.actor,'設定期初庫存',[{label:`${p.item}（${p.yearMonth}）期初數量`,before:idx>=0?'（已更新）':'（未設定）',after:p.qty}],'業務端網頁',true,'');
-    return{status:'success'};
-  }
-  return{status:'error',message:'未知操作'};
+  try{
+    const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p})});
+    const text=await res.text();
+    try{ return JSON.parse(text); }
+    catch(parseErr){
+      return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定（誰可以存取／是否為最新部署版本）。'};
+    }
+  }catch(e){return{status:'error',message:'連線失敗：'+e.message};}
 }
 
-function nowT(){return '08-07 '+new Date().toTimeString().slice(0,5);}
-// addLog：僅用於「連 API 都還沒打」的純前端驗證失敗（例如必填未填），即時顯示在畫面上。
-// 只要有實際呼叫過 api()，之後一律呼叫 refreshLogs() 以伺服器回傳的紀錄為準，取代這裡的樂觀寫入。
+// 取得當下的真實月、日與時間，供純前端暫存 Log 使用
+function nowT(){
+  const d = new Date();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${m}-${dd} `+d.toTimeString().slice(0,5);
+}
+
 function addLog(o){DB.logs.push({t:nowT(),actor:o.actor||CUR,act:o.act,ok:o.ok!==false,rid:o.rid||'',desc:o.desc||'',diffs:o.diffs||null,src:o.src||(ROLE==='admin'?'行政端網頁':'業務端網頁'),err:o.err||''});}
 async function refreshLogs(){
   const res=await api('getLogs',{salesName:ROLE==='sales'?CUR:''});
@@ -218,12 +63,8 @@ async function refreshLogs(){
 
 let ROLE='sales',CUR='王大明',CUR_EMAIL='',VIEW='list',BQ=1,AQ=1,PKT=null,PKV={},EDID=null,GROUPS=[],GEDI=null,CUR_STOCK_ITEM=null;
 
-// 不管有沒有登入，一開始就把「目前是示範模式還是真的連線」的徽章插進兩個頂欄，
-// 避免再發生「畫面顯示成功，但雲端試算表其實完全沒有動」這種無聲的誤會。
 function renderModeBadges(){
-  const html = IS_LIVE
-    ? `<div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`
-    : `<span class="mode-badge demo" title="尚未連上 Google Sheet，所有資料都只存在瀏覽器裡，重新整理頁面就會消失">⚠ 示範模式（未連上試算表）</span><div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`;
+  const html = `<div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`;
   const slot1 = document.getElementById('modeBadgeSlot1');
   const slot2 = document.getElementById('modeBadgeSlot2');
   const slot3 = document.getElementById('modeBadgeSlot3');
@@ -232,19 +73,15 @@ function renderModeBadges(){
   if (slot3) { slot3.innerHTML = html.replace('__REFRESH__','mgrRefreshBtn'); slot3.querySelector('#mgrRefreshBtn').setAttribute('onclick','refreshManager()'); }
 }
 renderModeBadges();
-let FM='2026-08',FI='',ASales='',AItem='',AEmpty=new Set(),LOGF='all';
+
+// 自動抓取目前的真實年月
+const CURRENT_YM=(function(){const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
+let FM=CURRENT_YM,FI='',ASales='',AItem='',AEmpty=new Set(),LOGF='all';
 let GRID=[],EDITS={};
 
 function showLoad(msg){document.getElementById('loadOverlayText').textContent=msg||'讀取資料中…';document.getElementById('loadOverlay').style.display='flex';}
 function hideLoad(){document.getElementById('loadOverlay').style.display='none';}
 
-// 目前開放的帳號清單。之後要開放更多人，直接加進這個陣列即可；
-// 若要依帳號自動判斷業務／行政角色，可以改成 {email:'...',roles:['sales','admin']} 的物件陣列。
-// ══ 人員名冊：業務／行政／主管，依登入的 Google 帳號自動判斷身份，不用手動選 ══
-// 有些人同時橫跨多個角色（例如同時是行政也是主管），登入時會列出他實際擁有的身份讓他選，
-// 選過一次之後會記住（存在瀏覽器裡，跟帳號綁定），下次重新整理／重開頁面會直接回到上次選的畫面，
-// 不會再發生「明明是行政、重新整理後卻跳回業務畫面」這種情況。真正的權限判斷永遠是即時算出來的，
-// 「記住」的只是「這個帳號上次選了哪個身份」這個使用習慣，不是權限本身。
 const ROSTERS={
   sales:[
     {name:'翁培文',email:'mavish@goodcare-biotech.com.tw'},
@@ -290,9 +127,7 @@ const ROSTERS={
 const ROLE_LABEL={sales:'業務登入',admin:'行政登入',manager:'報表'};
 function rolesForEmail(email){
   const roles=new Set(Object.keys(ROSTERS).filter(k=>ROSTERS[k].some(p=>p.email===email)));
-  // 主管天生具備行政檢視/操作權限，不用額外把每個主管的信箱重複登記進行政名冊
   if(roles.has('manager')) roles.add('admin');
-  // 依畫面順序排列：業務 → 行政 → 報表，多重身份時的選擇按鈕順序才會固定、好預期
   const order=['sales','admin','manager'];
   return order.filter(r=>roles.has(r));
 }
@@ -319,8 +154,7 @@ window.addEventListener('firebase-ready', ()=>{
     }
   });
 });
-// LINE / Facebook / Instagram 等 App 內建瀏覽器不支援 Google 登入（會停在白畫面），
-// 只能請使用者改用系統瀏覽器開啟，這是 Google 的政策限制，不是程式可以繞過的。
+
 function isInAppBrowser(){
   const ua=navigator.userAgent||'';
   return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
@@ -339,9 +173,8 @@ async function googleSignIn(btn){
   btn.disabled=true;document.getElementById('googleBtnText').textContent='登入中…';
   try{
     if(isMobile()){
-      // 手機一律用轉址登入：彈出視窗在手機上會被 sessionStorage 隔離而報 missing initial state
       await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider);
-      return; // 會離開本頁，回來時由 onAuthStateChanged 接手
+      return; 
     }
     const result=await window.__fb.signInWithPopup(window.__fb.auth, window.__fb.provider);
     await handleAuthedUser(result.user);
@@ -394,13 +227,10 @@ function proceedLogin(role){
     setupRoleSwitcher('mgrSwitchRole');
     loadManagerData();
   }else{
-    // 業務登入直接看到「備貨登記」畫面可以馬上開始打字（表單本身不需要等資料回來才能用），
-    // 資料在背景悄悄載入，載完再把「我的紀錄／庫存統計／待補齊／操作紀錄」這幾個分頁的內容補上，
-    // 不會為了這些之後才需要看的資料，讓業務多等一次可以馬上使用的畫面。
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
     setupRoleSwitcher('salesSwitchRole');
-    loadSalesData(true); // true = 靜默背景載入，不擋畫面、不show loading圖層
+    loadSalesData(true); 
   }
 }
 function setupRoleSwitcher(slotId){
@@ -424,23 +254,17 @@ function logout(){
   const gb=document.getElementById('googleBtn');if(gb){gb.disabled=false;document.getElementById('googleBtnText').textContent='使用 Google 帳號登入';}
 }
 
-// ── 真正的資料讀取：登入 / 手動重新整理都會呼叫這裡，一律以伺服器（或 mock 的 SERVER）為準 ──
-const CURRENT_YM='2026-08';
+// ── 真正的資料讀取：登入 / 手動重新整理都會呼叫這裡，一律以伺服器為準 ──
 let STOCK_LEVELS=[];
 async function loadSalesData(silent){
   if(!silent)showLoad('讀取您的備貨紀錄中…');
   try{
-    // 合併成一趟請求：原本要打三次 API（各自都是一趟獨立的網路來回＋GAS 啟動開銷），
-    // 現在後端一次算好三個部分一起回傳，網路來回從 3 趟降到 1 趟。
     const res=await api('salesInit', {salesName:CUR, yearMonth:CURRENT_YM});
     if(res.status==='success'){
       DB.records = res.records||[];
-      DB.logs = res.logs||[];           // 後端已一併回傳，不需額外再打一次
+      DB.logs = res.logs||[];
       STOCK_LEVELS = res.stock&&res.stock.items||[];
-      SALES_LOGS_LOADED=false;   // 資料有變動，下次點開操作紀錄時重新抓最新的
-      
-      // 關閉自動欄寬，改用固定設定值以提升效能，並讓手動設定的寬度生效
-      // autoFitColumns(REC_COL_W, DB.records, {resizeHandle:true});
+      SALES_LOGS_LOADED=false;
     }else if(!silent) toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     initSales();
   }catch(err){
@@ -458,16 +282,10 @@ let ADMIN_LOGS_LOADED=false;
 async function loadAdminData(){
   showLoad('讀取整份總表中…');
   try{
-    // 合併成一趟請求：原本 adminList + getOptions 是兩趟獨立來回，且各自在 GAS 裡都重新讀一次
-    // 整張工作表；現在後端只讀一次，兩份資料一起算好回傳。這裡故意不帶篩選條件——
-    // 一定要抓「全部」資料回來，篩選 chip 才能在瀏覽器裡即時切換，不用每點一次就重打一次 API。
     const res=await api('adminInit', {});
     if(res.status==='success'){
       DB.records = res.data||[];
       if(res.options && res.options.salesNames && res.options.salesNames.length) SALES_NAMES = res.options.salesNames;
-      
-      // 關閉自動欄寬，改用固定設定值以提升效能，並讓手動設定的寬度生效
-      // autoFitColumns(GRID_COL_W, DB.records, {resizeHandle:true});
     }else toast('讀取總表失敗：'+(res.message||'未知錯誤'), true);
     ADMIN_LOGS_LOADED=false;
     initAdmin();
@@ -523,8 +341,6 @@ async function refreshAdmin(){
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function jse(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
-// 統一的「送出中」狀態：一按下就立刻鎖住按鈕＋換成 loading 文字，防止手滑連點兩三下重複建立；
-// 完成或失敗後一律呼叫 busy(btn,false) 還原。
 function busy(btn,on,label){
   if(!btn)return;
   if(on){ if(btn.dataset.orig===undefined)btn.dataset.orig=btn.textContent; btn.disabled=true; btn.style.opacity='.6'; btn.style.cursor='not-allowed'; btn.textContent=label||'處理中…'; }
@@ -534,14 +350,20 @@ function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.c
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
 function mk(el){const w=el.closest('.fw');const v=el.value&&el.value.trim()!=='';el.classList.toggle('on',v);if(w)w.classList.toggle('ok',v);fillCount();}
 function fillCount(){const el=document.getElementById('fCnt');if(el)el.textContent=document.querySelectorAll('#pg-reg .fw.ok').length;}
-function qd(id,off){const d=new Date('2026-08-07');d.setDate(d.getDate()+off);const el=document.getElementById(id);el.value=d.toISOString().slice(0,10);mk(el);}
+function qd(id,off){
+  const d=new Date();d.setDate(d.getDate()+off);
+  const el=document.getElementById(id);
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  el.value=`${d.getFullYear()}-${m}-${dd}`;
+  mk(el);
+}
 function bq(d){BQ=Math.max(1,Math.min(50,BQ+d));document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
 function bqSetLive(v){document.getElementById('bqBtnN').textContent=(parseInt(v)||0);}
 function bqSet(v){let n=parseInt(v);if(isNaN(n)||n<1)n=1;if(n>50)n=50;BQ=n;document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
 function aq(d){AQ=Math.max(1,Math.min(50,AQ+d));document.getElementById('aqV').textContent=AQ;}
 function val(id){return document.getElementById(id).value.trim();}
 
-// 業務端的客戶名稱／科別／賣備樣，只取「自己」曾經建立過的歷史值；品項為公司固定品項清單，兩者皆去除空值並排序
 function myHistory(field){const s=new Set();DB.records.forEach(x=>{if(x.sales===CUR&&x[field])s.add(x[field]);});return[...s].sort((a,b)=>a.localeCompare(b,'zh-TW'));}
 const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l:()=>myHistory('customer')},
   item:{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
@@ -566,7 +388,7 @@ function confirmCustomPk(){
   pickV(v);
 }
 function pickV(v){
-  if(PKT==='stock-item'){closePk();openStockEditFor(v);return;} // 一次性動作，不對應畫面上常駐的欄位
+  if(PKT==='stock-item'){closePk();openStockEditFor(v);return;} 
   if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
   if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
@@ -575,7 +397,10 @@ function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)ret
   s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');b.closest('.fw').classList.remove('ok');fillCount();}
 
 /* ── SALES ── */
-function initSales(){renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();renderLogs();fillCount();}
+function initSales(){
+  qd('f-sd', 0);
+  renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();renderLogs();fillCount();
+}
 let SALES_LOGS_LOADED=false;
 async function ensureSalesLogsLoaded(){
   if(SALES_LOGS_LOADED)return;
@@ -590,7 +415,14 @@ function tab(n,b){document.querySelectorAll('#salesApp .pg').forEach(p=>p.classL
   if(n==='logs')ensureSalesLogsLoaded();}
 function setView(v){VIEW=v;document.getElementById('vL').classList.toggle('on',v==='list');
   document.getElementById('vG').classList.toggle('on',v==='group');renderRec();}
-function renderMChips(){const ms=['2026-08','2026-07','2026-06'];
+function renderMChips(){
+  const [cy, cm] = CURRENT_YM.split('-').map(Number);
+  const ms=[];
+  for(let i=0; i<3; i++) {
+    let y=cy, m=cm-i;
+    while(m<1){m+=12;y--;}
+    ms.push(y+'-'+String(m).padStart(2,'0'));
+  }
   document.getElementById('mChips').innerHTML=ms.map(m=>`<button class="chip ${FM===m?'on':''}" onclick="FM='${m}';renderMChips();renderRec()">${m.slice(0,4)}年${+m.slice(5)}月</button>`).join('');}
 function renderIChips(){const cnt={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>cnt[x.item]=(cnt[x.item]||0)+1);
   document.getElementById('iChips').innerHTML=`<button class="chip ${FI===''?'on':''}" onclick="FI='';renderIChips();renderRec()">全部</button>`+
@@ -602,35 +434,7 @@ let RECFULL=false;
 function toggleRecFull(){RECFULL=!RECFULL;renderRecHead();renderRec();}
 let GRID_COL_W={}, REC_COL_W={};
 function colW(store,c){ if(store[c.k]===undefined) store[c.k]=c.w; return store[c.k]; }
-let _measureCtx=null;
-function measureTextW(text,font){
-  if(!_measureCtx){_measureCtx=document.createElement('canvas').getContext('2d');}
-  _measureCtx.font=font;
-  return _measureCtx.measureText(String(text==null?'':text)).width;
-}
-const MONO_FONT="500 12px 'IBM Plex Mono',monospace";
-const CJK_FONT="12.5px 'Noto Sans TC',sans-serif";
-const HEAD_FONT="700 11.5px 'Noto Sans TC',sans-serif";
-const MONO_COL_KEYS=new Set(['stockDate','batch','shipDate','invoiceDate','invoiceNo','orderNo']);
-const BADGE_COL_KEYS=new Set(['batch','shipDate','item']);
-function autoFitColumns(store, rows, opts){
-  opts=opts||{};
-  COLS.forEach(c=>{
-    const font=MONO_COL_KEYS.has(c.k)?MONO_FONT:CJK_FONT;
-    let max=measureTextW(c.n,HEAD_FONT)+26;
-    if(BADGE_COL_KEYS.has(c.k))max+=30;
-    if(opts.resizeHandle)max+=10;
-    rows.forEach(r=>{
-      const v=r[c.k];
-      if(v===undefined||v===null||v==='')return;
-      const w=measureTextW(v,font)+26;
-      if(w>max)max=w;
-    });
-    store[c.k]=Math.max(46,Math.min(320,Math.round(max)));
-  });
-}
-// 欄寬可拖曳調整：只在拖曳當下用 requestAnimationFrame 節流更新，放開滑鼠就完全沒有任何運算，
-// 跟一般試算表／Notion 的拖曳欄寬做法一樣，不會有額外耗能。
+
 function attachColResize(rowId, colgroupId, store){
   const row=document.getElementById(rowId), colgroup=document.getElementById(colgroupId);
   if(!row||!colgroup) return;
@@ -650,7 +454,7 @@ function attachColResize(rowId, colgroupId, store){
         pending=Math.max(40, startW+(ev.clientX-startX));
         if(!raf) raf=requestAnimationFrame(()=>{
           col.style.width=pending+'px';
-          if(table)table.style.width=(startTableW+(pending-startW))+'px'; // 欄寬變動時同步調整表格總寬，維持 table-layout:fixed 正確運作
+          if(table)table.style.width=(startTableW+(pending-startW))+'px';
           raf=null;
         });
       }
@@ -668,17 +472,12 @@ function attachColResize(rowId, colgroupId, store){
 function renderRecHead(){
   document.getElementById('recCol').innerHTML=COLS.map(c=>
     `<col style="width:${colW(REC_COL_W,c)}px" class="${c.role==='a'&&!RECFULL?'colhide':''}">`).join('')+'<col style="width:112px">';
-  // 收合鈕放在最尾巴的「狀態」表頭裡，不另外佔一整欄——否則下方每一列都要跟著空一格，很奇怪
   document.getElementById('recHead').innerHTML=COLS.map(c=>
     `<th class="${c.role==='a'&&!RECFULL?'colhide':''}">${c.n}<span class="col-rs" data-col="${c.k}"></span></th>`).join('')
     +`<th class="th-status">狀態<button type="button" class="th-toggle" onclick="event.stopPropagation();toggleRecFull()" title="${RECFULL?'收合發票～業務欄位':'展開發票～業務欄位'}">${RECFULL?'－':'＋'}</button></th>`;
   attachColResize('recHead','recCol',REC_COL_W);
   setExactTableWidth('recTableEl',COLS,REC_COL_W,RECFULL,112);
 }
-// table-layout:fixed 若搭配 width:auto／max-content，瀏覽器仍會依內容微調各欄比例，
-// 導致「明明宣告一樣的寬度，實際畫出來卻不一樣大」——這就是欄寬設定看起來沒生效的真正原因。
-// 正確做法：table 本身要有「明確的總寬度」（所有欄位寬度加總），瀏覽器才會完全按照宣告值分配，
-// 不再受標題文字長短或內容影響。
 function setExactTableWidth(tableId,cols,store,onlyVisible,extra){
   const table=document.getElementById(tableId);
   if(!table)return;
@@ -753,9 +552,17 @@ function pctDelta(elId,cur,prev){
   el.innerHTML=(up?'▲ ':'▼ ')+Math.abs(pct)+'% 較上月';
   el.className='dlt '+(up?'up':'down');
 }
+
+function getPrevYM() {
+  const [y, m] = CURRENT_YM.split('-').map(Number);
+  let py = y, pm = m - 1;
+  if(pm < 1) { pm = 12; py--; }
+  return py + '-' + String(pm).padStart(2, '0');
+}
+
 function renderStats(){
-  const rows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith('2026-08'));
-  const prevRows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith('2026-07'));
+  const rows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
+  const prevRows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(getPrevYM()));
   const cShip=rows.filter(x=>stOf(x)==='sh').length,cHold=rows.filter(x=>stOf(x)==='hd').length,cPend=pendRecs().length;
   const pShip=prevRows.filter(x=>stOf(x)==='sh').length,pHold=prevRows.filter(x=>stOf(x)==='hd').length;
   document.getElementById('t1').textContent=rows.length;
@@ -771,8 +578,6 @@ function renderStats(){
   const v=[39,52,33,62,47,rows.length||1],mx=Math.max(...v);
   document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===5?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
 
-  // 品項庫存明細 → 用系統本來的克制視覺語言呈現：白底、髮絲細線、色彩只當作極輕的識別accent
-  // （細線＋色塊＋數字色），不做滿版漸層卡片。一律列出「全部品項」，沒有紀錄的規格直接顯示 0。
   const fam={};
   PRODUCT_FAMILIES.forEach(f=>{
     fam[f.key]={name:f.name,color:f.color,items:{}};
@@ -789,7 +594,6 @@ function renderStats(){
     let famTotal=0;Object.values(f.items).forEach(v=>{famTotal+=v.sh+v.hd;});
     const specCells=Object.entries(f.items).map(([n,vv])=>
       `<div class="fam-spec-cell"><div class="fsn">${esc(n)}</div><div class="fsv">${vv.sh+vv.hd}</div></div>`).join('');
-    // 第一個品牌（NewEpi，規格最多）獨占整行；其餘品牌並排在下方同一列，色彩只用在頂線／色塊／數字
     return `<div class="fam-card ${i===0?'fam-card-wide':''}" style="border-top-color:${f.color}">
       <div class="fam-card-head"><span class="fam-swatch" style="background:${f.color}"></span><span class="fam-card-name">${esc(f.name)}</span></div>
       <div class="fam-card-total" style="color:${f.color}">${famTotal}</div>
@@ -797,7 +601,6 @@ function renderStats(){
     </div>`;
   }).join('')+`</div>`;
 
-  // 客戶排行榜（本月，依備貨筆數）
   const cm={};rows.forEach(x=>{if(x.customer)cm[x.customer]=(cm[x.customer]||0)+1;});
   const rank=Object.entries(cm).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const rmax=rank.length?rank[0][1]:1;
@@ -806,7 +609,6 @@ function renderStats(){
      <div class="rank-bar"><span style="width:${Math.round(cnt/rmax*100)}%"></span></div><span class="rank-v mn">${cnt}</span></div>`).join('')
     :`<div class="emp-s">本月尚無資料</div>`;
 
-  // 出貨效率：備貨日期到送貨日期的天數分佈
   const withShip=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.shipDate);
   const el1=document.getElementById('fulfillAvg'),elN=document.getElementById('fulfillN');
   if(withShip.length){
@@ -853,7 +655,8 @@ function openStockEditFor(item){
   qtyEl.value=(existing&&existing.isSet)?existing.opening:'';mk(qtyEl);
   const sugEl=document.getElementById('stockSuggest');
   if(existing&&existing.suggestedOpening!==null&&!existing.isSet){
-    sugEl.innerHTML=`上個月（${(function(){const[y,m]=CURRENT_YM.split('-').map(Number);let py=y,pm=m-1;if(pm<1){pm=12;py--;}return py+'年'+pm+'月';})()}）剩餘 <b>${existing.suggestedOpening}</b>，
+    const pym = getPrevYM();
+    sugEl.innerHTML=`上個月（${pym.split('-')[0]}年${+pym.split('-')[1]}月）剩餘 <b>${existing.suggestedOpening}</b>，
       <span style="color:var(--nav-2);text-decoration:underline;cursor:pointer" onclick="document.getElementById('stock-qty').value=${existing.suggestedOpening};mk(document.getElementById('stock-qty'))">帶入這個數字</span>`;
   }else{ sugEl.innerHTML=''; }
   document.getElementById('stockMv').classList.add('on');
@@ -936,13 +739,11 @@ async function submitReg(btn){
     toast(`已建立 ${res.createdCount} 筆備貨紀錄`);
     ['f-batch','f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
     ['customer','item','category','type'].forEach(clearPk);BQ=1;bq(0);
-    // 樂觀更新：先把剛建立的資料塞進畫面立刻顯示，不等一趟完整重新讀取，畫面感覺會快很多；
-    // 背景仍然會悄悄打一次 loadSalesData() 用伺服器真實資料校正，確保兩邊最終一致。
     (res.ids||[]).forEach(id=>DB.records.push({recordId:id,...item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:CUR,updatedAt:new Date().toISOString()}));
     renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();
     tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
     busy(btn,false);
-    loadSalesData(); // 不 await：背景校正，不擋畫面
+    loadSalesData(); 
   }else{
     addLog({act:'新增紀錄',ok:false,desc:`嘗試新增客戶「${item.customer}」備貨紀錄`,err:res.message||'未知錯誤'});
     renderLogs();toast('送出失敗：'+(res.message||'未知錯誤'),true);
@@ -960,8 +761,7 @@ function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
   document.getElementById('gEdCount').textContent=its.length;
   ['g-ca','g-ty','g-ba','g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
 
-  // 完整資料預覽：把組內每一筆的全部欄位（含批號/單號/備註/發票等行政欄位）都列出來，不只批次可編輯的四欄
-  const previewCols=COLS.filter(c=>c.k!=='stockDate'&&c.k!=='customer'&&c.k!=='item'); // 這三欄組內必然相同，不需重複顯示
+  const previewCols=COLS.filter(c=>c.k!=='stockDate'&&c.k!=='customer'&&c.k!=='item'); 
   const head='<tr><th>單號</th>'+previewCols.map(c=>`<th>${c.n}</th>`).join('')+'</tr>';
   const body=its.map((x,ri)=>`<tr><td class="mn">#${ri+1} ${esc(x.orderNo||x.recordId)}</td>`+
     previewCols.map(c=>`<td class="${c.k==='remark'?'':'mn'}">${esc(x[c.k]||'—')}</td>`).join('')+'</tr>').join('');
@@ -998,7 +798,7 @@ async function saveGroupEdit(btn){
   busy(btn,false);
   if(applied===0)toast('組內資料已與輸入值相同，沒有變更');
   else toast(okAll?`已套用到 ${applied} 筆紀錄`:'部分紀錄更新失敗，請查看操作紀錄',!okAll);
-  loadSalesData(); // 背景校正
+  loadSalesData(); 
 }
 async function saveEd(btn){
   if(btn&&btn.disabled)return;
@@ -1009,12 +809,12 @@ async function saveEd(btn){
   busy(btn,true,'儲存中…');
   const res=await api('updateRecord',{recordId:EDID,changes:nv,actor:CUR,expectedUpdatedAt:x.updatedAt});
   if(res.status==='success'){
-    Object.assign(x,nv); // 樂觀更新，畫面立即反映
+    Object.assign(x,nv);
     closeEd();
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
     toast('已儲存修改，操作已記錄');
     busy(btn,false);
-    if(ROLE==='admin')loadAdminData();else loadSalesData(); // 背景校正
+    if(ROLE==='admin')loadAdminData();else loadSalesData(); 
   }else if(res.status==='conflict'){
     addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:'版本衝突：這筆資料已被他人修改'});
     renderLogs();toast('這筆資料剛剛被其他人改過，已為您載入最新版本，請重新確認後再儲存',true);
@@ -1031,7 +831,7 @@ async function delRec(btn){
   busy(btn,true,'刪除中…');
   const res=await api('deleteRecord',{recordId:EDID,actor:CUR});
   if(res.status==='success'){
-    DB.records=DB.records.filter(v=>v.recordId!==EDID); // 樂觀更新
+    DB.records=DB.records.filter(v=>v.recordId!==EDID); 
     closeEd();
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
     toast('已刪除此筆紀錄');
@@ -1045,13 +845,11 @@ async function delRec(btn){
 /* ── ADMIN ── */
 function initAdmin(){renderAChips();renderGrid();renderALog();}
 
-/* ══════════════ MANAGER (主管儀表板，唯讀) ══════════════ */
+/* ══════════════ MANAGER (主管儀表板) ══════════════ */
 let MGR_STOCK_ALL=[];
 async function loadManagerData(){
   showLoad('讀取全公司資料中…');
   try{
-    // 合併成一趟請求：原本 adminList + getStockAll 是兩趟獨立來回，各自在 GAS 裡重新讀一次資料，
-    // 現在後端一次讀好回傳，登入速度會明顯變快。
     const res=await api('managerInit', {});
     if(res.status==='success'){
       DB.records = res.records||[];
@@ -1090,8 +888,6 @@ async function selectMgrPerson(salesName){
   const rows=DB.records.filter(x=>x.sales===salesName&&x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
   const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
   const res=await api('getStockLevels',{salesName,yearMonth:CURRENT_YM});
-  // 防止畫面顯示的人一直跳動：如果使用者在這趟請求還沒回來之前又點了別人，
-  // MGR_SELECTED 這時候已經變成別的名字了，這筆已經過期的回應就直接丟棄、不要蓋掉畫面。
   if(MGR_SELECTED!==salesName)return;
   if(res.status!=='success'){area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;return;}
   const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
@@ -1101,8 +897,6 @@ async function selectMgrPerson(salesName){
     area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
     return;
   }
-  // 真正的直條圖（SVG 繪製）：Y 軸格線＋數字、每個品項一根堆疊柱（藍＝剩餘、紅＝本月已出貨），
-  // 柱頂標總數、X 軸品項名稱斜放避免重疊——是 Excel 那種長條圖的呈現方式，不是純文字比較條。
   const allItems=ITEM_CATALOG.map(name=>{
     const found=items.find(x=>x.item===name);
     return found||{item:name,opening:null,shipped:0,remaining:null,isSet:false,suggestedOpening:null};
@@ -1180,7 +974,6 @@ function renderManagerDashboard(){
   document.getElementById('m4d').textContent=cPend?'需要追蹤':'目前無積壓';
   document.getElementById('m4d').className='dlt'+(cPend?' down':' up');
 
-  // 近六個月：直接從全公司真實資料逐月統計，不是估算值
   const months=monthsBack(CURRENT_YM,6);
   const counts=months.map(ym=>DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(ym)).length);
   const mx=Math.max(...counts,1);
@@ -1188,7 +981,6 @@ function renderManagerDashboard(){
     `<div class="ch-c"><div class="ch-b ${i===counts.length-1?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
   document.getElementById('mgrChartX').innerHTML=months.map(ym=>`<span>${+ym.slice(5)}月</span>`).join('');
 
-  // 品牌家族本月出貨量（全公司）
   const fam={};
   rows.forEach(x=>{if(!x.item)return;const f=familyOf(x.item);
     fam[f.key]=fam[f.key]||{name:f.name,color:f.color,total:0,ship:0};
@@ -1202,7 +994,6 @@ function renderManagerDashboard(){
       <div class="stk"><div class="a" style="width:${Math.round(f.total/famMax*100)}%;background:${f.color}"></div><div class="b"></div></div>
     </div>`).join('') : `<div class="emp-s">本月尚無資料</div>`;
 
-  // 業務績效排行：以名冊為底，確保就算某人本月完全沒動作也會列出來（0 筆本身就是一種訊號）
   const bySales={};
   ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
   rows.forEach(x=>{if(!x.sales)return;if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0};
@@ -1217,13 +1008,12 @@ function renderManagerDashboard(){
     <td class="pad mn" style="color:${r.pend>0?'var(--bad)':'var(--tx-3)'}">${r.pend}</td>
     <td class="pad mn">${r.stock?r.rate+'%':'—'}</td></tr>`).join('');
 
-  // 期初庫存回報進度 + 業務名字選單
   const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
   const totalN=ROSTERS.sales.length, reportedN=reportedSet.size;
   document.getElementById('mgrStockProgN').textContent=reportedN+' / '+totalN+' 人已回報本月期初庫存';
   document.getElementById('mgrStockProgBar').style.width=Math.round(reportedN/totalN*100)+'%';
   renderNameGrid();
-  if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } // 預設先展開第一位，畫面一進來就有內容可看
+  if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } 
 }
 function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
 function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
@@ -1298,27 +1088,57 @@ function gridRows(){let rows=DB.records.slice();
   if(AItem)rows=rows.filter(x=>x.item===AItem);
   if(AEmpty.size)rows=rows.filter(x=>[...AEmpty].some(k=>!x[k]));
   return rows;}
-function renderGrid(){GRID=gridRows();
-  // 依 備貨日期 > 品項 > 業務 的順序排序，讓同一組資料相鄰，再用雙色帶狀自動區隔各組
+
+// ── 行政總表：分批非同步渲染，解決畫面卡死問題 ──
+let _gridRenderTimer = null;
+function renderGrid(){
+  GRID=gridRows();
   GRID.sort((a,b)=>(a.stockDate||'').localeCompare(b.stockDate||'')||(a.item||'').localeCompare(b.item||'')||(a.sales||'').localeCompare(b.sales||''));
-  let band=false,lastKey=null;
-  document.getElementById('gridBody').innerHTML=GRID.map(x=>{
-    const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
-    if(key!==lastKey){band=!band;lastKey=key;}
-    return `<tr class="${band?'band':''}">`+COLS.map(c=>{
-      const ek=x.recordId+'::'+c.k,ed=EDITS[ek]!==undefined,v=ed?EDITS[ek]:(x[c.k]||'');
-      const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
-      return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
-    }).join('')+`</tr>`;
-  }).join('');
+
+  const tbody = document.getElementById('gridBody');
+  tbody.innerHTML = ''; // 清空原本內容
+  if(_gridRenderTimer) clearTimeout(_gridRenderTimer); // 停下之前的繪製任務
+
+  // 先立刻更新最上方的統計數字，讓使用者覺得「瞬間完成」
   document.getElementById('aCnt').textContent=GRID.length;
   const ok=GRID.filter(x=>x.customer&&x.item&&x.stockDate).length;
   document.getElementById('aOk').textContent=ok;document.getElementById('aNo').textContent=GRID.length-ok;
-  // 表頭統計：批號／送貨日期 顯示「確實有填寫」的筆數（去除頭尾空白後長度>0才算），品項顯示批號填寫數減去送貨日期填寫數
+  
   const batchN=GRID.filter(x=>isFilled(effVal(x,'batch'))).length;
   const shipN=GRID.filter(x=>isFilled(effVal(x,'shipDate'))).length;
   renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
-  updEditBar();}
+  updEditBar();
+
+  let band=false, lastKey=null, i=0;
+  const CHUNK_SIZE = 80; // 每次只畫 80 列，避免瀏覽器當機
+
+  function renderChunk() {
+    let html = '';
+    const end = Math.min(i + CHUNK_SIZE, GRID.length);
+    for (; i < end; i++) {
+      const x = GRID[i];
+      const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
+      if(key!==lastKey){band=!band;lastKey=key;}
+      html += `<tr class="${band?'band':''}">`+COLS.map(c=>{
+        const ek=x.recordId+'::'+c.k, ed=EDITS[ek]!==undefined, v=ed?EDITS[ek]:(x[c.k]||'');
+        const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
+        return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
+      }).join('')+`</tr>`;
+    }
+    
+    // 將這一批 80 列塞進表格
+    tbody.insertAdjacentHTML('beforeend', html);
+    
+    // 如果還沒畫完，安排 0.01 秒後繼續畫下一批（這段時間讓瀏覽器可以處理點擊、滾動等操作）
+    if (i < GRID.length) {
+      _gridRenderTimer = setTimeout(renderChunk, 12); 
+    }
+  }
+  
+  // 開始執行第一批繪製
+  if(GRID.length > 0) renderChunk();
+}
+
 function cellEdit(el){const rid=el.dataset.rid,col=el.dataset.col,ek=rid+'::'+col;
   const rec=DB.records.find(x=>x.recordId===rid);
   if(String(el.value||'')===String(rec[col]||'')){delete EDITS[ek];el.classList.remove('ed');}
@@ -1373,7 +1193,7 @@ async function commitGrid(btn){
     EDITS={};closeDiff();renderGrid();
     toast(`已更新 ${ks.length} 筆資料，操作已記錄`);
     busy(btn,false);
-    loadAdminData(); // 背景校正
+    loadAdminData(); 
   }else{
     ks.forEach(rid=>addLog({act:'修改紀錄',ok:false,rid,diffs:by[rid].list,err:res.message||'未知錯誤',src:'行政端總表'}));
     closeDiff();renderALog();toast('送出失敗：'+(res.message||'未知錯誤'),true);
@@ -1392,7 +1212,7 @@ async function adminCreate(btn){
     clearPk('ac-item');clearPk('ac-sales');AQ=1;aq(0);
     toast(`已建立 ${res.createdCount} 筆${sales?'，業務「'+sales+'」下次登入／重新整理會看到補齊提醒':'，可於總表指定業務'}`);
     busy(btn,false);
-    loadAdminData(); // 背景校正，畫面不用等
+    loadAdminData(); 
   }else{
     addLog({act:'快速建立',ok:false,desc:`嘗試為${who}建立 ${AQ} 筆「${item}」`,err:res.message||'未知錯誤',src:'行政端網頁'});
     renderALog();toast('建立失敗',true);
