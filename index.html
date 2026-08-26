@@ -778,16 +778,16 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMj
 const IS_LIVE = (!CFG.USE_MOCK && CFG.GAS_URL && CFG.GAS_URL.trim() !== '');
 
 const COLS=[
-  {k:'stockDate',n:'備貨日期',w:64,role:'s'},
+  {k:'stockDate',n:'備貨日期',w:55,role:'s'},
   {k:'batch',n:'批號',w:48,role:'s'},
-  {k:'shipDate',n:'送貨日期',w:64,role:'s'},
+  {k:'shipDate',n:'送貨日期',w:55,role:'s'},
   {k:'item',n:'品項',w:100,role:'s'},
   {k:'customer',n:'客戶',w:64,role:'s'},
   {k:'category',n:'科別',w:38,role:'s'},
   {k:'type',n:'賣備樣',w:40,role:'s'},
   {k:'orderNo',n:'訂購單號',w:56,role:'s'},
   {k:'remark',n:'備註',w:170,role:'s'},
-  {k:'invoiceDate',n:'發票日期',w:64,role:'a'},
+  {k:'invoiceDate',n:'發票日期',w:55,role:'a'},
   {k:'invoiceNo',n:'發票號碼',w:68,role:'a'},
   {k:'erp',n:'ERP銷帳',w:130,role:'a'},
   {k:'loanReturn',n:'借出還回單',w:70,role:'a'},
