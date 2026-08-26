@@ -227,32 +227,12 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .sr-key{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .sr-key span{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--tx-2)}
 .sr-key i{width:10px;height:10px;flex:none}
-.cmp-head{display:flex;gap:16px;padding:0 0 10px;border-bottom:1px solid var(--line-2);font-size:10px;color:var(--tx-3);letter-spacing:.1em}
-.cmp-head span:nth-child(1){width:170px;flex:none}
-.cmp-head span:nth-child(2){flex:1}
-.cmp-head span:nth-child(3){width:120px;flex:none;text-align:right}
-.cmp-row{display:flex;gap:16px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
-.cmp-name{width:170px;flex:none;font-size:12.5px;color:var(--ink);font-weight:500;line-height:1.4}
-.cmp-name i{display:block;font-style:normal;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--tx-3);margin-top:3px}
-.cmp-bar{flex:1;min-width:0}
-.cmp-track{display:flex;height:22px;background:var(--sub);border:1px solid var(--line);overflow:hidden}
-.cmp-used,.cmp-rem{display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;color:#fff}
-.cmp-used{background:var(--bad)}
-.cmp-rem{background:var(--nav-3)}
-.cmp-unset{height:22px;border:1px dashed var(--line-2);display:flex;align-items:center;padding:0 10px;font-size:10.5px;color:var(--tx-3)}
-.cmp-val{width:120px;flex:none;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:13px}
-.cmp-out{color:var(--bad);font-weight:600}
-.cmp-sep{color:var(--line-3);margin:0 4px}
-.cmp-left{color:var(--nav);font-weight:600}
-.cmp-na{color:var(--line-3)}
-.cmp-over{display:block;font-style:normal;font-size:9.5px;color:var(--bad);margin-top:3px}
-@media(max-width:680px){
-  .cmp-head{display:none}
-  .cmp-row{flex-wrap:wrap;gap:8px}
-  .cmp-name{width:100%}
-  .cmp-bar{width:100%;flex:none;order:3}
-  .cmp-val{width:auto;margin-left:auto;text-align:right}
-}
+.chart-scroll{overflow-x:auto;padding-bottom:4px}
+.chart-scroll svg{display:block}
+.cmp-unset-list{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cmp-unset-title{font-size:10.5px;color:var(--tx-3);width:100%;margin-bottom:2px}
+.cmp-unset-tag{font-size:11px;color:var(--tx-2);padding:5px 10px;border:1px dashed var(--line-2);background:var(--sub)}
+.cmp-unset-tag b{color:var(--bad);font-weight:600}
 .vb-wrap{overflow-x:auto;padding-bottom:4px}
 .vb-chart{display:flex;align-items:flex-end;gap:16px;min-width:max-content;padding:26px 2px 0}
 .vb-col{display:flex;flex-direction:column;align-items:center;width:74px;flex:none;position:relative}
@@ -430,20 +410,40 @@ table.dt td.pad{padding:9px 10px}
 .ls-field input,.ls-field select{padding:9px 11px;border:1px solid var(--line-2);background:var(--paper);outline:none;font-size:12.5px;color:var(--tx);min-width:130px}
 .ls-field input:focus,.ls-field select:focus{border-color:var(--nav)}
 .ls-field.ls-grow input{width:100%;min-width:0}
+.ls-icon-wrap{position:relative;display:flex;align-items:center}
+.ls-icon-wrap svg{position:absolute;left:11px;color:var(--tx-3);pointer-events:none}
+.ls-icon-wrap input{padding-left:32px!important}
 @media(max-width:680px){.log-search{gap:10px}.ls-field{flex:1;min-width:calc(50% - 5px)}.ls-field input,.ls-field select{min-width:0;width:100%}}
-.lg{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
-.lg:last-child{border-bottom:none;padding-bottom:0}
-.lg-d{width:6px;height:6px;margin-top:6px;flex:none}
-.lg-d.c{background:var(--ok)} .lg-d.e{background:var(--nav-3)} .lg-d.f{background:var(--bad)}
-.lg-m{flex:1;min-width:0}
-.lg-r{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:4px}
-.lg-a{font-size:12.5px;font-weight:600;color:var(--ink)}
-.lg-a.fail{color:var(--bad)}
-.lg-tm{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--tx-3);white-space:nowrap;flex:none}
-.lg-x{font-size:11px;color:var(--tx-2);line-height:1.75;font-weight:300;word-break:break-word}
+/* 時間軸：時間 | 節點線 | 內容卡片。依你提供的參考結構改寫，套用本系統既有的
+   墨藍／等寬字／髮絲線語言，不是照抄參考檔案的圓角＋青綠色調 */
+.tl-wrap{position:relative}
+.tl-item{display:flex;gap:14px;padding-bottom:16px}
+.tl-item:last-child{padding-bottom:0}
+.tl-time{width:76px;flex:none;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--tx-3);padding-top:13px;line-height:1.4}
+.tl-line{width:1px;background:var(--line-2);position:relative;flex:none}
+.tl-item:last-child .tl-line{background:linear-gradient(var(--line-2),transparent 60%)}
+.tl-dot{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:8px;height:8px;background:var(--nav-3);box-shadow:0 0 0 3px var(--paper)}
+.tl-dot.create{background:var(--ok)}
+.tl-dot.fail{background:var(--bad)}
+.tl-card{flex:1;min-width:0;background:var(--paper);border:1px solid var(--line);padding:13px 16px;transition:.18s var(--e)}
+.tl-card:hover{border-color:var(--line-3);box-shadow:0 1px 1.5px rgba(53,53,53,.06),0 5px 7.5px rgba(53,53,53,.04)}
+.tl-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px;flex-wrap:wrap}
+.tl-act{font-size:12.5px;font-weight:600;color:var(--ink)}
+.tl-act.fail{color:var(--bad)}
+.tl-actor{font-size:10.5px;color:var(--nav-2);font-weight:600;letter-spacing:.02em}
+.tl-summary{font-size:11.5px;color:var(--tx-2);line-height:1.7;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tl-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+.tl-src{font-size:9.5px;color:var(--tx-3)}
+.tl-detail-btn{font-size:10.5px;color:var(--nav-2);cursor:pointer;text-decoration:underline;text-underline-offset:2px;background:none;border:none;padding:0;font-family:inherit;flex:none}
+.tl-detail-btn:hover{color:var(--nav)}
 .dl{color:var(--bad);text-decoration:line-through}
 .nw{color:var(--ok);font-weight:500}
-.lg-src{font-size:9.5px;color:var(--tx-3);margin-top:5px;font-weight:300}
+/* 明細彈窗 */
+.ld-row{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--line);align-items:baseline;flex-wrap:wrap}
+.ld-row:last-child{border-bottom:none}
+.ld-k{width:110px;flex:none;font-size:10.5px;color:var(--tx-3);letter-spacing:.04em}
+.ld-v{flex:1;min-width:0;font-size:12.5px;color:var(--ink);word-break:break-word}
+.ld-arrow{color:var(--tx-3);margin:0 6px}
 
 .pd{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--warn);padding:15px;margin-bottom:10px}
 .pd-t{display:flex;justify-content:space-between;gap:10px;margin-bottom:5px;align-items:baseline}
@@ -567,8 +567,7 @@ table.dt td.pad{padding:9px 10px}
     auth, provider: new GoogleAuthProvider(),
     signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
   };
-  // 用 redirect 方式登入時，使用者會被導去 Google 再導回來，回來時要在這裡把結果接住
-  getRedirectResult(auth).catch(()=>{});
+  window.__fb.redirectResultPromise = getRedirectResult(auth);
   window.dispatchEvent(new Event('firebase-ready'));
 </script>
 
@@ -781,21 +780,13 @@ table.dt td.pad{padding:9px 10px}
           <button class="btn-d" id="btnSubmitGrid" onclick="openDiff()" disabled>送出更新</button>
         </div>
       </div>
-      <div class="cf" style="display:flex;gap:14px;flex-wrap:wrap">
-        <div class="icon-filter" id="aSalesFilterWrap">
-          <button type="button" class="icon-filter-btn" id="aSalesFilterBtn" onclick="toggleInlineFilter(event,'sales')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1"/></svg>
-            <span>業務：<b id="aSalesFilterLabel">全部</b></span>
-          </button>
-          <span class="icon-filter-clear" onclick="clearAdminFilter('sales')" title="清除篩選">✕</span>
-        </div>
-        <div class="icon-filter" id="aItemFilterWrap">
-          <button type="button" class="icon-filter-btn" id="aItemFilterBtn" onclick="toggleInlineFilter(event,'item')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-            <span>品項：<b id="aItemFilterLabel">全部</b></span>
-          </button>
-          <span class="icon-filter-clear" onclick="clearAdminFilter('item')" title="清除篩選">✕</span>
-        </div>
+      <div class="cf">
+        <div class="cf-h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1"/></svg>業務</div>
+        <div class="cf-r" id="aSalesChips"></div>
+      </div>
+      <div class="cf">
+        <div class="cf-h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>品項</div>
+        <div class="cf-r" id="aItemChips"></div>
       </div>
       <div class="cf"><div class="cf-h">僅顯示空值欄位</div><div class="cf-r" id="aEmptyChips"></div></div>
       <div class="tsc">
@@ -854,7 +845,10 @@ table.dt td.pad{padding:9px 10px}
       <div class="log-search">
         <div class="ls-field ls-grow">
           <label>關鍵字</label>
-          <input type="text" id="logKw" autocomplete="off" placeholder="搜尋人員、動作、客戶、品項、單號…" oninput="debounceLogSearch()">
+          <div class="ls-icon-wrap">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="text" id="logKw" autocomplete="off" placeholder="搜尋人員、動作、客戶、品項、單號…" oninput="debounceLogSearch()">
+          </div>
         </div>
         <div class="ls-field">
           <label>操作人員</label>
@@ -927,6 +921,18 @@ table.dt td.pad{padding:9px 10px}
 </div>
 
 <!-- ══ PICKER ══ -->
+<!-- ══ LOG 明細彈窗 ══ -->
+<div class="mv" id="logDetailMv">
+  <div class="mb">
+    <div class="mh"><span class="mh-t" id="logDetailTitle">操作明細</span></div>
+    <div class="mbd">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--tx-3);margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)" id="logDetailMeta"></div>
+      <div id="logDetailBody"></div>
+    </div>
+    <div class="ma"><button onclick="document.getElementById('logDetailMv').classList.remove('on')" style="flex:1">關閉</button></div>
+  </div>
+</div>
+
 <div class="pk" id="pkBg" onclick="if(event.target===this)closePk()">
   <div class="pk-s">
     <div class="pk-h">
@@ -1181,6 +1187,9 @@ function mock(a,p){
     if(p.emptyCols&&p.emptyCols.length)rows=rows.filter(x=>p.emptyCols.some(k=>!x[k]));
     return{status:'success',data:rows};
   }
+  if(a==='managerInit'){
+    return{status:'success',records:SERVER.records.slice(),stock:SERVER.stock.slice()};
+  }
   if(a==='getOptions'){
     const uniq=arr=>[...new Set(arr.filter(v=>v))];
     return{status:'success',
@@ -1330,6 +1339,11 @@ function nameForEmail(email){
 let FIREBASE_READY=false, FIREBASE_USER=null;
 window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
+  window.__fb.redirectResultPromise.then(result=>{
+    if(result && result.user){ handleAuthedUser(result.user); }
+  }).catch(err=>{
+    toast('Google 登入失敗：'+(err.message||err.code||'未知錯誤'), true);
+  });
   window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
     FIREBASE_USER=user;
     if(user && document.getElementById('login').style.display!=='none'){
@@ -1456,6 +1470,7 @@ async function loadSalesData(silent){
       DB.logs = res.logs||[];           // 後端已一併回傳，不需額外再打一次
       STOCK_LEVELS = res.stock&&res.stock.items||[];
       SALES_LOGS_LOADED=false;   // 資料有變動，下次點開操作紀錄時重新抓最新的
+      autoFitColumns(REC_COL_W, DB.records, {resizeHandle:true});
     }else if(!silent) toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     initSales();
   }catch(err){
@@ -1480,6 +1495,7 @@ async function loadAdminData(){
     if(res.status==='success'){
       DB.records = res.data||[];
       if(res.options && res.options.salesNames && res.options.salesNames.length) SALES_NAMES = res.options.salesNames;
+      autoFitColumns(GRID_COL_W, DB.records, {resizeHandle:true});
     }else toast('讀取總表失敗：'+(res.message||'未知錯誤'), true);
     ADMIN_LOGS_LOADED=false;
     initAdmin();
@@ -1614,6 +1630,33 @@ let RECFULL=false;
 function toggleRecFull(){RECFULL=!RECFULL;renderRecHead();renderRec();}
 let GRID_COL_W={}, REC_COL_W={};
 function colW(store,c){ if(store[c.k]===undefined) store[c.k]=c.w; return store[c.k]; }
+let _measureCtx=null;
+function measureTextW(text,font){
+  if(!_measureCtx){_measureCtx=document.createElement('canvas').getContext('2d');}
+  _measureCtx.font=font;
+  return _measureCtx.measureText(String(text==null?'':text)).width;
+}
+const MONO_FONT="500 12px 'IBM Plex Mono',monospace";
+const CJK_FONT="12.5px 'Noto Sans TC',sans-serif";
+const HEAD_FONT="700 11.5px 'Noto Sans TC',sans-serif";
+const MONO_COL_KEYS=new Set(['stockDate','batch','shipDate','invoiceDate','invoiceNo','orderNo']);
+const BADGE_COL_KEYS=new Set(['batch','shipDate','item']);
+function autoFitColumns(store, rows, opts){
+  opts=opts||{};
+  COLS.forEach(c=>{
+    const font=MONO_COL_KEYS.has(c.k)?MONO_FONT:CJK_FONT;
+    let max=measureTextW(c.n,HEAD_FONT)+26;
+    if(BADGE_COL_KEYS.has(c.k))max+=30;
+    if(opts.resizeHandle)max+=10;
+    rows.forEach(r=>{
+      const v=r[c.k];
+      if(v===undefined||v===null||v==='')return;
+      const w=measureTextW(v,font)+26;
+      if(w>max)max=w;
+    });
+    store[c.k]=Math.max(46,Math.min(320,Math.round(max)));
+  });
+}
 // 欄寬可拖曳調整：只在拖曳當下用 requestAnimationFrame 節流更新，放開滑鼠就完全沒有任何運算，
 // 跟一般試算表／Notion 的拖曳欄寬做法一樣，不會有額外耗能。
 function attachColResize(rowId, colgroupId, store){
@@ -1868,15 +1911,45 @@ function renderPend(){const rows=pendRecs(),n=rows.length;
   el.innerHTML=rows.map(x=>`<div class="pd"><div class="pd-t"><span class="pd-n">${esc(x.item||'（未指定品項）')}</span><span class="pd-d">${esc(x.invoiceDate||'—')}</span></div>
     <div class="pd-s">${x.invoiceNo?'發票 '+esc(x.invoiceNo)+' 已開立，':''}尚未有客戶與明細資料</div>
     <button class="pd-a" onclick="openEd('${x.recordId}')">補齊資料</button></div>`).join('');}
+let LOG_CACHE=[];
 function renderLogs(){const l=DB.logs.filter(x=>x.actor===CUR);
-  document.getElementById('logList').innerHTML=l.length?l.slice().reverse().map(logHtml).join(''):`<div class="emp-s">尚無操作紀錄</div>`;}
-function logHtml(l){let body='';
-  if(l.diffs&&l.diffs.length)body=l.diffs.map(d=>`${esc(d.label)}：<span class="dl">${esc(d.before||'（空白）')}</span> → <span class="nw">${esc(d.after||'（空白）')}</span>`).join('<br>');
-  else body=esc(l.desc);
-  if(!l.ok&&l.err)body+=`<br><span style="color:var(--bad)">失敗原因：${esc(l.err)}</span>`;
-  return `<div class="lg"><div class="lg-d ${l.ok?(l.diffs?'e':'c'):'f'}"></div><div class="lg-m">
-    <div class="lg-r"><span class="lg-a ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span><span class="lg-tm" title="${esc(l.tFull||l.t)}">${esc(l.tFull||l.t)}</span></div>
-    <div class="lg-x">${body}</div><div class="lg-src">${esc(l.actor)} · ${esc(l.src)}</div></div></div>`;}
+  LOG_CACHE=l.slice().reverse();
+  document.getElementById('logList').innerHTML=LOG_CACHE.length?`<div class="tl-wrap">`+LOG_CACHE.map((x,i)=>logHtml(x,i)).join('')+`</div>`:`<div class="emp-s">尚無操作紀錄</div>`;}
+function logHtml(l,i){
+  LOG_CACHE[i]=l;
+  let summary='',hasMore=false;
+  if(l.diffs&&l.diffs.length){
+    const shown=l.diffs.slice(0,2);
+    summary=shown.map(d=>`${esc(d.label)}：<span class="dl">${esc(d.before||'（空白）')}</span> → <span class="nw">${esc(d.after||'（空白）')}</span>`).join('　');
+    hasMore=l.diffs.length>2;
+  }else{ summary=esc(l.desc||''); }
+  if(!l.ok&&l.err)summary+=(summary?'　':'')+`<span style="color:var(--bad)">失敗原因：${esc(l.err)}</span>`;
+  const dotClass=!l.ok?'fail':(l.diffs?'edit':'create');
+  const needsDetail=hasMore||(l.diffs&&l.diffs.length>0);
+  return `<div class="tl-item">
+    <div class="tl-time">${esc(l.t)}</div>
+    <div class="tl-line"><span class="tl-dot ${dotClass}"></span></div>
+    <div class="tl-card">
+      <div class="tl-top"><span class="tl-act ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span><span class="tl-actor">${esc(l.actor)}</span></div>
+      <div class="tl-summary">${summary}</div>
+      <div class="tl-foot"><span class="tl-src">${esc(l.src||'')}</span>${needsDetail?`<button type="button" class="tl-detail-btn" onclick="openLogDetail(${i})">查看完整明細 ›</button>`:''}</div>
+    </div>
+  </div>`;}
+function openLogDetail(i){
+  const l=LOG_CACHE[i];if(!l)return;
+  document.getElementById('logDetailTitle').textContent=`${l.act}${l.ok?'':'（失敗）'}`;
+  document.getElementById('logDetailMeta').textContent=`${l.tFull||l.t} · ${l.actor||''} · ${l.src||''}`;
+  let body='';
+  if(l.diffs&&l.diffs.length){
+    body=l.diffs.map(d=>`<div class="ld-row"><span class="ld-k">${esc(d.label)}</span><span class="ld-v"><span class="dl">${esc(d.before||'（空白）')}</span><span class="ld-arrow">→</span><span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('');
+  }else{
+    body=`<div class="ld-row"><span class="ld-v">${esc(l.desc||'（無其他說明）')}</span></div>`;
+  }
+  if(!l.ok&&l.err)body+=`<div class="ld-row" style="color:var(--bad)"><span class="ld-k">失敗原因</span><span class="ld-v">${esc(l.err)}</span></div>`;
+  if(l.rid)body+=`<div class="ld-row"><span class="ld-k">RecordID</span><span class="ld-v mn">${esc(l.rid)}</span></div>`;
+  document.getElementById('logDetailBody').innerHTML=body;
+  document.getElementById('logDetailMv').classList.add('on');
+}
 
 async function submitReg(btn){
   if(btn.disabled)return;
@@ -2005,13 +2078,13 @@ let MGR_STOCK_ALL=[];
 async function loadManagerData(){
   showLoad('讀取全公司資料中…');
   try{
-    const [recRes, stockRes] = await Promise.all([
-      api('adminList', {}),
-      api('getStockAll', {})
-    ]);
-    if(recRes.status==='success'){ DB.records = recRes.data; }
-    else toast('讀取資料失敗：'+(recRes.message||'未知錯誤'), true);
-    if(stockRes.status==='success'){ MGR_STOCK_ALL = stockRes.data||[]; }
+    // 合併成一趟請求：原本 adminList + getStockAll 是兩趟獨立來回，各自在 GAS 裡重新讀一次資料，
+    // 現在後端一次讀好回傳，登入速度會明顯變快。
+    const res=await api('managerInit', {});
+    if(res.status==='success'){
+      DB.records = res.records||[];
+      MGR_STOCK_ALL = res.stock||[];
+    }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     renderManagerDashboard();
   }catch(err){
     toast('連線失敗：'+err.message, true);
@@ -2045,6 +2118,9 @@ async function selectMgrPerson(salesName){
   const rows=DB.records.filter(x=>x.sales===salesName&&x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
   const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
   const res=await api('getStockLevels',{salesName,yearMonth:CURRENT_YM});
+  // 防止畫面顯示的人一直跳動：如果使用者在這趟請求還沒回來之前又點了別人，
+  // MGR_SELECTED 這時候已經變成別的名字了，這筆已經過期的回應就直接丟棄、不要蓋掉畫面。
+  if(MGR_SELECTED!==salesName)return;
   if(res.status!=='success'){area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;return;}
   const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
   const head=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
@@ -2053,46 +2129,66 @@ async function selectMgrPerson(salesName){
     area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
     return;
   }
-  // 橫向對照條：每個品項一列，左邊寫月初有多少，條子本身分成「已出貨(紅)」與「剩餘(藍)」兩段，
-  // 右邊直接寫出結論數字。橫向排列可以一次看完所有品項、名稱不會被壓成直書，
-  // 這比直條圖更適合「一次比較十幾個品項」的檢視情境。
+  // 真正的直條圖（SVG 繪製）：Y 軸格線＋數字、每個品項一根堆疊柱（藍＝剩餘、紅＝本月已出貨），
+  // 柱頂標總數、X 軸品項名稱斜放避免重疊——是 Excel 那種長條圖的呈現方式，不是純文字比較條。
   const allItems=ITEM_CATALOG.map(name=>{
     const found=items.find(x=>x.item===name);
     return found||{item:name,opening:null,shipped:0,remaining:null,isSet:false,suggestedOpening:null};
-  }).filter(it=>it.isSet||it.shipped>0);   // 完全沒設定也沒動用的品項不佔版面
+  }).filter(it=>it.isSet||it.shipped>0);
   if(!allItems.length){
     area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 本月沒有任何庫存異動</div><div class="emp-s">尚未設定期初庫存，也沒有備貨登記紀錄</div></div>`;
     return;
   }
-  const rowsHtml=allItems.map(it=>{
-    const used=it.shipped;
-    if(!it.isSet){
-      return `<div class="cmp-row">
-        <div class="cmp-name">${esc(it.item)}</div>
-        <div class="cmp-bar"><div class="cmp-unset">未設定期初庫存，本月已出貨 ${used}</div></div>
-        <div class="cmp-val"><span class="cmp-out">${used}</span><span class="cmp-sep">/</span><span class="cmp-na">—</span></div>
-      </div>`;
-    }
-    const opening=it.opening, remain=it.remaining, over=used>opening;
-    const base=Math.max(opening,used,1);
-    const usedPct=Math.round(used/base*100), remPct=Math.round(remain/base*100);
-    return `<div class="cmp-row">
-      <div class="cmp-name">${esc(it.item)}<i>月初 ${opening}</i></div>
-      <div class="cmp-bar">
-        <div class="cmp-track">
-          ${usedPct>0?`<div class="cmp-used" style="width:${usedPct}%">${usedPct>=12?used:''}</div>`:''}
-          ${remPct>0?`<div class="cmp-rem" style="width:${remPct}%">${remPct>=12?remain:''}</div>`:''}
-        </div>
-      </div>
-      <div class="cmp-val"><span class="cmp-out">${used}</span><span class="cmp-sep">/</span><span class="cmp-left">${remain}</span>
-        ${over?'<em class="cmp-over">超出</em>':''}</div>
-    </div>`;
-  }).join('');
-  const body=`<div class="cmp-head"><span>品項</span><span>本月消耗狀況</span><span>已出貨 / 剩餘</span></div>
-    ${rowsHtml}
-    <div class="sr-key"><span><i style="background:var(--bad)"></i>本月已出貨（已建立備貨登記）</span>
-    <span><i style="background:var(--nav-3)"></i>目前剩餘庫存</span></div>`;
+  const chartHtml=buildStockChartSVG(allItems);
+  const unsetList=allItems.filter(it=>!it.isSet&&it.shipped>0);
+  const unsetHtml=unsetList.length?`<div class="cmp-unset-list">
+    <div class="cmp-unset-title">尚未設定期初庫存，僅顯示本月已出貨數：</div>
+    ${unsetList.map(it=>`<span class="cmp-unset-tag">${esc(it.item)} <b>${it.shipped}</b></span>`).join('')}
+  </div>`:'';
+  const body=`<div class="chart-scroll">${chartHtml}</div>
+    ${unsetHtml}
+    <div class="sr-key"><span><i style="background:#3E7CC4"></i>目前剩餘庫存</span>
+    <span><i style="background:#9C2F2A"></i>本月已出貨（已建立備貨登記）</span></div>`;
   area.innerHTML=head+body;
+}
+function niceCeil_(v){
+  if(v<=5)return 5;
+  const mag=Math.pow(10,Math.floor(Math.log10(v)));
+  const norm=v/mag;
+  const nice=norm<=1?1:norm<=2?2:norm<=5?5:10;
+  return nice*mag;
+}
+function buildStockChartSVG(allItems){
+  const W=Math.max(560,allItems.length*76+70), H=300;
+  const padL=42,padT=18,padB=76,chartH=H-padT-padB,chartR=W-16;
+  const maxVal=Math.max(1,...allItems.map(it=>it.isSet?Math.max(it.opening,it.shipped):it.shipped));
+  const niceMax=niceCeil_(maxVal);
+  const chartW=chartR-padL, gap=chartW/allItems.length, barW=Math.min(44,gap*0.52);
+  const yBase=padT+chartH;
+  let grid='',ylab='';
+  for(let i=0;i<=4;i++){
+    const val=Math.round(niceMax*i/4);
+    const y=yBase-(val/niceMax*chartH);
+    grid+=`<line x1="${padL}" y1="${y}" x2="${chartR}" y2="${y}" stroke="#E3E6EA" stroke-width="1"/>`;
+    ylab+=`<text x="${padL-8}" y="${y+3.5}" text-anchor="end" font-size="9.5" fill="#939DA9" font-family="'IBM Plex Mono',monospace">${val}</text>`;
+  }
+  let bars='',xlab='';
+  allItems.forEach((it,i)=>{
+    const cx=padL+gap*i+gap/2, x=cx-barW/2;
+    const used=it.shipped, remain=it.isSet?it.remaining:0;
+    const usedH=Math.round(used/niceMax*chartH), remH=Math.round(remain/niceMax*chartH);
+    const total=it.isSet?Math.max(it.opening,used):used;
+    if(remH>0)bars+=`<rect x="${x}" y="${yBase-remH}" width="${barW}" height="${remH}" fill="#3E7CC4"/>`;
+    if(usedH>0)bars+=`<rect x="${x}" y="${yBase-remH-usedH}" width="${barW}" height="${usedH}" fill="#9C2F2A"/>`;
+    if(total>0)bars+=`<text x="${cx}" y="${yBase-remH-usedH-6}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#101720" font-family="'IBM Plex Mono',monospace">${total}</text>`;
+    const label=it.item.length>11?it.item.slice(0,10)+'…':it.item;
+    xlab+=`<text x="${cx}" y="${yBase+14}" text-anchor="end" font-size="9.5" fill="#5E6A78" font-family="'Noto Sans TC',sans-serif" transform="rotate(-38 ${cx} ${yBase+14})">${esc(label)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="庫存直條圖">
+    ${grid}${ylab}
+    <line x1="${padL}" y1="${yBase}" x2="${chartR}" y2="${yBase}" stroke="#101720" stroke-width="1.2"/>
+    ${bars}${xlab}
+  </svg>`;
 }
 function renderManagerDashboard(){
   document.getElementById('mgrYM').textContent=CURRENT_YM;
@@ -2178,12 +2274,14 @@ function renderGridHead(stats){
   setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
 }
 function renderAChips(){
-  document.getElementById('aSalesFilterLabel').textContent=ASales||'全部';
-  document.getElementById('aSalesFilterBtn').classList.toggle('active',!!ASales);
-  document.getElementById('aSalesFilterWrap').classList.toggle('show-clear',!!ASales);
-  document.getElementById('aItemFilterLabel').textContent=AItem||'全部';
-  document.getElementById('aItemFilterBtn').classList.toggle('active',!!AItem);
-  document.getElementById('aItemFilterWrap').classList.toggle('show-clear',!!AItem);
+  const sc={};DB.records.forEach(x=>{if(x.sales)sc[x.sales]=(sc[x.sales]||0)+1});
+  document.getElementById('aSalesChips').innerHTML=
+    `<button class="chip ${ASales===''?'on':''}" onclick="ASales='';renderAChips();renderGrid()">全部</button>`+
+    SALES_NAMES.filter(s=>sc[s]).map(s=>`<button class="chip ${ASales===s?'on':''}" onclick="ASales='${jse(s)}';renderAChips();renderGrid()">${esc(s)}<span class="n">${sc[s]}</span></button>`).join('');
+  const ic={};DB.records.forEach(x=>{if(x.item)ic[x.item]=(ic[x.item]||0)+1});
+  document.getElementById('aItemChips').innerHTML=
+    `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGrid()">全部</button>`+
+    ITEM_CATALOG.filter(i=>ic[i]).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGrid()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
   document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');}
 let INLINE_KIND=null;
 function toggleInlineFilter(e,kind){
@@ -2332,7 +2430,8 @@ function setLogF(f){LOGF=f;document.getElementById('lgAll').classList.toggle('on
   document.getElementById('lgFail').classList.toggle('on',f==='fail');renderALog();}
 function renderALog(){let l=DB.logs.slice();
   if(LOGF==='fail')l=l.filter(x=>!x.ok);
-  document.getElementById('aLogList').innerHTML=l.length?l.reverse().map(logHtml).join('')
+  LOG_CACHE=l.reverse();
+  document.getElementById('aLogList').innerHTML=LOG_CACHE.length?`<div class="tl-wrap">`+LOG_CACHE.map((x,i)=>logHtml(x,i)).join('')+`</div>`
     :`<div class="emp-s">${LOGF==='fail'?'目前沒有失敗紀錄':'尚無操作紀錄'}</div>`;}
 </script>
 </body>
