@@ -187,6 +187,22 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .fam-spec-n{font-size:12px;color:var(--tx);font-weight:500}
 .fam-spec-v{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--tx-3);float:right}
 .fam-spec .stk{clear:both;margin-top:6px}
+.sr-row{padding:14px 0;border-bottom:1px solid var(--line)}
+.sr-row:last-child{border-bottom:none}
+.sr-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;gap:10px;flex-wrap:wrap}
+.sr-name{font-size:13px;font-weight:600;color:var(--ink)}
+.sr-nums{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--tx-2)}
+.sr-nums .used{color:var(--bad);font-weight:600}
+.sr-nums .rem{color:var(--nav-2);font-weight:600}
+.sr-bar{display:flex;height:16px;background:var(--sub);border:1px solid var(--line);overflow:hidden}
+.sr-bar .rem-seg{background:var(--nav-3)}
+.sr-bar .used-seg{background:var(--bad)}
+.sr-unset{font-size:11.5px;color:var(--tx-3);padding:8px 10px;background:var(--sub);border:1px dashed var(--line-2)}
+.sr-key{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.sr-key span{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--tx-2)}
+.sr-key i{width:10px;height:10px;flex:none}
+.rank-row.clickable, tr.rank-clickable{cursor:pointer;transition:background .15s}
+tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stk-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .stk-row:last-child{border-bottom:none}
 .stk-name{flex:1;min-width:120px;font-size:13px;font-weight:500;color:var(--ink)}
@@ -478,7 +494,10 @@ table.dt td.pad{padding:9px 10px}
 <div class="wrap" id="salesApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf" id="avT">王</div><div style="min-width:0"><div class="bar-n" id="nmT">王大明</div><div class="bar-d">2026.08.07 THU</div></div></div>
-    <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot1"></div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <div id="salesSwitchRole" style="display:none;gap:6px"></div>
+      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot1"></div>
+    </div>
   </div></div>
 
   <nav class="nav"><div class="nav-in">
@@ -619,7 +638,10 @@ table.dt td.pad{padding:9px 10px}
 <div class="wrap wide" id="adminApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf">政</div><div style="min-width:0"><div class="bar-n">行政管理</div><div class="bar-d">ADMINISTRATION</div></div></div>
-    <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot2"></div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <div id="adminSwitchRole" style="display:none;gap:6px"></div>
+      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot2"></div>
+    </div>
   </div></div>
 
   <nav class="nav"><div class="nav-in">
@@ -700,13 +722,15 @@ table.dt td.pad{padding:9px 10px}
 <div class="wrap wide" id="managerApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf">主</div><div style="min-width:0"><div class="bar-n" id="mgrName">主管</div><div class="bar-d">MANAGEMENT OVERVIEW</div></div></div>
-    <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot3"></div>
+    <div style="display:flex;gap:14px;align-items:center">
+      <div id="mgrSwitchRole" style="display:none;gap:6px"></div>
+      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot3"></div>
+    </div>
   </div></div>
 
   <section class="pg on" id="pg-manager" style="max-width:1600px;margin:0 auto">
-    <div class="pn" style="margin-bottom:16px"><div class="pn-b" style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div class="pn" style="margin-bottom:16px"><div class="pn-b" style="padding:14px 18px">
       <div style="font-size:11.5px;color:var(--tx-2)">檢視期間：<b class="mn" id="mgrYM" style="color:var(--ink)"></b>（與上月比較）</div>
-      <div id="mgrSwitchRole" style="display:none"></div>
     </div></div>
 
     <div class="st">
@@ -726,7 +750,7 @@ table.dt td.pad{padding:9px 10px}
 
     <div class="two" style="margin-top:18px">
       <div class="pn">
-        <div class="pn-h"><span class="pn-t">業務績效排行</span><span class="pn-n">依本月備貨筆數排序</span></div>
+        <div class="pn-h"><span class="pn-t">業務績效排行</span><span class="pn-n">依本月備貨筆數排序，點列可查看該人庫存明細</span></div>
         <div class="tsc" style="max-height:52vh"><table class="dt"><thead><tr>
           <th>業務</th><th>本月備貨</th><th>已出貨</th><th>庫存中</th><th>待補齊</th><th>出貨率</th>
         </tr></thead><tbody id="mgrRankBody"></tbody></table></div>
@@ -743,6 +767,15 @@ table.dt td.pad{padding:9px 10px}
 </div>
 
 <!-- ══ PICKER ══ -->
+<!-- ══ STOCK REPORT（主管報表：點某位業務看他各品項的期初/已用/剩餘）══ -->
+<div class="mv" id="stockReportMv">
+  <div class="mb lg2">
+    <div class="mh"><span class="mh-t" id="stockReportName">業務庫存報表</span><span class="mh-r" id="stockReportYM"></span></div>
+    <div class="mbd" id="stockReportBody"></div>
+    <div class="ma"><button onclick="document.getElementById('stockReportMv').classList.remove('on')" style="flex:1">關閉</button></div>
+  </div>
+</div>
+
 <div class="pk" id="pkBg" onclick="if(event.target===this)closePk()">
   <div class="pk-s">
     <div class="pk-h">
@@ -1001,17 +1034,17 @@ function mock(a,p){
     const prevYM=shiftMonth(p.yearMonth,-1);
     const openingThis={};SERVER.stock.filter(r=>r.sales===p.salesName&&r.yearMonth===p.yearMonth).forEach(r=>openingThis[r.item]=r.qty);
     const openingPrev={};SERVER.stock.filter(r=>r.sales===p.salesName&&r.yearMonth===prevYM).forEach(r=>openingPrev[r.item]=r.qty);
-    const shippedThis={},shippedPrev={};
-    SERVER.records.forEach(r=>{if(r.sales!==p.salesName||!r.item)return;const shipped=!!(r.invoiceDate||r.invoiceNo);if(!shipped)return;
-      if(r.stockDate&&r.stockDate.indexOf(p.yearMonth)===0)shippedThis[r.item]=(shippedThis[r.item]||0)+1;
-      if(r.stockDate&&r.stockDate.indexOf(prevYM)===0)shippedPrev[r.item]=(shippedPrev[r.item]||0)+1;});
-    const itemSet=new Set([...Object.keys(openingThis),...Object.keys(openingPrev),...Object.keys(shippedThis)]);
+    const usedThis={},usedPrev={};
+    SERVER.records.forEach(r=>{if(r.sales!==p.salesName||!r.item)return;
+      if(r.stockDate&&r.stockDate.indexOf(p.yearMonth)===0)usedThis[r.item]=(usedThis[r.item]||0)+1;
+      if(r.stockDate&&r.stockDate.indexOf(prevYM)===0)usedPrev[r.item]=(usedPrev[r.item]||0)+1;});
+    const itemSet=new Set([...Object.keys(openingThis),...Object.keys(openingPrev),...Object.keys(usedThis)]);
     const items=[...itemSet].map(item=>{
       const opening=openingThis[item]!==undefined?Number(openingThis[item]):null;
-      const shipped=shippedThis[item]||0;
+      const shipped=usedThis[item]||0;
       const remaining=opening!==null?Math.max(0,opening-shipped):null;
       const prevOpening=openingPrev[item]!==undefined?Number(openingPrev[item]):null;
-      const prevShipped=shippedPrev[item]||0;
+      const prevShipped=usedPrev[item]||0;
       const suggestedOpening=prevOpening!==null?Math.max(0,prevOpening-prevShipped):null;
       return{item,opening,shipped,remaining,suggestedOpening,isSet:openingThis[item]!==undefined};
     });
@@ -1083,7 +1116,8 @@ const ROSTERS={
     {name:'許智評',email:'deva@goodcare-biotech.com.tw'},
     {name:'陳文嬛',email:'renee@goodcare-biotech.com.tw'},
     {name:'涂宇萱',email:'hannah@goodcare-biotech.com.tw'},
-    {name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'}
+    {name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'},
+    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
   ],
   admin:[
     {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
@@ -1105,9 +1139,14 @@ const ROSTERS={
     {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
   ]
 };
-const ROLE_LABEL={sales:'業務登入',admin:'行政登入',manager:'主管儀表板'};
+const ROLE_LABEL={sales:'業務登入',admin:'行政登入',manager:'報表'};
 function rolesForEmail(email){
-  return Object.keys(ROSTERS).filter(k=>ROSTERS[k].some(p=>p.email===email));
+  const roles=new Set(Object.keys(ROSTERS).filter(k=>ROSTERS[k].some(p=>p.email===email)));
+  // 主管天生具備行政檢視/操作權限，不用額外把每個主管的信箱重複登記進行政名冊
+  if(roles.has('manager')) roles.add('admin');
+  // 依畫面順序排列：業務 → 行政 → 報表，多重身份時的選擇按鈕順序才會固定、好預期
+  const order=['sales','admin','manager'];
+  return order.filter(r=>roles.has(r));
 }
 function nameForEmail(email){
   for(const k of ['sales','admin','manager']){
@@ -1167,28 +1206,34 @@ function proceedLogin(role){
   localStorage.setItem('lastRole:'+CUR_EMAIL, role);
   document.getElementById('login').style.display='none';
   document.getElementById('roleChooser').style.display='none';
+  document.getElementById('salesApp').style.display='none';
+  document.getElementById('adminApp').style.display='none';
+  document.getElementById('managerApp').style.display='none';
   if(role==='admin'){
     document.getElementById('adminApp').style.display='block';
+    setupRoleSwitcher('adminSwitchRole');
     loadAdminData();
   }else if(role==='manager'){
     document.getElementById('managerApp').style.display='block';
     document.getElementById('mgrName').textContent=CUR;
-    setupManagerRoleSwitch();
+    setupRoleSwitcher('mgrSwitchRole');
     loadManagerData();
   }else{
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
+    setupRoleSwitcher('salesSwitchRole');
     loadSalesData();
   }
 }
-function setupManagerRoleSwitch(){
-  const roles=rolesForEmail(CUR_EMAIL);
-  const el=document.getElementById('mgrSwitchRole');
-  if(roles.length>1){
-    el.style.display='block';
-    el.innerHTML=`<span style="font-size:11px;color:var(--tx-3)">切換身份：</span>`+
-      roles.map(r=>`<button class="btn-g" style="margin-left:6px" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
-  }else{ el.style.display='none'; }
+function setupRoleSwitcher(slotId){
+  const el=document.getElementById(slotId);
+  if(!el)return;
+  const roles=rolesForEmail(CUR_EMAIL).filter(r=>r!==ROLE);
+  if(roles.length){
+    el.style.display='flex';
+    el.innerHTML=`<span style="font-size:11px;color:var(--tx-3);align-self:center">切換身份：</span>`+
+      roles.map(r=>`<button class="btn-g" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
+  }else{ el.style.display='none'; el.innerHTML=''; }
 }
 function logout(){
   if(window.__fb && window.__fb.auth) window.__fb.signOut(window.__fb.auth).catch(()=>{});
@@ -1719,6 +1764,35 @@ function monthsBack(ym,n){
   for(let i=n-1;i>=0;i--){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}arr.push(yy+'-'+String(mm).padStart(2,'0'));}
   return arr;
 }
+async function openStockReport(salesName){
+  document.getElementById('stockReportName').textContent=salesName+' — 本月備貨明細';
+  document.getElementById('stockReportYM').textContent=CURRENT_YM;
+  document.getElementById('stockReportBody').innerHTML=`<div class="emp-s">讀取中…</div>`;
+  document.getElementById('stockReportMv').classList.add('on');
+  const res=await api('getStockLevels',{salesName,yearMonth:CURRENT_YM});
+  if(res.status!=='success'){document.getElementById('stockReportBody').innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;return;}
+  const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
+  if(!items.length){
+    document.getElementById('stockReportBody').innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
+    return;
+  }
+  const body=items.map(it=>{
+    if(!it.isSet){
+      return `<div class="sr-row"><div class="sr-top"><span class="sr-name">${esc(it.item)}</span><span class="sr-nums">本月已用 <b class="used">${it.shipped}</b> 件</span></div>
+        <div class="sr-unset">尚未設定期初庫存，無法計算剩餘量${it.suggestedOpening!==null?`（可參考上月剩餘 ${it.suggestedOpening} 件）`:''}</div></div>`;
+    }
+    const opening=it.opening, used=it.shipped, remain=it.remaining;
+    const over=used>opening;
+    const usedPct=opening>0?Math.min(100,Math.round(used/opening*100)):(used>0?100:0);
+    const remPct=100-usedPct;
+    return `<div class="sr-row"><div class="sr-top"><span class="sr-name">${esc(it.item)}</span>
+      <span class="sr-nums">期初 <b>${opening}</b> ／ 本月已用 <b class="used">${used}</b> ／ 剩餘 <b class="rem">${remain}</b></span></div>
+      <div class="sr-bar"><div class="rem-seg" style="width:${remPct}%"></div><div class="used-seg" style="width:${usedPct}%"></div></div>
+      ${over?`<div style="font-size:10.5px;color:var(--bad);margin-top:6px">⚠ 本月使用量已超出期初庫存 ${used-opening} 件，請確認數量是否正確</div>`:''}
+    </div>`;
+  }).join('')+`<div class="sr-key"><span><i style="background:var(--nav-3)"></i>剩餘庫存</span><span><i style="background:var(--bad)"></i>本月已用（已建立備貨登記）</span></div>`;
+  document.getElementById('stockReportBody').innerHTML=body;
+}
 function renderManagerDashboard(){
   document.getElementById('mgrYM').textContent=CURRENT_YM;
   const prevYM=monthsBack(CURRENT_YM,2)[0];
@@ -1769,7 +1843,7 @@ function renderManagerDashboard(){
   const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0}));
   rankArr.sort((a,b)=>b.stock-a.stock);
   document.getElementById('mgrRankBody').innerHTML=rankArr.map(r=>`
-    <tr><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
+    <tr class="rank-clickable" onclick="openStockReport('${jse(r.name)}')"><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
     <td class="pad mn" style="color:var(--ok)">${r.ship}</td><td class="pad mn">${r.hold}</td>
     <td class="pad mn" style="color:${r.pend>0?'var(--bad)':'var(--tx-3)'}">${r.pend}</td>
     <td class="pad mn">${r.stock?r.rate+'%':'—'}</td></tr>`).join('');
@@ -1781,8 +1855,8 @@ function renderManagerDashboard(){
   document.getElementById('mgrStockProgBar').style.width=Math.round(reportedN/totalN*100)+'%';
   const missing=ROSTERS.sales.filter(p=>!reportedSet.has(p.name));
   document.getElementById('mgrStockMissing').innerHTML=missing.length?
-    `<div style="font-size:11px;color:var(--tx-2);margin-bottom:9px;font-weight:500">尚未設定的業務：</div>`+
-    missing.map(p=>`<span class="chip" style="margin:0 6px 6px 0">${esc(p.name)}</span>`).join('')
+    `<div style="font-size:11px;color:var(--tx-2);margin-bottom:9px;font-weight:500">尚未設定的業務（點選可查看該人本月備貨明細）：</div>`+
+    missing.map(p=>`<span class="chip" style="margin:0 6px 6px 0;cursor:pointer" onclick="openStockReport('${jse(p.name)}')">${esc(p.name)}</span>`).join('')
     : `<div style="font-size:11.5px;color:var(--ok)">✓ 全部業務都已完成本月設定</div>`;
 }
 function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
