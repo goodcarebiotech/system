@@ -177,7 +177,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .fb-track{flex:1;height:5px;background:var(--sub);border:1px solid var(--line)}
 .fb-track span{display:block;height:100%;background:var(--nav-3)}
 .fb-row .mn{width:24px;text-align:right;flex:none;color:var(--tx-2)}
-.fam-card{border-radius:18px;padding:22px 18px 20px;margin-bottom:16px;box-shadow:0 10px 24px rgba(16,23,32,.1);position:relative;overflow:hidden}
+.fam-page-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:680px){.fam-page-grid{grid-template-columns:1fr}.fam-card-wide{grid-column:auto}}
+.fam-card{border-radius:18px;padding:22px 18px 20px;box-shadow:0 10px 24px rgba(16,23,32,.1);position:relative;overflow:hidden;min-width:0}
+.fam-card-wide{grid-column:1/-1}
 .fam-card-name{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.92);margin-bottom:8px}
 .fam-card-total{text-align:center;font-family:'Noto Serif TC',serif;font-weight:700;font-size:44px;line-height:1;color:#fff;margin-bottom:18px;text-shadow:0 2px 6px rgba(0,0,0,.12)}
 .fam-spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:10px}
@@ -445,7 +448,7 @@ table.dt td.pad{padding:9px 10px}
   #pg-reg .grp:nth-child(3){grid-column:1/-1}
   #pg-reg .grp:nth-child(3) .fr{gap:40px}
   .dock{position:static;background:none;padding:0}
-  .dock .btn-p{max-width:280px;margin-left:auto;display:block}
+  .dock-row{max-width:420px;margin-left:auto}
   #recCards{display:none}
   #recTableWrap{display:block}
   .tsc{max-height:68vh}
@@ -909,22 +912,22 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMj
 const IS_LIVE = (!CFG.USE_MOCK && CFG.GAS_URL && CFG.GAS_URL.trim() !== '');
 
 const COLS=[
-  {k:'stockDate',n:'備貨日期',w:55,role:'s'},
-  {k:'batch',n:'批號',w:48,role:'s'},
-  {k:'shipDate',n:'送貨日期',w:55,role:'s'},
-  {k:'item',n:'品項',w:100,role:'s'},
-  {k:'customer',n:'客戶',w:48,role:'s'},
-  {k:'category',n:'科別',w:30,role:'s'},
-  {k:'type',n:'賣備樣',w:30,role:'s'},
-  {k:'orderNo',n:'訂購單號',w:56,role:'s'},
-  {k:'remark',n:'備註',w:200,role:'s'},
-  {k:'invoiceDate',n:'發票日期',w:55,role:'a'},
-  {k:'invoiceNo',n:'發票號碼',w:68,role:'a'},
+  {k:'stockDate',n:'備貨日期',w:92,role:'s'},
+  {k:'batch',n:'批號',w:70,role:'s'},
+  {k:'shipDate',n:'送貨日期',w:92,role:'s'},
+  {k:'item',n:'品項',w:150,role:'s'},
+  {k:'customer',n:'客戶',w:84,role:'s'},
+  {k:'category',n:'科別',w:54,role:'s'},
+  {k:'type',n:'賣備樣',w:54,role:'s'},
+  {k:'orderNo',n:'訂購單號',w:78,role:'s'},
+  {k:'remark',n:'備註',w:190,role:'s'},
+  {k:'invoiceDate',n:'發票日期',w:92,role:'a'},
+  {k:'invoiceNo',n:'發票號碼',w:100,role:'a'},
   {k:'erp',n:'ERP銷帳',w:130,role:'a'},
-  {k:'loanReturn',n:'借出還回單',w:70,role:'a'},
-  {k:'loanOut',n:'借出單',w:70,role:'a'},
-  {k:'note',n:'註記',w:130,role:'a'},
-  {k:'sales',n:'業務',w:35,role:'a'}
+  {k:'loanReturn',n:'借出還回單',w:130,role:'a'},
+  {k:'loanOut',n:'借出單',w:100,role:'a'},
+  {k:'note',n:'註記',w:90,role:'a'},
+  {k:'sales',n:'業務',w:64,role:'a'}
 ];
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
@@ -1587,16 +1590,17 @@ function renderStats(){
     fam[f.key].items[x.item][stOf(x)]++;
   });
   const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]);
-  document.getElementById('ibStat').innerHTML=famList.map(f=>{
+  document.getElementById('ibStat').innerHTML=`<div class="fam-page-grid">`+famList.map((f,i)=>{
     let famTotal=0;Object.values(f.items).forEach(v=>{famTotal+=v.sh+v.hd;});
     const specCards=Object.entries(f.items).map(([n,vv])=>
       `<div class="fam-spec-card"><div class="fsn">${esc(n)}</div><div class="fsv">${vv.sh+vv.hd}</div></div>`).join('');
-    return `<div class="fam-card" style="background:linear-gradient(160deg,${f.g1} 0%,${f.g2} 100%)">
+    // 第一個品牌（NewEpi，規格最多）獨占整行；其餘品牌並排在下方同一列
+    return `<div class="fam-card ${i===0?'fam-card-wide':''}" style="background:linear-gradient(160deg,${f.g1} 0%,${f.g2} 100%)">
       <div class="fam-card-name">${esc(f.name)}</div>
       <div class="fam-card-total">${famTotal}</div>
       <div class="fam-spec-grid">${specCards}</div>
     </div>`;
-  }).join('');
+  }).join('')+`</div>`;
 
   // 客戶排行榜（本月，依備貨筆數）
   const cm={};rows.forEach(x=>{if(x.customer)cm[x.customer]=(cm[x.customer]||0)+1;});
