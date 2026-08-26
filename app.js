@@ -1,0 +1,1403 @@
+/* ══ CONFIG：部署 GAS 後填入網址並把 USE_MOCK 改 false ══ */
+const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec',USE_MOCK:false};
+// 是否真的連上 GAS：兩個條件都要滿足才算數，缺一不可
+const IS_LIVE = (!CFG.USE_MOCK && CFG.GAS_URL && CFG.GAS_URL.trim() !== '');
+
+const COLS=[
+  {k:'stockDate',n:'備貨日期',w:86,role:'s'},
+  {k:'batch',n:'批號',w:74,role:'s'},
+  {k:'shipDate',n:'送貨日期',w:86,role:'s'},
+  {k:'item',n:'品項',w:158,role:'s'},
+  {k:'customer',n:'客戶',w:74,role:'s'},
+  {k:'category',n:'科別',w:56,role:'s'},
+  {k:'type',n:'賣備樣',w:58,role:'s'},
+  {k:'orderNo',n:'訂購單號',w:80,role:'s'},
+  {k:'remark',n:'備註',w:265,role:'s'},
+  {k:'invoiceDate',n:'發票日期',w:86,role:'a'},
+  {k:'invoiceNo',n:'發票號碼',w:102,role:'a'},
+  {k:'erp',n:'ERP銷帳',w:175,role:'a'},
+  {k:'loanReturn',n:'借出還回單',w:116,role:'a'},
+  {k:'loanOut',n:'借出單',w:112,role:'a'},
+  {k:'note',n:'註記',w:135,role:'a'},
+  {k:'sales',n:'業務',w:68,role:'a'}
+];
+const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
+const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
+
+function r(id,sd,ba,hd,it,cu,ca,ty,on,rm,idt,ino,erp,lr,lo,nt,sa){
+  return{recordId:id,stockDate:sd,batch:ba,shipDate:hd,item:it,customer:cu,category:ca,type:ty,orderNo:on,remark:rm,
+    invoiceDate:idt,invoiceNo:ino,erp:erp,loanReturn:lr,loanOut:lo,note:nt,sales:sa,updatedAt:new Date().toISOString()};
+}
+// ══ SERVER：僅在 USE_MOCK=true 時當作「假的雲端試算表」，所有讀寫都經過 mock() 存取這裡
+// （USE_MOCK=false 時完全不會用到這個物件，資料改由真正的 GAS 讀寫）
+let SERVER={
+  records:[
+    r('r1','2026-08-05','CD12AA','2026-08-06','速原2.5ml-2級','健仁醫院','Gs','賣','964484','1/8洪秋乾 張醫師','2026-08-06','XH43243056','S20240110028','W20240110016','N20231225014','簽回','王大明'),
+    r('r2','2026-08-05','CD12AA','2026-08-06','速原2.5ml-2級','健仁醫院','Gs','賣','964485','1/9曾欣藍 張醫師','2026-08-06','XH43243056','S20240110028','W20240110016','N20231225014','簽回','王大明'),
+    r('r3','2026-08-05','CD12AA','2026-08-06','速原2.5ml-2級','健仁醫院','Gs','賣','964486','1/9王素玲 張醫師','','','','','','','王大明'),
+    r('r4','2026-08-03','CD12AB','','樂業5ml','中正診所','骨科','賣','179584','','','','','','','','王大明'),
+    r('r5','2026-08-02','CD12AC','','薇基因(盒裝)','健仁醫院','採購','備','','','','','收回醫院備貨','W20240111007','','','王大明'),
+    r('r6','','','','速原10ml-2級','','','','','','2026-08-06','XH43243151','S20240116021','W20240116012','','','王大明'),
+    r('r7','','','','樂業10ml','','','','','','2026-08-06','XH43243158','','','N20231225014','','王大明'),
+    r('r8','2026-07-20','CD11AA','2026-07-22','妙癒修復霜-20ml(盒裝)','中正診所','骨科','賣','247600','','2026-07-23','XH43200011','S20240116001','','','簽回','李小美'),
+    r('r9','2026-08-04','CD12AD','2026-08-05','歐儷芙舒口噴劑','和平醫院','刀房','樣','247292','','','','','','','','陳建志')
+  ],
+  logs:[
+    {t:'08-05 14:22',actor:'王大明',act:'新增紀錄',ok:true,rid:'r1',desc:'新增客戶「健仁醫院」／速原2.5ml-2級　備貨紀錄（批次建立 3 筆）',src:'業務端網頁'},
+    {t:'08-03 09:10',actor:'王大明',act:'新增紀錄',ok:true,rid:'r4',desc:'新增客戶「中正診所」／樂業5ml　備貨紀錄',src:'業務端網頁'}
+  ],
+  stock:[ // 期初庫存 mock 種子資料（模擬「上個月已設定過」）
+    {yearMonth:'2026-07',sales:'王大明',item:'速原2.5ml-2級',qty:20},
+    {yearMonth:'2026-07',sales:'王大明',item:'樂業5ml',qty:12},
+    {yearMonth:'2026-07',sales:'王大明',item:'薇基因(盒裝)',qty:8}
+  ],
+  items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml','薇基因(盒裝)','妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)','歐儷芙舒口噴劑'],
+  sales:['王大明','李小美','陳建志']
+};
+// ══ DB：畫面實際渲染用的「目前這次讀到的資料」，登入 / 重新整理時透過 API 從 SERVER（或真正的 GAS）載入
+let DB={records:[],logs:[]}, ITEM_CATALOG=SERVER.items.slice(), SALES_NAMES=SERVER.sales.slice();
+
+// 品牌家族分類：速原／樂業都掛在 NewEpi 底下（同一支噴劑產品線的不同規格）。
+// 顏色取自各品牌實際包裝色：NewEpi 深藍＋金（醫療科技感）、薇基因粉紫漸層、
+// 妙癒修復霜墨綠、歐儷芙藍綠。用在庫存統計跟主管儀表板的分類色條。
+const PRODUCT_FAMILIES=[
+  {key:'newepi',name:'NEW EPI',color:'#1B4E8C',g1:'#7FB3E0',g2:'#3D7FC4',items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml']},
+  {key:'vaginne',name:'薇基因',color:'#9B5FB5',g1:'#D2A0DC',g2:'#9B5FB5',items:['薇基因(盒裝)']},
+  {key:'wonder',name:'妙癒修復霜',color:'#1F6B45',g1:'#A9D6AE',g2:'#5B9F68',items:['妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)']},
+  {key:'orelief',name:'歐儷芙',color:'#1A8A8A',g1:'#7FD9D9',g2:'#22A6A6',items:['歐儷芙舒口噴劑']}
+];
+function familyOf(item){ return PRODUCT_FAMILIES.find(f=>f.items.includes(item)) || {key:'other',name:'其他',color:'var(--tx-3)',g1:'#ccc',g2:'#999',items:[]}; }
+
+async function api(a,p){
+  if(IS_LIVE){
+    try{
+      const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p})});
+      const text=await res.text();
+      try{ return JSON.parse(text); }
+      catch(parseErr){
+        // 常見情況：GAS 部署權限不對，回傳的是 Google 登入頁或錯誤頁（HTML），不是 JSON
+        return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定（誰可以存取／是否為最新部署版本）。'};
+      }
+    }catch(e){return{status:'error',message:'連線失敗：'+e.message};}
+  }
+  return mock(a,p);
+}
+// mock()：完全比照真正 GAS 後端的動作介面（createRecords/updateRecord/deleteRecord/batchUpdate/
+// adminQuickCreate/listBySales/adminList/getOptions/getLogs/getStockLevels/setOpeningStock），
+// 讀寫對象一律是 SERVER（模擬雲端試算表），前端切換 USE_MOCK=false 時完全不用改任何呼叫端程式碼。
+function mock(a,p){
+  const now=()=>new Date().toISOString();
+  const genId=()=>'r'+Math.random().toString(36).slice(2,8);
+  function pushLog(rid,actor,act,diffs,src,ok,err,desc){
+    SERVER.logs.push({t:nowT(),actor,act,ok:ok!==false,rid:rid||'',diffs:(diffs&&diffs.length)?diffs:null,desc:desc||'',src:src||'',err:err||''});
+  }
+  if(a==='createRecords'){
+    const ids=[];
+    for(let i=0;i<p.qty;i++){const id=genId();ids.push(id);
+      SERVER.records.push({recordId:id,...p.item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:p.actor,updatedAt:now()});}
+    pushLog(ids[0],p.actor,'新增紀錄',[],p.source,true,'',`新增客戶「${p.item.customer}」／${p.item.item}　備貨紀錄`+(p.qty>1?`（批次建立 ${p.qty} 筆）`:''));
+    return{status:'success',createdCount:p.qty,ids};
+  }
+  if(a==='updateRecord'){
+    const x=SERVER.records.find(v=>v.recordId===p.recordId);
+    if(!x){pushLog(p.recordId,p.actor,'修改紀錄',[],p.source,false,'找不到這筆紀錄，可能已被刪除');return{status:'error',message:'找不到這筆紀錄，可能已被刪除'};}
+    const diffs=[];
+    Object.keys(p.changes||{}).forEach(k=>{if(String(x[k]||'')!==String(p.changes[k]||''))diffs.push({label:LBL[k]||k,before:x[k]||'',after:p.changes[k]||''});});
+    Object.assign(x,p.changes);x.updatedAt=now();
+    if(diffs.length)pushLog(p.recordId,p.actor,'修改紀錄',diffs,p.source,true,'');
+    return{status:'success',updatedAt:x.updatedAt};
+  }
+  if(a==='batchUpdate'){
+    let ok=0;
+    (p.updates||[]).forEach(u=>{
+      const x=SERVER.records.find(v=>v.recordId===u.recordId);
+      if(!x){pushLog(u.recordId,p.actor,'修改紀錄',[],'行政端總表',false,'找不到這筆紀錄');return;}
+      const diffs=[];Object.keys(u.changes||{}).forEach(k=>{if(String(x[k]||'')!==String(u.changes[k]||''))diffs.push({label:LBL[k]||k,before:x[k]||'',after:u.changes[k]||''});});
+      Object.assign(x,u.changes);x.updatedAt=now();
+      if(diffs.length){pushLog(u.recordId,p.actor,'修改紀錄',diffs,'行政端總表',true,'');ok++;}
+    });
+    return{status:'success',count:ok};
+  }
+  if(a==='deleteRecord'){
+    const before=SERVER.records.length;
+    SERVER.records=SERVER.records.filter(v=>v.recordId!==p.recordId);
+    const removed=before>SERVER.records.length;
+    pushLog(p.recordId,p.actor,'刪除紀錄',[],p.source,removed,removed?'':'找不到這筆紀錄');
+    return removed?{status:'success'}:{status:'error',message:'找不到這筆紀錄'};
+  }
+  if(a==='adminQuickCreate'){
+    const ids=[];
+    for(let i=0;i<p.qty;i++){const id=genId();ids.push(id);
+      SERVER.records.push({recordId:id,stockDate:'',batch:'',shipDate:'',item:p.item,customer:'',category:'',type:'',orderNo:'',remark:'',
+        invoiceDate:p.invoiceDate||'',invoiceNo:p.invoiceNo||'',erp:p.erp||'',loanReturn:p.loanReturn||'',loanOut:p.loanOut||'',note:'',sales:p.sales||'',updatedAt:now()});}
+    pushLog(ids[0],'行政','新增紀錄（行政）',[],'行政端網頁',true,'',`為${p.sales?'業務「'+p.sales+'」':'（尚未指定業務）'}建立 ${p.qty} 筆「${p.item}」，待補齊明細`);
+    return{status:'success',createdCount:p.qty};
+  }
+  if(a==='listBySales'){
+    return{status:'success',data:SERVER.records.filter(x=>x.sales===p.salesName)};
+  }
+  if(a==='salesInit'){
+    const records=SERVER.records.filter(x=>x.sales===p.salesName);
+    const logs=SERVER.logs.filter(l=>l.actor===p.salesName);
+    const stock=mock('getStockLevels',{salesName:p.salesName,yearMonth:p.yearMonth});
+    return{status:'success',records,logs,stock:{items:stock.items,yearMonth:stock.yearMonth,prevYearMonth:stock.prevYearMonth}};
+  }
+  if(a==='adminInit'){
+    const uniq=arr=>[...new Set(arr.filter(v=>v))];
+    return{status:'success',data:SERVER.records.slice(),options:{
+      salesNames:uniq(SERVER.records.map(r=>r.sales).concat(SERVER.sales))
+    }};
+  }
+  if(a==='adminList'){
+    let rows=SERVER.records.slice();
+    if(p.sales)rows=rows.filter(x=>x.sales===p.sales);
+    if(p.item)rows=rows.filter(x=>x.item===p.item);
+    if(p.emptyCols&&p.emptyCols.length)rows=rows.filter(x=>p.emptyCols.some(k=>!x[k]));
+    return{status:'success',data:rows};
+  }
+  if(a==='managerInit'){
+    return{status:'success',records:SERVER.records.slice(),stock:SERVER.stock.slice()};
+  }
+  if(a==='getOptions'){
+    const uniq=arr=>[...new Set(arr.filter(v=>v))];
+    return{status:'success',
+      customers:uniq(SERVER.records.map(r=>r.customer)),
+      items:SERVER.items.slice(),
+      categories:uniq(SERVER.records.map(r=>r.category)),
+      types:uniq(SERVER.records.map(r=>r.type)),
+      salesNames:uniq(SERVER.records.map(r=>r.sales).concat(SERVER.sales))
+    };
+  }
+  if(a==='getLogs'){
+    let logs=SERVER.logs.slice();
+    if(p.salesName)logs=logs.filter(l=>l.actor===p.salesName);
+    if(p.actor)logs=logs.filter(l=>l.actor===p.actor);
+    if(p.keyword){const kw=p.keyword.toLowerCase();
+      logs=logs.filter(l=>[l.actor,l.act,l.rid,l.desc,l.src,l.err,
+        (l.diffs||[]).map(d=>d.label+d.before+d.after).join(' ')].join(' ').toLowerCase().includes(kw));}
+    return{status:'success',data:logs};
+  }
+  if(a==='getStockLevels'){
+    const shiftMonth=(ym,d)=>{let[y,m]=ym.split('-').map(Number);m+=d;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return y+'-'+String(m).padStart(2,'0');};
+    const prevYM=shiftMonth(p.yearMonth,-1);
+    const openingThis={};SERVER.stock.filter(r=>r.sales===p.salesName&&r.yearMonth===p.yearMonth).forEach(r=>openingThis[r.item]=r.qty);
+    const openingPrev={};SERVER.stock.filter(r=>r.sales===p.salesName&&r.yearMonth===prevYM).forEach(r=>openingPrev[r.item]=r.qty);
+    const usedThis={},usedPrev={};
+    SERVER.records.forEach(r=>{if(r.sales!==p.salesName||!r.item)return;
+      if(r.stockDate&&r.stockDate.indexOf(p.yearMonth)===0)usedThis[r.item]=(usedThis[r.item]||0)+1;
+      if(r.stockDate&&r.stockDate.indexOf(prevYM)===0)usedPrev[r.item]=(usedPrev[r.item]||0)+1;});
+    const itemSet=new Set([...Object.keys(openingThis),...Object.keys(openingPrev),...Object.keys(usedThis)]);
+    const items=[...itemSet].map(item=>{
+      const opening=openingThis[item]!==undefined?Number(openingThis[item]):null;
+      const shipped=usedThis[item]||0;
+      const remaining=opening!==null?Math.max(0,opening-shipped):null;
+      const prevOpening=openingPrev[item]!==undefined?Number(openingPrev[item]):null;
+      const prevShipped=usedPrev[item]||0;
+      const suggestedOpening=prevOpening!==null?Math.max(0,prevOpening-prevShipped):null;
+      return{item,opening,shipped,remaining,suggestedOpening,isSet:openingThis[item]!==undefined};
+    });
+    return{status:'success',yearMonth:p.yearMonth,prevYearMonth:prevYM,items};
+  }
+  if(a==='setOpeningStock'){
+    const idx=SERVER.stock.findIndex(r=>r.sales===p.salesName&&r.yearMonth===p.yearMonth&&r.item===p.item);
+    if(idx>=0)SERVER.stock[idx].qty=p.qty;else SERVER.stock.push({yearMonth:p.yearMonth,sales:p.salesName,item:p.item,qty:p.qty});
+    pushLog('',p.actor,'設定期初庫存',[{label:`${p.item}（${p.yearMonth}）期初數量`,before:idx>=0?'（已更新）':'（未設定）',after:p.qty}],'業務端網頁',true,'');
+    return{status:'success'};
+  }
+  return{status:'error',message:'未知操作'};
+}
+
+function nowT(){return '08-07 '+new Date().toTimeString().slice(0,5);}
+// addLog：僅用於「連 API 都還沒打」的純前端驗證失敗（例如必填未填），即時顯示在畫面上。
+// 只要有實際呼叫過 api()，之後一律呼叫 refreshLogs() 以伺服器回傳的紀錄為準，取代這裡的樂觀寫入。
+function addLog(o){DB.logs.push({t:nowT(),actor:o.actor||CUR,act:o.act,ok:o.ok!==false,rid:o.rid||'',desc:o.desc||'',diffs:o.diffs||null,src:o.src||(ROLE==='admin'?'行政端網頁':'業務端網頁'),err:o.err||''});}
+async function refreshLogs(){
+  const res=await api('getLogs',{salesName:ROLE==='sales'?CUR:''});
+  if(res.status==='success')DB.logs=res.data;
+}
+
+let ROLE='sales',CUR='王大明',CUR_EMAIL='',VIEW='list',BQ=1,AQ=1,PKT=null,PKV={},EDID=null,GROUPS=[],GEDI=null,CUR_STOCK_ITEM=null;
+
+// 不管有沒有登入，一開始就把「目前是示範模式還是真的連線」的徽章插進兩個頂欄，
+// 避免再發生「畫面顯示成功，但雲端試算表其實完全沒有動」這種無聲的誤會。
+function renderModeBadges(){
+  const html = IS_LIVE
+    ? `<div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`
+    : `<span class="mode-badge demo" title="尚未連上 Google Sheet，所有資料都只存在瀏覽器裡，重新整理頁面就會消失">⚠ 示範模式（未連上試算表）</span><div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`;
+  const slot1 = document.getElementById('modeBadgeSlot1');
+  const slot2 = document.getElementById('modeBadgeSlot2');
+  const slot3 = document.getElementById('modeBadgeSlot3');
+  if (slot1) { slot1.innerHTML = html.replace('__REFRESH__','salesRefreshBtn'); slot1.querySelector('#salesRefreshBtn').setAttribute('onclick','refreshSales()'); }
+  if (slot2) { slot2.innerHTML = html.replace('__REFRESH__','adminRefreshBtn'); slot2.querySelector('#adminRefreshBtn').setAttribute('onclick','refreshAdmin()'); }
+  if (slot3) { slot3.innerHTML = html.replace('__REFRESH__','mgrRefreshBtn'); slot3.querySelector('#mgrRefreshBtn').setAttribute('onclick','refreshManager()'); }
+}
+renderModeBadges();
+let FM='2026-08',FI='',ASales='',AItem='',AEmpty=new Set(),LOGF='all';
+let GRID=[],EDITS={};
+
+function showLoad(msg){document.getElementById('loadOverlayText').textContent=msg||'讀取資料中…';document.getElementById('loadOverlay').style.display='flex';}
+function hideLoad(){document.getElementById('loadOverlay').style.display='none';}
+
+// 目前開放的帳號清單。之後要開放更多人，直接加進這個陣列即可；
+// 若要依帳號自動判斷業務／行政角色，可以改成 {email:'...',roles:['sales','admin']} 的物件陣列。
+// ══ 人員名冊：業務／行政／主管，依登入的 Google 帳號自動判斷身份，不用手動選 ══
+// 有些人同時橫跨多個角色（例如同時是行政也是主管），登入時會列出他實際擁有的身份讓他選，
+// 選過一次之後會記住（存在瀏覽器裡，跟帳號綁定），下次重新整理／重開頁面會直接回到上次選的畫面，
+// 不會再發生「明明是行政、重新整理後卻跳回業務畫面」這種情況。真正的權限判斷永遠是即時算出來的，
+// 「記住」的只是「這個帳號上次選了哪個身份」這個使用習慣，不是權限本身。
+const ROSTERS={
+  sales:[
+    {name:'翁培文',email:'mavish@goodcare-biotech.com.tw'},
+    {name:'劉仲元',email:'marcus@goodcare-biotech.com.tw'},
+    {name:'郭其融',email:'lucas@goodcare-biotech.com.tw'},
+    {name:'謝羽宸',email:'daphne-hsieh@goodcare-biotech.com.tw'},
+    {name:'羅彩鳳',email:'ran@goodcare-biotech.com.tw'},
+    {name:'李雪梅',email:'mandy@goodcare-biotech.com.tw'},
+    {name:'李靜宜',email:'ella@goodcare-biotech.com.tw'},
+    {name:'陳玉屏',email:'maggie@goodcare-biotech.com.tw'},
+    {name:'陳怡伶',email:'rita@goodcare-biotech.com.tw'},
+    {name:'陳嬿伊',email:'amychen@goodcare-biotech.com.tw'},
+    {name:'李姸慧',email:'gina@goodcare-biotech.com.tw'},
+    {name:'孫郁婷',email:'sunny@goodcare-biotech.com.tw'},
+    {name:'李佩盈',email:'patty@goodcare-biotech.com.tw'},
+    {name:'徐純慧',email:'una@goodcare-biotech.com.tw'},
+    {name:'許智評',email:'deva@goodcare-biotech.com.tw'},
+    {name:'陳文嬛',email:'renee@goodcare-biotech.com.tw'},
+    {name:'涂宇萱',email:'hannah@goodcare-biotech.com.tw'},
+    {name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'},
+    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
+  ],
+  admin:[
+    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
+    {name:'顧晨馨',email:'chenhsin@goodcare-biotech.com.tw'},
+    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},
+    {name:'邱馨儀',email:'shinyi@goodcare-biotech.com.tw'},
+    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
+    {name:'李翊瑄',email:'vera@goodcare-biotech.com.tw'},
+    {name:'楊筱筠',email:'sherry@goodcare-biotech.com.tw'},
+    {name:'盧語璇',email:'zoe@goodcare-biotech.com.tw'},
+    {name:'詹琇竹',email:'vicky@goodcare-biotech.com.tw'},
+    {name:'江翰屏',email:'vicky-chiang@goodcare-biotech.com.tw'}
+  ],
+  manager:[
+    {name:'妙玉姐',email:'kelly@goodcare-biotech.com.tw'},
+    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
+    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},
+    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
+    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
+  ]
+};
+const ROLE_LABEL={sales:'業務登入',admin:'行政登入',manager:'報表'};
+function rolesForEmail(email){
+  const roles=new Set(Object.keys(ROSTERS).filter(k=>ROSTERS[k].some(p=>p.email===email)));
+  // 主管天生具備行政檢視/操作權限，不用額外把每個主管的信箱重複登記進行政名冊
+  if(roles.has('manager')) roles.add('admin');
+  // 依畫面順序排列：業務 → 行政 → 報表，多重身份時的選擇按鈕順序才會固定、好預期
+  const order=['sales','admin','manager'];
+  return order.filter(r=>roles.has(r));
+}
+function nameForEmail(email){
+  for(const k of ['sales','admin','manager']){
+    const f=ROSTERS[k].find(p=>p.email===email);
+    if(f)return f.name;
+  }
+  return (email||'').split('@')[0]||'使用者';
+}
+
+let FIREBASE_READY=false, FIREBASE_USER=null;
+window.addEventListener('firebase-ready', ()=>{
+  FIREBASE_READY=true;
+  window.__fb.redirectResultPromise.then(result=>{
+    if(result && result.user){ handleAuthedUser(result.user); }
+  }).catch(err=>{
+    toast('Google 登入失敗：'+(err.message||err.code||'未知錯誤'), true);
+  });
+  window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
+    FIREBASE_USER=user;
+    if(user && document.getElementById('login').style.display!=='none'){
+      handleAuthedUser(user);
+    }
+  });
+});
+// LINE / Facebook / Instagram 等 App 內建瀏覽器不支援 Google 登入（會停在白畫面），
+// 只能請使用者改用系統瀏覽器開啟，這是 Google 的政策限制，不是程式可以繞過的。
+function isInAppBrowser(){
+  const ua=navigator.userAgent||'';
+  return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
+}
+function isMobile(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'') || window.innerWidth<900;
+}
+async function googleSignIn(btn){
+  if(btn.disabled)return;
+  if(!FIREBASE_READY){toast('Google 登入服務準備中，請稍後再試',true);return;}
+  if(isInAppBrowser()){
+    document.getElementById('inAppWarn').style.display='block';
+    return;
+  }
+  const orig=document.getElementById('googleBtnText').textContent;
+  btn.disabled=true;document.getElementById('googleBtnText').textContent='登入中…';
+  try{
+    if(isMobile()){
+      // 手機一律用轉址登入：彈出視窗在手機上會被 sessionStorage 隔離而報 missing initial state
+      await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider);
+      return; // 會離開本頁，回來時由 onAuthStateChanged 接手
+    }
+    const result=await window.__fb.signInWithPopup(window.__fb.auth, window.__fb.provider);
+    await handleAuthedUser(result.user);
+  }catch(err){
+    const code=err&&err.code||'';
+    if(code==='auth/popup-blocked'||code==='auth/operation-not-supported-in-this-environment'||String(err.message||'').includes('initial state')){
+      try{ await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider); return; }catch(e2){}
+    }
+    if(code!=='auth/popup-closed-by-user' && code!=='auth/cancelled-popup-request'){
+      toast('Google 登入失敗：'+(err.message||code), true);
+    }
+  }
+  btn.disabled=false;document.getElementById('googleBtnText').textContent=orig;
+}
+async function handleAuthedUser(user){
+  const email=user.email||'';
+  const roles=rolesForEmail(email);
+  if(!roles.length){
+    await window.__fb.signOut(window.__fb.auth);
+    toast('此帳號尚未開通使用權限：'+email, true);
+    return;
+  }
+  CUR_EMAIL=email; CUR=nameForEmail(email);
+  if(roles.length===1){ proceedLogin(roles[0]); return; }
+  const remembered=localStorage.getItem('lastRole:'+email);
+  if(remembered && roles.includes(remembered)){ proceedLogin(remembered); return; }
+  showRoleChooser(roles);
+}
+function showRoleChooser(roles){
+  const box=document.getElementById('roleChooserOptions');
+  box.innerHTML=roles.map(r=>`<button class="btn-role-choice" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
+  document.getElementById('googleStep').style.display='none';
+  document.getElementById('roleChooser').style.display='block';
+}
+function proceedLogin(role){
+  ROLE=role;
+  localStorage.setItem('lastRole:'+CUR_EMAIL, role);
+  document.getElementById('login').style.display='none';
+  document.getElementById('roleChooser').style.display='none';
+  document.getElementById('salesApp').style.display='none';
+  document.getElementById('adminApp').style.display='none';
+  document.getElementById('managerApp').style.display='none';
+  if(role==='admin'){
+    document.getElementById('adminApp').style.display='block';
+    setupRoleSwitcher('adminSwitchRole');
+    loadAdminData();
+  }else if(role==='manager'){
+    document.getElementById('managerApp').style.display='block';
+    document.getElementById('mgrName').textContent=CUR;
+    setupRoleSwitcher('mgrSwitchRole');
+    loadManagerData();
+  }else{
+    // 業務登入直接看到「備貨登記」畫面可以馬上開始打字（表單本身不需要等資料回來才能用），
+    // 資料在背景悄悄載入，載完再把「我的紀錄／庫存統計／待補齊／操作紀錄」這幾個分頁的內容補上，
+    // 不會為了這些之後才需要看的資料，讓業務多等一次可以馬上使用的畫面。
+    document.getElementById('salesApp').style.display='block';
+    document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
+    setupRoleSwitcher('salesSwitchRole');
+    loadSalesData(true); // true = 靜默背景載入，不擋畫面、不show loading圖層
+  }
+}
+function setupRoleSwitcher(slotId){
+  const el=document.getElementById(slotId);
+  if(!el)return;
+  const roles=rolesForEmail(CUR_EMAIL).filter(r=>r!==ROLE);
+  if(roles.length){
+    el.style.display='flex';
+    el.innerHTML=`<span style="font-size:11px;color:var(--tx-3);align-self:center">切換身份：</span>`+
+      roles.map(r=>`<button class="btn-g" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
+  }else{ el.style.display='none'; el.innerHTML=''; }
+}
+function logout(){
+  if(window.__fb && window.__fb.auth) window.__fb.signOut(window.__fb.auth).catch(()=>{});
+  document.getElementById('login').style.display='flex';
+  document.getElementById('googleStep').style.display='block';
+  document.getElementById('roleChooser').style.display='none';
+  document.getElementById('salesApp').style.display='none';
+  document.getElementById('adminApp').style.display='none';
+  document.getElementById('managerApp').style.display='none';
+  const gb=document.getElementById('googleBtn');if(gb){gb.disabled=false;document.getElementById('googleBtnText').textContent='使用 Google 帳號登入';}
+}
+
+// ── 真正的資料讀取：登入 / 手動重新整理都會呼叫這裡，一律以伺服器（或 mock 的 SERVER）為準 ──
+const CURRENT_YM='2026-08';
+let STOCK_LEVELS=[];
+async function loadSalesData(silent){
+  if(!silent)showLoad('讀取您的備貨紀錄中…');
+  try{
+    // 合併成一趟請求：原本要打三次 API（各自都是一趟獨立的網路來回＋GAS 啟動開銷），
+    // 現在後端一次算好三個部分一起回傳，網路來回從 3 趟降到 1 趟。
+    const res=await api('salesInit', {salesName:CUR, yearMonth:CURRENT_YM});
+    if(res.status==='success'){
+      DB.records = res.records||[];
+      DB.logs = res.logs||[];           // 後端已一併回傳，不需額外再打一次
+      STOCK_LEVELS = res.stock&&res.stock.items||[];
+      SALES_LOGS_LOADED=false;   // 資料有變動，下次點開操作紀錄時重新抓最新的
+      autoFitColumns(REC_COL_W, DB.records, {resizeHandle:true});
+    }else if(!silent) toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
+    initSales();
+  }catch(err){
+    if(!silent) toast('連線失敗，暫時顯示上次的資料：'+err.message, true);
+    initSales();
+  }finally{ if(!silent) hideLoad(); }
+}
+async function refreshSales(){
+  const btn=document.getElementById('salesRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  await loadSalesData(false);
+  btn.textContent=old;toast('已更新為最新資料');
+}
+
+let ADMIN_LOGS_LOADED=false;
+async function loadAdminData(){
+  showLoad('讀取整份總表中…');
+  try{
+    // 合併成一趟請求：原本 adminList + getOptions 是兩趟獨立來回，且各自在 GAS 裡都重新讀一次
+    // 整張工作表；現在後端只讀一次，兩份資料一起算好回傳。這裡故意不帶篩選條件——
+    // 一定要抓「全部」資料回來，篩選 chip 才能在瀏覽器裡即時切換，不用每點一次就重打一次 API。
+    const res=await api('adminInit', {});
+    if(res.status==='success'){
+      DB.records = res.data||[];
+      if(res.options && res.options.salesNames && res.options.salesNames.length) SALES_NAMES = res.options.salesNames;
+      autoFitColumns(GRID_COL_W, DB.records, {resizeHandle:true});
+    }else toast('讀取總表失敗：'+(res.message||'未知錯誤'), true);
+    ADMIN_LOGS_LOADED=false;
+    initAdmin();
+  }catch(err){
+    toast('連線失敗，暫時顯示上次的資料：'+err.message, true);
+    initAdmin();
+  }finally{ hideLoad(); }
+}
+async function ensureAdminLogsLoaded(force){
+  if(ADMIN_LOGS_LOADED&&!force)return;
+  document.getElementById('aLogList').innerHTML=`<div class="emp-s">讀取操作紀錄中…</div>`;
+  try{
+    const res=await api('getLogs', {
+      keyword:document.getElementById('logKw').value.trim(),
+      actor:document.getElementById('logActor').value,
+      dateFrom:document.getElementById('logFrom').value,
+      dateTo:document.getElementById('logTo').value
+    });
+    if(res.status==='success'){
+      DB.logs=res.data; ADMIN_LOGS_LOADED=true;
+      fillLogActorOptions();
+      document.getElementById('aLogCount').textContent='共 '+res.data.length+' 筆';
+    }else{
+      document.getElementById('aLogList').innerHTML=`<div class="emp-s" style="color:var(--bad)">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;
+      return;
+    }
+    renderALog();
+  }catch(err){
+    document.getElementById('aLogList').innerHTML=`<div class="emp-s" style="color:var(--bad)">連線失敗：${esc(err.message)}</div>`;
+  }
+}
+function fillLogActorOptions(){
+  const sel=document.getElementById('logActor'), cur=sel.value;
+  const names=[...new Set(DB.logs.map(l=>l.actor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-TW'));
+  sel.innerHTML='<option value="">全部人員</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  if(names.includes(cur))sel.value=cur;
+}
+let _logTimer=null;
+function debounceLogSearch(){clearTimeout(_logTimer);_logTimer=setTimeout(applyLogSearch,400);}
+function applyLogSearch(){ensureAdminLogsLoaded(true);}
+function resetLogSearch(){
+  document.getElementById('logKw').value='';
+  document.getElementById('logActor').value='';
+  document.getElementById('logFrom').value='';
+  document.getElementById('logTo').value='';
+  ensureAdminLogsLoaded(true);
+}
+async function refreshAdmin(){
+  const btn=document.getElementById('adminRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  await loadAdminData();
+  btn.textContent=old;toast('已更新為最新資料');
+}
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function jse(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+// 統一的「送出中」狀態：一按下就立刻鎖住按鈕＋換成 loading 文字，防止手滑連點兩三下重複建立；
+// 完成或失敗後一律呼叫 busy(btn,false) 還原。
+function busy(btn,on,label){
+  if(!btn)return;
+  if(on){ if(btn.dataset.orig===undefined)btn.dataset.orig=btn.textContent; btn.disabled=true; btn.style.opacity='.6'; btn.style.cursor='not-allowed'; btn.textContent=label||'處理中…'; }
+  else { btn.disabled=false; btn.style.opacity=''; btn.style.cursor=''; if(btn.dataset.orig!==undefined)btn.textContent=btn.dataset.orig; }
+}
+function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.classList.toggle('bad',!!bad);t.classList.add('on');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
+function mk(el){const w=el.closest('.fw');const v=el.value&&el.value.trim()!=='';el.classList.toggle('on',v);if(w)w.classList.toggle('ok',v);fillCount();}
+function fillCount(){const el=document.getElementById('fCnt');if(el)el.textContent=document.querySelectorAll('#pg-reg .fw.ok').length;}
+function qd(id,off){const d=new Date('2026-08-07');d.setDate(d.getDate()+off);const el=document.getElementById(id);el.value=d.toISOString().slice(0,10);mk(el);}
+function bq(d){BQ=Math.max(1,Math.min(50,BQ+d));document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
+function bqSetLive(v){document.getElementById('bqBtnN').textContent=(parseInt(v)||0);}
+function bqSet(v){let n=parseInt(v);if(isNaN(n)||n<1)n=1;if(n>50)n=50;BQ=n;document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
+function aq(d){AQ=Math.max(1,Math.min(50,AQ+d));document.getElementById('aqV').textContent=AQ;}
+function val(id){return document.getElementById(id).value.trim();}
+
+// 業務端的客戶名稱／科別／賣備樣，只取「自己」曾經建立過的歷史值；品項為公司固定品項清單，兩者皆去除空值並排序
+function myHistory(field){const s=new Set();DB.records.forEach(x=>{if(x.sales===CUR&&x[field])s.add(x[field]);});return[...s].sort((a,b)=>a.localeCompare(b,'zh-TW'));}
+const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l:()=>myHistory('customer')},
+  item:{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
+  category:{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
+  type:{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
+  'ac-item':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
+  'ac-sales':{t:'選擇業務',ph:'請選擇業務',l:()=>SALES_NAMES},
+  'stock-item':{t:'選擇要設定期初庫存的品項',ph:'',l:()=>ITEM_CATALOG},
+  'admin-sales-filter':{t:'篩選業務',ph:'',l:()=>SALES_NAMES},
+  'admin-item-filter':{t:'篩選品項',ph:'',l:()=>ITEM_CATALOG}};
+function openPk(k){PKT=k;document.getElementById('pkT').textContent=PK[k].t;document.getElementById('pkS').value='';
+  document.getElementById('pkBg').classList.add('on');renderPk();setTimeout(()=>document.getElementById('pkS').focus(),80);}
+function closePk(){document.getElementById('pkBg').classList.remove('on');}
+function renderPk(){const all=PK[PKT].l(),q=document.getElementById('pkS').value.trim(),cur=PKV[PKT]||'';
+  const f=q?all.filter(v=>v.includes(q)):all;let h='';
+  if(!f.length&&!q)h+=`<div class="pk-e">尚無歷史紀錄，請直接輸入後按右上角「確認」</div>`;
+  h+=f.map(v=>`<div class="pk-it ${v===cur?'on':''}" onclick="pickV('${jse(v)}')">${esc(v)}${v===cur?'<span>✓</span>':''}</div>`).join('');
+  document.getElementById('pkL').innerHTML=h;}
+function confirmCustomPk(){
+  const v=document.getElementById('pkS').value.trim();
+  if(!v){toast('請先輸入內容',true);return;}
+  pickV(v);
+}
+function pickV(v){
+  if(PKT==='stock-item'){closePk();openStockEditFor(v);return;} // 一次性動作，不對應畫面上常駐的欄位
+  if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
+  if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
+  PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
+  s.textContent=v;s.classList.remove('ph');b.classList.add('on');b.closest('.fw').classList.add('ok');closePk();fillCount();}
+function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
+  s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');b.closest('.fw').classList.remove('ok');fillCount();}
+
+/* ── SALES ── */
+function initSales(){renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();renderLogs();fillCount();}
+let SALES_LOGS_LOADED=false;
+async function ensureSalesLogsLoaded(){
+  if(SALES_LOGS_LOADED)return;
+  document.getElementById('logList').innerHTML=`<div class="emp-s">讀取操作紀錄中…</div>`;
+  const res=await api('getLogs',{salesName:CUR});
+  if(res.status==='success'){DB.logs=res.data;SALES_LOGS_LOADED=true;}
+  renderLogs();
+}
+function tab(n,b){document.querySelectorAll('#salesApp .pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('#salesApp .nav-b').forEach(x=>x.classList.remove('on'));
+  document.getElementById('pg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});
+  if(n==='logs')ensureSalesLogsLoaded();}
+function setView(v){VIEW=v;document.getElementById('vL').classList.toggle('on',v==='list');
+  document.getElementById('vG').classList.toggle('on',v==='group');renderRec();}
+function renderMChips(){const ms=['2026-08','2026-07','2026-06'];
+  document.getElementById('mChips').innerHTML=ms.map(m=>`<button class="chip ${FM===m?'on':''}" onclick="FM='${m}';renderMChips();renderRec()">${m.slice(0,4)}年${+m.slice(5)}月</button>`).join('');}
+function renderIChips(){const cnt={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>cnt[x.item]=(cnt[x.item]||0)+1);
+  document.getElementById('iChips').innerHTML=`<button class="chip ${FI===''?'on':''}" onclick="FI='';renderIChips();renderRec()">全部</button>`+
+    Object.keys(cnt).map(i=>`<button class="chip ${FI===i?'on':''}" onclick="FI='${jse(i)}';renderIChips();renderRec()">${esc(i)}<span class="n">${cnt[i]}</span></button>`).join('');}
+function myRecs(){return DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)&&(!FI||x.item===FI));}
+function stOf(x){return (x.invoiceDate||x.invoiceNo)?'sh':'hd';}
+function pendRecs(){return DB.records.filter(x=>x.sales===CUR&&!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn));}
+let RECFULL=false;
+function toggleRecFull(){RECFULL=!RECFULL;renderRecHead();renderRec();}
+let GRID_COL_W={}, REC_COL_W={};
+function colW(store,c){ if(store[c.k]===undefined) store[c.k]=c.w; return store[c.k]; }
+let _measureCtx=null;
+function measureTextW(text,font){
+  if(!_measureCtx){_measureCtx=document.createElement('canvas').getContext('2d');}
+  _measureCtx.font=font;
+  return _measureCtx.measureText(String(text==null?'':text)).width;
+}
+const MONO_FONT="500 12px 'IBM Plex Mono',monospace";
+const CJK_FONT="12.5px 'Noto Sans TC',sans-serif";
+const HEAD_FONT="700 11.5px 'Noto Sans TC',sans-serif";
+const MONO_COL_KEYS=new Set(['stockDate','batch','shipDate','invoiceDate','invoiceNo','orderNo']);
+const BADGE_COL_KEYS=new Set(['batch','shipDate','item']);
+function autoFitColumns(store, rows, opts){
+  opts=opts||{};
+  COLS.forEach(c=>{
+    const font=MONO_COL_KEYS.has(c.k)?MONO_FONT:CJK_FONT;
+    let max=measureTextW(c.n,HEAD_FONT)+26;
+    if(BADGE_COL_KEYS.has(c.k))max+=30;
+    if(opts.resizeHandle)max+=10;
+    rows.forEach(r=>{
+      const v=r[c.k];
+      if(v===undefined||v===null||v==='')return;
+      const w=measureTextW(v,font)+26;
+      if(w>max)max=w;
+    });
+    store[c.k]=Math.max(46,Math.min(320,Math.round(max)));
+  });
+}
+// 欄寬可拖曳調整：只在拖曳當下用 requestAnimationFrame 節流更新，放開滑鼠就完全沒有任何運算，
+// 跟一般試算表／Notion 的拖曳欄寬做法一樣，不會有額外耗能。
+function attachColResize(rowId, colgroupId, store){
+  const row=document.getElementById(rowId), colgroup=document.getElementById(colgroupId);
+  if(!row||!colgroup) return;
+  const tableId = colgroupId==='recCol' ? 'recTableEl' : 'gridTableEl';
+  row.querySelectorAll('.col-rs').forEach(handle=>{
+    handle.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      const key=handle.dataset.col, idx=COLS.findIndex(c=>c.k===key), col=colgroup.children[idx];
+      if(!col) return;
+      handle.classList.add('active');
+      const table=document.getElementById(tableId);
+      const startX=e.clientX, startW=col.offsetWidth||parseInt(col.style.width)||80;
+      const startTableW=table?(parseInt(table.style.width)||table.offsetWidth):0;
+      let raf=null, pending=startW;
+      document.body.style.cursor='col-resize';
+      function onMove(ev){
+        pending=Math.max(40, startW+(ev.clientX-startX));
+        if(!raf) raf=requestAnimationFrame(()=>{
+          col.style.width=pending+'px';
+          if(table)table.style.width=(startTableW+(pending-startW))+'px'; // 欄寬變動時同步調整表格總寬，維持 table-layout:fixed 正確運作
+          raf=null;
+        });
+      }
+      function onUp(){
+        store[key]=pending;
+        document.removeEventListener('mousemove',onMove);
+        document.removeEventListener('mouseup',onUp);
+        document.body.style.cursor=''; handle.classList.remove('active');
+      }
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+  });
+}
+function renderRecHead(){
+  document.getElementById('recCol').innerHTML=COLS.map(c=>
+    `<col style="width:${colW(REC_COL_W,c)}px" class="${c.role==='a'&&!RECFULL?'colhide':''}">`).join('')+'<col style="width:112px">';
+  // 收合鈕放在最尾巴的「狀態」表頭裡，不另外佔一整欄——否則下方每一列都要跟著空一格，很奇怪
+  document.getElementById('recHead').innerHTML=COLS.map(c=>
+    `<th class="${c.role==='a'&&!RECFULL?'colhide':''}">${c.n}<span class="col-rs" data-col="${c.k}"></span></th>`).join('')
+    +`<th class="th-status">狀態<button type="button" class="th-toggle" onclick="event.stopPropagation();toggleRecFull()" title="${RECFULL?'收合發票～業務欄位':'展開發票～業務欄位'}">${RECFULL?'－':'＋'}</button></th>`;
+  attachColResize('recHead','recCol',REC_COL_W);
+  setExactTableWidth('recTableEl',COLS,REC_COL_W,RECFULL,112);
+}
+// table-layout:fixed 若搭配 width:auto／max-content，瀏覽器仍會依內容微調各欄比例，
+// 導致「明明宣告一樣的寬度，實際畫出來卻不一樣大」——這就是欄寬設定看起來沒生效的真正原因。
+// 正確做法：table 本身要有「明確的總寬度」（所有欄位寬度加總），瀏覽器才會完全按照宣告值分配，
+// 不再受標題文字長短或內容影響。
+function setExactTableWidth(tableId,cols,store,onlyVisible,extra){
+  const table=document.getElementById(tableId);
+  if(!table)return;
+  let total=0;
+  cols.forEach(c=>{ if(onlyVisible!==undefined && c.role==='a' && !onlyVisible) return; total+=colW(store,c); });
+  table.style.width=(total+(extra||0))+'px';
+}
+function recRowHtml(x){
+  return `<tr onclick="openEd('${x.recordId}')" style="cursor:pointer">`+COLS.map(c=>
+    `<td class="pad ${(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate'||c.k==='orderNo'||c.k==='invoiceNo'||c.k==='batch')?'mn':''} ${c.role==='a'&&!RECFULL?'colhide':''}">${esc(x[c.k]||'—')}</td>`).join('')+
+    `<td class="pad"><span class="sm ${stOf(x)==='sh'?'g':'h'}">${stOf(x)==='sh'?'已出貨':'庫存中'}</span></td></tr>`;
+}
+function renderRec(){
+  const rows=myRecs(),el=document.getElementById('recCards');
+  if(!rows.length)el.innerHTML=`<div class="emp"><div class="emp-i">＋</div><div class="emp-t">本月尚無備貨紀錄</div><div class="emp-s">前往「備貨登記」新增第一筆</div></div>`;
+  else if(VIEW==='list')el.innerHTML=rows.map(x=>`<div class="rc" onclick="openEd('${x.recordId}')"><div class="rc-s ${stOf(x)}"></div>
+    <div class="rc-b"><div class="rc-t"><span class="rc-c">${esc(x.customer||'（未填）')}</span><span class="bg ${stOf(x)}">${stOf(x)==='sh'?'已出貨':'庫存中'}</span></div>
+    <div class="rc-i" style="color:${itemColor(x.item)}">${esc(x.item||'（未填）')}</div>
+    <div class="rc-m">${typeBadge(x.type)}<span class="mn">${esc(x.stockDate)}</span><span>科別 <b>${esc(x.category||'—')}</b></span><span>單號 <b>${esc(x.orderNo||'—')}</b></span></div>
+    </div><div class="rc-a">›</div></div>`).join('');
+  else{const g={};rows.forEach(x=>{const k=x.stockDate+'|'+x.customer+'|'+x.item;(g[k]=g[k]||[]).push(x)});
+    GROUPS=Object.values(g);
+    el.innerHTML=GROUPS.map((its,i)=>{const f=its[0];
+      return `<div class="rc" onclick="tg(${i})"><div class="rc-s ${stOf(f)}"></div><div class="rc-b">
+      <div class="rc-t"><span class="rc-c">${esc(f.customer||'（未填）')}<span class="rc-q">×${its.length}</span></span><span class="bg ${stOf(f)}">${stOf(f)==='sh'?'已出貨':'庫存中'}</span></div>
+      <div class="rc-i" style="color:${itemColor(f.item)}">${esc(f.item||'（未填）')}</div>
+      <div class="rc-m"><span class="mn">${esc(f.stockDate)}</span><span>科別 <b>${esc(f.category||'—')}</b></span>
+        <span class="rc-batch" onclick="event.stopPropagation();openGroupEdit(${i})">批次編輯本組 ›</span></div>
+      <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')}　${stOf(x)==='sh'?'已出貨':'庫存中'}</span><span>編輯 ›</span></div>`).join('')}</div>
+      </div><div class="rc-a">▾</div></div>`;}).join('');}
+
+  if(VIEW==='list'){
+    document.getElementById('recTB').innerHTML=rows.map(recRowHtml).join('');
+  }else{
+    const g={};rows.forEach(x=>{const k=x.stockDate+'|'+x.customer+'|'+x.item;(g[k]=g[k]||[]).push(x)});
+    const totalCols=COLS.length+1;
+    document.getElementById('recTB').innerHTML=Object.values(g).map((its,i)=>{const f=its[0];
+      const parent=`<tr class="grp-row" onclick="tgT(${i})" style="cursor:pointer;background:var(--sub)">
+        <td class="pad mn">${esc(f.stockDate)}</td><td class="pad" colspan="${totalCols-1}">
+          <b>${esc(f.customer||'（未填）')}</b>　${esc(f.item||'（未填）')}　<span class="mn" style="color:var(--nav-2)">×${its.length} 筆</span>
+          <span style="float:right;color:var(--tx-3)">展開 ▾</span></td></tr>`;
+      const children=its.map(x=>`<tr id="tgt-${i}" style="display:none">`+recRowHtml(x).replace(/^<tr[^>]*>/,'')).join('');
+      return parent+children;
+    }).join('');
+  }
+
+  document.getElementById('s1').textContent=rows.length;
+  document.getElementById('s2').textContent=rows.filter(x=>stOf(x)==='sh').length;
+  document.getElementById('s3').textContent=rows.filter(x=>stOf(x)==='hd').length;
+  document.getElementById('s4').textContent=pendRecs().length;
+  renderIB();
+}
+function tg(i){document.getElementById('g'+i).classList.toggle('o');}
+const ITEM_PALETTE=['#16304C','#166B47','#8C6E32','#7A3B69','#2C6B6B','#8A5D0B','#5A4FA0','#B5342C'];
+function itemColor(name){if(!name)return'var(--tx)';let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;
+  return ITEM_PALETTE[h%ITEM_PALETTE.length];}
+const TYPE_COLOR={'賣':'sell','備':'prep','樣':'sample'};
+function typeBadge(t){if(!t)return'';const cls=TYPE_COLOR[t];const label=cls?t:'其它';
+  return `<span class="tbadge${cls?' '+cls:' o'}" title="${esc(t)}">${label}</span>`;}
+function tgT(i){document.querySelectorAll(`#tgt-${i}`).forEach(r=>{r.style.display=r.style.display==='none'?'table-row':'none';});}
+function keyHtml(){return `<div class="key"><span><i style="background:var(--ok)"></i>已出貨</span><span><i style="background:var(--nav-3)"></i>庫存中</span></div>`;}
+function renderIB(){const m={};myRecs().forEach(x=>{if(!x.item)return;m[x.item]=m[x.item]||{sh:0,hd:0};m[x.item][stOf(x)]++});
+  const e=Object.entries(m);
+  document.getElementById('ibRec').innerHTML=e.length?e.map(([n,v])=>{const t=v.sh+v.hd,p=Math.round(v.sh/t*100);
+    return `<div class="sp"><div class="sp-t"><span class="sp-n">${esc(n)}</span><span class="sp-v">共 <b>${t}</b> 筆</span></div>
+    <div class="stk"><div class="a" style="width:${p}%"></div><div class="b" style="width:${100-p}%"></div></div></div>`;}).join('')+keyHtml()
+    :`<div class="emp-s">本月尚無資料</div>`;}
+function pctDelta(elId,cur,prev){
+  const el=document.getElementById(elId);if(!el)return;
+  if(!prev){el.textContent=cur>0?'首次紀錄':'—';el.className='dlt';return;}
+  const pct=Math.round((cur-prev)/prev*100),up=pct>=0;
+  el.innerHTML=(up?'▲ ':'▼ ')+Math.abs(pct)+'% 較上月';
+  el.className='dlt '+(up?'up':'down');
+}
+function renderStats(){
+  const rows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith('2026-08'));
+  const prevRows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith('2026-07'));
+  const cShip=rows.filter(x=>stOf(x)==='sh').length,cHold=rows.filter(x=>stOf(x)==='hd').length,cPend=pendRecs().length;
+  const pShip=prevRows.filter(x=>stOf(x)==='sh').length,pHold=prevRows.filter(x=>stOf(x)==='hd').length;
+  document.getElementById('t1').textContent=rows.length;
+  document.getElementById('t2').textContent=cShip;
+  document.getElementById('t3').textContent=cHold;
+  document.getElementById('t4').textContent=cPend;
+  pctDelta('t1d',rows.length,prevRows.length);
+  pctDelta('t2d',cShip,pShip);
+  pctDelta('t3d',cHold,pHold);
+  document.getElementById('t4d').textContent=cPend?'需要您的確認':'已全部補齊';
+  document.getElementById('t4d').className='dlt'+(cPend?' down':' up');
+
+  const v=[39,52,33,62,47,rows.length||1],mx=Math.max(...v);
+  document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===5?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
+
+  // 品項庫存明細 → 用系統本來的克制視覺語言呈現：白底、髮絲細線、色彩只當作極輕的識別accent
+  // （細線＋色塊＋數字色），不做滿版漸層卡片。一律列出「全部品項」，沒有紀錄的規格直接顯示 0。
+  const fam={};
+  PRODUCT_FAMILIES.forEach(f=>{
+    fam[f.key]={name:f.name,color:f.color,items:{}};
+    f.items.forEach(itemName=>{fam[f.key].items[itemName]={sh:0,hd:0};});
+  });
+  DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>{
+    const f=familyOf(x.item);
+    if(!fam[f.key])return;
+    if(!fam[f.key].items[x.item])fam[f.key].items[x.item]={sh:0,hd:0};
+    fam[f.key].items[x.item][stOf(x)]++;
+  });
+  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]);
+  document.getElementById('ibStat').innerHTML=`<div class="fam-page-grid">`+famList.map((f,i)=>{
+    let famTotal=0;Object.values(f.items).forEach(v=>{famTotal+=v.sh+v.hd;});
+    const specCells=Object.entries(f.items).map(([n,vv])=>
+      `<div class="fam-spec-cell"><div class="fsn">${esc(n)}</div><div class="fsv">${vv.sh+vv.hd}</div></div>`).join('');
+    // 第一個品牌（NewEpi，規格最多）獨占整行；其餘品牌並排在下方同一列，色彩只用在頂線／色塊／數字
+    return `<div class="fam-card ${i===0?'fam-card-wide':''}" style="border-top-color:${f.color}">
+      <div class="fam-card-head"><span class="fam-swatch" style="background:${f.color}"></span><span class="fam-card-name">${esc(f.name)}</span></div>
+      <div class="fam-card-total" style="color:${f.color}">${famTotal}</div>
+      <div class="fam-spec-row">${specCells}</div>
+    </div>`;
+  }).join('')+`</div>`;
+
+  // 客戶排行榜（本月，依備貨筆數）
+  const cm={};rows.forEach(x=>{if(x.customer)cm[x.customer]=(cm[x.customer]||0)+1;});
+  const rank=Object.entries(cm).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const rmax=rank.length?rank[0][1]:1;
+  document.getElementById('topCust').innerHTML=rank.length?rank.map(([name,cnt],i)=>
+    `<div class="rank-row"><span class="rank-n mn">${String(i+1).padStart(2,'0')}</span><span class="rank-name">${esc(name)}</span>
+     <div class="rank-bar"><span style="width:${Math.round(cnt/rmax*100)}%"></span></div><span class="rank-v mn">${cnt}</span></div>`).join('')
+    :`<div class="emp-s">本月尚無資料</div>`;
+
+  // 出貨效率：備貨日期到送貨日期的天數分佈
+  const withShip=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.shipDate);
+  const el1=document.getElementById('fulfillAvg'),elN=document.getElementById('fulfillN');
+  if(withShip.length){
+    const days=withShip.map(x=>(new Date(x.shipDate)-new Date(x.stockDate))/86400000);
+    const avg=(days.reduce((a,b)=>a+b,0)/days.length).toFixed(1);
+    el1.textContent=avg;elN.textContent=withShip.length;
+    const bk={f:0,m:0,s:0};days.forEach(d=>{if(d<=1)bk.f++;else if(d<=3)bk.m++;else bk.s++;});
+    const tt=withShip.length;
+    document.getElementById('fulfillBars').innerHTML=[
+      ['0–1 天',bk.f],['2–3 天',bk.m],['4 天以上',bk.s]
+    ].map(([lbl,n])=>`<div class="fb-row"><span>${lbl}</span><div class="fb-track"><span style="width:${Math.round(n/tt*100)}%"></span></div><span class="mn">${n}</span></div>`).join('');
+  }else{el1.textContent='—';elN.textContent='0';document.getElementById('fulfillBars').innerHTML=`<div class="emp-s">尚無已送貨的紀錄可供計算</div>`;}
+}
+function renderStockRows(){
+  const el=document.getElementById('stockRows');
+  document.getElementById('stockYM').textContent=CURRENT_YM.slice(0,4)+'年'+(+CURRENT_YM.slice(5))+'月';
+  if(!STOCK_LEVELS.length){
+    el.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">尚未設定任何品項的期初庫存</div><div class="emp-s">點選下方按鈕新增第一個品項</div></div>`;
+    return;
+  }
+  el.innerHTML=STOCK_LEVELS.slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW')).map(it=>{
+    if(!it.isSet){
+      const sug=it.suggestedOpening!==null?`（上月剩餘 <b>${it.suggestedOpening}</b> 可帶入）`:'';
+      return `<div class="stk-row"><div class="stk-unset">${esc(it.item)} — 本月尚未設定期初庫存 ${sug}</div>
+        <span class="stk-edit" onclick="openStockEditFor('${jse(it.item)}')">設定 ›</span></div>`;
+    }
+    const low=it.remaining!==null&&it.remaining<=2;
+    return `<div class="stk-row">
+      <div class="stk-name">${esc(it.item)}</div>
+      <div class="stk-mini"><div class="v mn">${it.opening}</div><div class="k">期初</div></div>
+      <div class="stk-mini"><div class="v mn">－${it.shipped}</div><div class="k">本月已出貨</div></div>
+      <div class="stk-remain"><div class="v ${low?'low':''}">${it.remaining}</div><div class="k">本月剩餘</div></div>
+      <span class="stk-edit" onclick="openStockEditFor('${jse(it.item)}')">編輯 ›</span>
+    </div>`;
+  }).join('');
+}
+function openAddStockItem(){openPk('stock-item');}
+function openStockEditFor(item){
+  CUR_STOCK_ITEM=item;
+  document.getElementById('stockItemName').textContent=item;
+  document.getElementById('stockRef').textContent=CURRENT_YM;
+  const existing=STOCK_LEVELS.find(x=>x.item===item);
+  const qtyEl=document.getElementById('stock-qty');
+  qtyEl.value=(existing&&existing.isSet)?existing.opening:'';mk(qtyEl);
+  const sugEl=document.getElementById('stockSuggest');
+  if(existing&&existing.suggestedOpening!==null&&!existing.isSet){
+    sugEl.innerHTML=`上個月（${(function(){const[y,m]=CURRENT_YM.split('-').map(Number);let py=y,pm=m-1;if(pm<1){pm=12;py--;}return py+'年'+pm+'月';})()}）剩餘 <b>${existing.suggestedOpening}</b>，
+      <span style="color:var(--nav-2);text-decoration:underline;cursor:pointer" onclick="document.getElementById('stock-qty').value=${existing.suggestedOpening};mk(document.getElementById('stock-qty'))">帶入這個數字</span>`;
+  }else{ sugEl.innerHTML=''; }
+  document.getElementById('stockMv').classList.add('on');
+}
+function closeStockEdit(){document.getElementById('stockMv').classList.remove('on');}
+async function saveStockEdit(btn){
+  if(btn&&btn.disabled)return;
+  const qty=parseInt(document.getElementById('stock-qty').value);
+  if(isNaN(qty)||qty<0){toast('請輸入正確的數量',true);return;}
+  busy(btn,true,'儲存中…');
+  const res=await api('setOpeningStock',{salesName:CUR,yearMonth:CURRENT_YM,item:CUR_STOCK_ITEM,qty,actor:CUR});
+  if(res.status==='success'){
+    closeStockEdit();
+    toast(`已設定「${CUR_STOCK_ITEM}」期初庫存為 ${qty}`);
+    busy(btn,false);
+    const [sRes] = await Promise.all([ api('getStockLevels',{salesName:CUR,yearMonth:CURRENT_YM}), refreshLogs() ]);
+    if(sRes.status==='success')STOCK_LEVELS=sRes.items||[];
+    renderStockRows();renderLogs();
+  }else{ toast('儲存失敗：'+(res.message||'未知錯誤'),true); busy(btn,false); }
+}
+function renderPend(){const rows=pendRecs(),n=rows.length;
+  document.getElementById('pCnt').textContent=n;document.getElementById('pCnt2').textContent=n;
+  document.getElementById('pAlert').style.display=n?'flex':'none';
+  document.getElementById('pDot').style.display=n?'inline-block':'none';
+  const el=document.getElementById('pendList');
+  if(!n){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-i">✓</div><div class="emp-t">目前沒有待補齊項目</div><div class="emp-s">所有資料都已完整</div></div></div>`;return;}
+  el.innerHTML=rows.map(x=>`<div class="pd"><div class="pd-t"><span class="pd-n">${esc(x.item||'（未指定品項）')}</span><span class="pd-d">${esc(x.invoiceDate||'—')}</span></div>
+    <div class="pd-s">${x.invoiceNo?'發票 '+esc(x.invoiceNo)+' 已開立，':''}尚未有客戶與明細資料</div>
+    <button class="pd-a" onclick="openEd('${x.recordId}')">補齊資料</button></div>`).join('');}
+let LOG_CACHE=[];
+function renderLogs(){const l=DB.logs.filter(x=>x.actor===CUR);
+  LOG_CACHE=l.slice().reverse();
+  document.getElementById('logList').innerHTML=LOG_CACHE.length?`<div class="tl-wrap">`+LOG_CACHE.map((x,i)=>logHtml(x,i)).join('')+`</div>`:`<div class="emp-s">尚無操作紀錄</div>`;}
+function logHtml(l,i){
+  LOG_CACHE[i]=l;
+  let summary='',hasMore=false;
+  if(l.diffs&&l.diffs.length){
+    const shown=l.diffs.slice(0,2);
+    summary=shown.map(d=>`${esc(d.label)}：<span class="dl">${esc(d.before||'（空白）')}</span> → <span class="nw">${esc(d.after||'（空白）')}</span>`).join('　');
+    hasMore=l.diffs.length>2;
+  }else{ summary=esc(l.desc||''); }
+  if(!l.ok&&l.err)summary+=(summary?'　':'')+`<span style="color:var(--bad)">失敗原因：${esc(l.err)}</span>`;
+  const dotClass=!l.ok?'fail':(l.diffs?'edit':'create');
+  const needsDetail=hasMore||(l.diffs&&l.diffs.length>0);
+  return `<div class="tl-item">
+    <div class="tl-time">${esc(l.t)}</div>
+    <div class="tl-line"><span class="tl-dot ${dotClass}"></span></div>
+    <div class="tl-card">
+      <div class="tl-top"><span class="tl-act ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span><span class="tl-actor">${esc(l.actor)}</span></div>
+      <div class="tl-summary">${summary}</div>
+      <div class="tl-foot"><span class="tl-src">${esc(l.src||'')}</span>${needsDetail?`<button type="button" class="tl-detail-btn" onclick="openLogDetail(${i})">查看完整明細 ›</button>`:''}</div>
+    </div>
+  </div>`;}
+function openLogDetail(i){
+  const l=LOG_CACHE[i];if(!l)return;
+  document.getElementById('logDetailTitle').textContent=`${l.act}${l.ok?'':'（失敗）'}`;
+  document.getElementById('logDetailMeta').textContent=`${l.tFull||l.t} · ${l.actor||''} · ${l.src||''}`;
+  let body='';
+  if(l.diffs&&l.diffs.length){
+    body=l.diffs.map(d=>`<div class="ld-row"><span class="ld-k">${esc(d.label)}</span><span class="ld-v"><span class="dl">${esc(d.before||'（空白）')}</span><span class="ld-arrow">→</span><span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('');
+  }else{
+    body=`<div class="ld-row"><span class="ld-v">${esc(l.desc||'（無其他說明）')}</span></div>`;
+  }
+  if(!l.ok&&l.err)body+=`<div class="ld-row" style="color:var(--bad)"><span class="ld-k">失敗原因</span><span class="ld-v">${esc(l.err)}</span></div>`;
+  if(l.rid)body+=`<div class="ld-row"><span class="ld-k">RecordID</span><span class="ld-v mn">${esc(l.rid)}</span></div>`;
+  document.getElementById('logDetailBody').innerHTML=body;
+  document.getElementById('logDetailMv').classList.add('on');
+}
+
+async function submitReg(btn){
+  if(btn.disabled)return;
+  const item={customer:PKV.customer||'',item:PKV.item||'',category:PKV.category||'',type:PKV.type||'',
+    batch:val('f-batch'),stockDate:val('f-sd'),shipDate:val('f-hd'),orderNo:val('f-on'),remark:val('f-rm')};
+  if(!item.customer||!item.item){
+    addLog({act:'新增紀錄',ok:false,desc:'嘗試新增備貨紀錄',err:'必填欄位未完成（客戶名稱／品項）'});
+    renderLogs();toast('請填寫客戶名稱與品項',true);return;}
+  busy(btn,true,'送出中…');
+  const res=await api('createRecords',{item,qty:BQ,actor:CUR});
+  if(res.status==='success'){
+    toast(`已建立 ${res.createdCount} 筆備貨紀錄`);
+    ['f-batch','f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+    ['customer','item','category','type'].forEach(clearPk);BQ=1;bq(0);
+    // 樂觀更新：先把剛建立的資料塞進畫面立刻顯示，不等一趟完整重新讀取，畫面感覺會快很多；
+    // 背景仍然會悄悄打一次 loadSalesData() 用伺服器真實資料校正，確保兩邊最終一致。
+    (res.ids||[]).forEach(id=>DB.records.push({recordId:id,...item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:CUR,updatedAt:new Date().toISOString()}));
+    renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();
+    tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
+    busy(btn,false);
+    loadSalesData(); // 不 await：背景校正，不擋畫面
+  }else{
+    addLog({act:'新增紀錄',ok:false,desc:`嘗試新增客戶「${item.customer}」備貨紀錄`,err:res.message||'未知錯誤'});
+    renderLogs();toast('送出失敗：'+(res.message||'未知錯誤'),true);
+    busy(btn,false);
+  }
+}
+function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;EDID=id;
+  document.getElementById('edRef').textContent='REC / '+id;
+  set('e-cu',x.customer);set('e-it',x.item);set('e-ca',x.category);set('e-ty',x.type);set('e-sd',x.stockDate);set('e-hd',x.shipDate);set('e-ba',x.batch);set('e-on',x.orderNo);
+  document.getElementById('edMv').classList.add('on');}
+function set(id,v){const e=document.getElementById(id);e.value=v||'';mk(e);}
+function closeEd(){document.getElementById('edMv').classList.remove('on');}
+function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
+  document.getElementById('gEdRef').textContent=its.length+' 筆';
+  document.getElementById('gEdCount').textContent=its.length;
+  ['g-ca','g-ty','g-ba','g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+
+  // 完整資料預覽：把組內每一筆的全部欄位（含批號/單號/備註/發票等行政欄位）都列出來，不只批次可編輯的四欄
+  const previewCols=COLS.filter(c=>c.k!=='stockDate'&&c.k!=='customer'&&c.k!=='item'); // 這三欄組內必然相同，不需重複顯示
+  const head='<tr><th>單號</th>'+previewCols.map(c=>`<th>${c.n}</th>`).join('')+'</tr>';
+  const body=its.map((x,ri)=>`<tr><td class="mn">#${ri+1} ${esc(x.orderNo||x.recordId)}</td>`+
+    previewCols.map(c=>`<td class="${c.k==='remark'?'':'mn'}">${esc(x[c.k]||'—')}</td>`).join('')+'</tr>').join('');
+  document.getElementById('gEdPreview').innerHTML=head+body;
+
+  const fields=[['category','科別'],['type','賣/備/樣'],['batch','批號'],['shipDate','送貨日期']];
+  let warn='';
+  fields.forEach(([k,label])=>{
+    const cnt={};its.forEach(x=>{const v=x[k]&&x[k].trim()?x[k]:'（空白）';cnt[v]=(cnt[v]||0)+1;});
+    const keys=Object.keys(cnt);
+    if(keys.length>1)warn+=`<div class="gwarn"><b>${label}</b>　組內原本不一致：${keys.map(v=>`${esc(v)}×${cnt[v]}`).join('、')}</div>`;
+  });
+  document.getElementById('gEdWarn').innerHTML=warn?`<div class="gwarn-box">此組別部分欄位原本就填得不一樣，套用後將全部覆蓋為您輸入的新值：${warn}</div>`:'';
+  document.getElementById('gEdMv').classList.add('on');}
+function closeGroupEdit(){document.getElementById('gEdMv').classList.remove('on');}
+async function saveGroupEdit(btn){
+  if(btn&&btn.disabled)return;
+  const its=GROUPS[GEDI];if(!its)return;
+  const changes={};
+  const ca=val('g-ca'),ty=val('g-ty'),ba=val('g-ba'),hd=val('g-hd');
+  if(ca)changes.category=ca;if(ty)changes.type=ty;if(ba)changes.batch=ba;if(hd)changes.shipDate=hd;
+  if(!Object.keys(changes).length){toast('請至少填寫一個要套用的欄位');return;}
+  busy(btn,true,'套用中…');
+  let okAll=true,applied=0;
+  for(const x of its){
+    const diffs=[];Object.keys(changes).forEach(k=>{if(String(x[k]||'')!==String(changes[k]))diffs.push({label:LBL[k],before:x[k],after:changes[k]});});
+    if(!diffs.length)continue;
+    const res=await api('updateRecord',{recordId:x.recordId,changes,actor:CUR,source:'業務端網頁（整組批次）'});
+    if(res.status==='success'){applied++;Object.assign(x,changes);}
+    else{okAll=false;addLog({act:'批次修改',ok:false,rid:x.recordId,diffs,err:res.message||'未知錯誤',src:'業務端網頁（整組批次）'});}
+  }
+  closeGroupEdit();
+  renderRec();renderStats();renderPend();
+  busy(btn,false);
+  if(applied===0)toast('組內資料已與輸入值相同，沒有變更');
+  else toast(okAll?`已套用到 ${applied} 筆紀錄`:'部分紀錄更新失敗，請查看操作紀錄',!okAll);
+  loadSalesData(); // 背景校正
+}
+async function saveEd(btn){
+  if(btn&&btn.disabled)return;
+  const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
+  const nv={customer:val('e-cu'),item:val('e-it'),category:val('e-ca'),type:val('e-ty'),stockDate:val('e-sd'),shipDate:val('e-hd'),batch:val('e-ba'),orderNo:val('e-on')};
+  const diffs=[];Object.keys(nv).forEach(k=>{if(String(x[k]||'')!==String(nv[k]||''))diffs.push({label:LBL[k],before:x[k],after:nv[k]});});
+  if(!diffs.length){toast('沒有任何變更');closeEd();return;}
+  busy(btn,true,'儲存中…');
+  const res=await api('updateRecord',{recordId:EDID,changes:nv,actor:CUR,expectedUpdatedAt:x.updatedAt});
+  if(res.status==='success'){
+    Object.assign(x,nv); // 樂觀更新，畫面立即反映
+    closeEd();
+    if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
+    toast('已儲存修改，操作已記錄');
+    busy(btn,false);
+    if(ROLE==='admin')loadAdminData();else loadSalesData(); // 背景校正
+  }else if(res.status==='conflict'){
+    addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:'版本衝突：這筆資料已被他人修改'});
+    renderLogs();toast('這筆資料剛剛被其他人改過，已為您載入最新版本，請重新確認後再儲存',true);
+    busy(btn,false);closeEd();
+    if(ROLE==='admin')loadAdminData();else loadSalesData();
+  }else{
+    addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:res.message||'未知錯誤'});
+    renderLogs();toast('儲存失敗：'+(res.message||'未知錯誤'),true);
+    busy(btn,false);
+  }}
+async function delRec(btn){
+  if(btn&&btn.disabled)return;
+  const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
+  busy(btn,true,'刪除中…');
+  const res=await api('deleteRecord',{recordId:EDID,actor:CUR});
+  if(res.status==='success'){
+    DB.records=DB.records.filter(v=>v.recordId!==EDID); // 樂觀更新
+    closeEd();
+    if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
+    toast('已刪除此筆紀錄');
+    busy(btn,false);
+    if(ROLE==='admin')loadAdminData();else loadSalesData();
+  }else{
+    addLog({act:'刪除紀錄',ok:false,rid:EDID,err:res.message||'未知錯誤'});renderLogs();toast('刪除失敗',true);
+    busy(btn,false);
+  }}
+
+/* ── ADMIN ── */
+function initAdmin(){renderAChips();renderGrid();renderALog();}
+
+/* ══════════════ MANAGER (主管儀表板，唯讀) ══════════════ */
+let MGR_STOCK_ALL=[];
+async function loadManagerData(){
+  showLoad('讀取全公司資料中…');
+  try{
+    // 合併成一趟請求：原本 adminList + getStockAll 是兩趟獨立來回，各自在 GAS 裡重新讀一次資料，
+    // 現在後端一次讀好回傳，登入速度會明顯變快。
+    const res=await api('managerInit', {});
+    if(res.status==='success'){
+      DB.records = res.records||[];
+      MGR_STOCK_ALL = res.stock||[];
+    }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
+    renderManagerDashboard();
+  }catch(err){
+    toast('連線失敗：'+err.message, true);
+    renderManagerDashboard();
+  }finally{ hideLoad(); }
+}
+async function refreshManager(){
+  const btn=document.getElementById('mgrRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  await loadManagerData();
+  btn.textContent=old;toast('已更新為最新資料');
+}
+function monthsBack(ym,n){
+  const arr=[];let[y,m]=ym.split('-').map(Number);
+  for(let i=n-1;i>=0;i--){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}arr.push(yy+'-'+String(mm).padStart(2,'0'));}
+  return arr;
+}
+let MGR_SELECTED=null;
+function renderNameGrid(){
+  const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
+  document.getElementById('mgrNameGrid').innerHTML=ROSTERS.sales.map(p=>
+    `<button type="button" class="mgr-name-btn ${MGR_SELECTED===p.name?'on':''}" onclick="selectMgrPerson('${jse(p.name)}')">
+      <span class="rpt-dot ${reportedSet.has(p.name)?'reported':''}"></span>${esc(p.name)}
+    </button>`).join('');
+}
+async function selectMgrPerson(salesName){
+  MGR_SELECTED=salesName;
+  renderNameGrid();
+  const area=document.getElementById('mgrDetailArea');
+  area.scrollIntoView({behavior:'smooth',block:'nearest'});
+  area.innerHTML=`<div class="emp-s">讀取 ${esc(salesName)} 的資料中…</div>`;
+  const rows=DB.records.filter(x=>x.sales===salesName&&x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
+  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
+  const res=await api('getStockLevels',{salesName,yearMonth:CURRENT_YM});
+  // 防止畫面顯示的人一直跳動：如果使用者在這趟請求還沒回來之前又點了別人，
+  // MGR_SELECTED 這時候已經變成別的名字了，這筆已經過期的回應就直接丟棄、不要蓋掉畫面。
+  if(MGR_SELECTED!==salesName)return;
+  if(res.status!=='success'){area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;return;}
+  const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
+  const head=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
+    <div class="mgr-detail-stats"><span>本月備貨 <b>${rows.length}</b></span><span>已出貨 <b style="color:var(--ok)">${cShip}</b></span><span>庫存中 <b>${cHold}</b></span></div></div>`;
+  if(!items.length){
+    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
+    return;
+  }
+  // 真正的直條圖（SVG 繪製）：Y 軸格線＋數字、每個品項一根堆疊柱（藍＝剩餘、紅＝本月已出貨），
+  // 柱頂標總數、X 軸品項名稱斜放避免重疊——是 Excel 那種長條圖的呈現方式，不是純文字比較條。
+  const allItems=ITEM_CATALOG.map(name=>{
+    const found=items.find(x=>x.item===name);
+    return found||{item:name,opening:null,shipped:0,remaining:null,isSet:false,suggestedOpening:null};
+  }).filter(it=>it.isSet||it.shipped>0);
+  if(!allItems.length){
+    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 本月沒有任何庫存異動</div><div class="emp-s">尚未設定期初庫存，也沒有備貨登記紀錄</div></div>`;
+    return;
+  }
+  const chartHtml=buildStockChartSVG(allItems);
+  const unsetList=allItems.filter(it=>!it.isSet&&it.shipped>0);
+  const unsetHtml=unsetList.length?`<div class="cmp-unset-list">
+    <div class="cmp-unset-title">尚未設定期初庫存，僅顯示本月已出貨數：</div>
+    ${unsetList.map(it=>`<span class="cmp-unset-tag">${esc(it.item)} <b>${it.shipped}</b></span>`).join('')}
+  </div>`:'';
+  const body=`<div class="chart-scroll">${chartHtml}</div>
+    ${unsetHtml}
+    <div class="sr-key"><span><i style="background:#3E7CC4"></i>目前剩餘庫存</span>
+    <span><i style="background:#9C2F2A"></i>本月已出貨（已建立備貨登記）</span></div>`;
+  area.innerHTML=head+body;
+}
+function niceCeil_(v){
+  if(v<=5)return 5;
+  const mag=Math.pow(10,Math.floor(Math.log10(v)));
+  const norm=v/mag;
+  const nice=norm<=1?1:norm<=2?2:norm<=5?5:10;
+  return nice*mag;
+}
+function buildStockChartSVG(allItems){
+  const W=Math.max(560,allItems.length*76+70), H=300;
+  const padL=42,padT=18,padB=76,chartH=H-padT-padB,chartR=W-16;
+  const maxVal=Math.max(1,...allItems.map(it=>it.isSet?Math.max(it.opening,it.shipped):it.shipped));
+  const niceMax=niceCeil_(maxVal);
+  const chartW=chartR-padL, gap=chartW/allItems.length, barW=Math.min(44,gap*0.52);
+  const yBase=padT+chartH;
+  let grid='',ylab='';
+  for(let i=0;i<=4;i++){
+    const val=Math.round(niceMax*i/4);
+    const y=yBase-(val/niceMax*chartH);
+    grid+=`<line x1="${padL}" y1="${y}" x2="${chartR}" y2="${y}" stroke="#E3E6EA" stroke-width="1"/>`;
+    ylab+=`<text x="${padL-8}" y="${y+3.5}" text-anchor="end" font-size="9.5" fill="#939DA9" font-family="'IBM Plex Mono',monospace">${val}</text>`;
+  }
+  let bars='',xlab='';
+  allItems.forEach((it,i)=>{
+    const cx=padL+gap*i+gap/2, x=cx-barW/2;
+    const used=it.shipped, remain=it.isSet?it.remaining:0;
+    const usedH=Math.round(used/niceMax*chartH), remH=Math.round(remain/niceMax*chartH);
+    const total=it.isSet?Math.max(it.opening,used):used;
+    if(remH>0)bars+=`<rect x="${x}" y="${yBase-remH}" width="${barW}" height="${remH}" fill="#3E7CC4"/>`;
+    if(usedH>0)bars+=`<rect x="${x}" y="${yBase-remH-usedH}" width="${barW}" height="${usedH}" fill="#9C2F2A"/>`;
+    if(total>0)bars+=`<text x="${cx}" y="${yBase-remH-usedH-6}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#101720" font-family="'IBM Plex Mono',monospace">${total}</text>`;
+    const label=it.item.length>11?it.item.slice(0,10)+'…':it.item;
+    xlab+=`<text x="${cx}" y="${yBase+14}" text-anchor="end" font-size="9.5" fill="#5E6A78" font-family="'Noto Sans TC',sans-serif" transform="rotate(-38 ${cx} ${yBase+14})">${esc(label)}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="庫存直條圖">
+    ${grid}${ylab}
+    <line x1="${padL}" y1="${yBase}" x2="${chartR}" y2="${yBase}" stroke="#101720" stroke-width="1.2"/>
+    ${bars}${xlab}
+  </svg>`;
+}
+function renderManagerDashboard(){
+  document.getElementById('mgrYM').textContent=CURRENT_YM;
+  const prevYM=monthsBack(CURRENT_YM,2)[0];
+  const rows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
+  const prevRows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(prevYM));
+  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
+  const cPend=DB.records.filter(x=>!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn)).length;
+  const pShip=prevRows.filter(x=>stOf(x)==='sh').length, pHold=prevRows.filter(x=>stOf(x)==='hd').length;
+  document.getElementById('m1').textContent=rows.length;
+  document.getElementById('m2').textContent=cShip;
+  document.getElementById('m3').textContent=cHold;
+  document.getElementById('m4').textContent=cPend;
+  pctDelta('m1d',rows.length,prevRows.length);
+  pctDelta('m2d',cShip,pShip);
+  pctDelta('m3d',cHold,pHold);
+  document.getElementById('m4d').textContent=cPend?'需要追蹤':'目前無積壓';
+  document.getElementById('m4d').className='dlt'+(cPend?' down':' up');
+
+  // 近六個月：直接從全公司真實資料逐月統計，不是估算值
+  const months=monthsBack(CURRENT_YM,6);
+  const counts=months.map(ym=>DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(ym)).length);
+  const mx=Math.max(...counts,1);
+  document.getElementById('mgrChart').innerHTML=counts.map((n,i)=>
+    `<div class="ch-c"><div class="ch-b ${i===counts.length-1?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
+  document.getElementById('mgrChartX').innerHTML=months.map(ym=>`<span>${+ym.slice(5)}月</span>`).join('');
+
+  // 品牌家族本月出貨量（全公司）
+  const fam={};
+  rows.forEach(x=>{if(!x.item)return;const f=familyOf(x.item);
+    fam[f.key]=fam[f.key]||{name:f.name,color:f.color,total:0,ship:0};
+    fam[f.key].total++; if(stOf(x)==='sh')fam[f.key].ship++;});
+  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
+  const famMax=famList.length?Math.max(...famList.map(f=>f.total)):1;
+  document.getElementById('mgrFamily').innerHTML=famList.length?famList.map(f=>`
+    <div class="fam-block" style="border-left-color:${f.color}">
+      <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
+        <span class="fam-total">已出貨 <b class="mn" style="color:${f.color};font-size:13px">${f.ship}</b> ／ 本月共 <b class="mn">${f.total}</b> 筆</span></div>
+      <div class="stk"><div class="a" style="width:${Math.round(f.total/famMax*100)}%;background:${f.color}"></div><div class="b"></div></div>
+    </div>`).join('') : `<div class="emp-s">本月尚無資料</div>`;
+
+  // 業務績效排行：以名冊為底，確保就算某人本月完全沒動作也會列出來（0 筆本身就是一種訊號）
+  const bySales={};
+  ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
+  rows.forEach(x=>{if(!x.sales)return;if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0};
+    bySales[x.sales].stock++; if(stOf(x)==='sh')bySales[x.sales].ship++; else bySales[x.sales].hold++;});
+  DB.records.forEach(x=>{if(!x.sales||x.customer||!(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn))return;
+    if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].pend++;});
+  const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0}));
+  rankArr.sort((a,b)=>b.stock-a.stock);
+  document.getElementById('mgrRankBody').innerHTML=rankArr.map(r=>`
+    <tr class="rank-clickable" onclick="selectMgrPerson('${jse(r.name)}')"><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
+    <td class="pad mn" style="color:var(--ok)">${r.ship}</td><td class="pad mn">${r.hold}</td>
+    <td class="pad mn" style="color:${r.pend>0?'var(--bad)':'var(--tx-3)'}">${r.pend}</td>
+    <td class="pad mn">${r.stock?r.rate+'%':'—'}</td></tr>`).join('');
+
+  // 期初庫存回報進度 + 業務名字選單
+  const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
+  const totalN=ROSTERS.sales.length, reportedN=reportedSet.size;
+  document.getElementById('mgrStockProgN').textContent=reportedN+' / '+totalN+' 人已回報本月期初庫存';
+  document.getElementById('mgrStockProgBar').style.width=Math.round(reportedN/totalN*100)+'%';
+  renderNameGrid();
+  if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } // 預設先展開第一位，畫面一進來就有內容可看
+}
+function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
+function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
+function atab(n,b){document.querySelectorAll('#adminApp .pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('#adminApp .nav-b').forEach(x=>x.classList.remove('on'));
+  document.getElementById('apg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});
+  if(n==='alog')ensureAdminLogsLoaded();}
+function renderGridHead(stats){
+  document.getElementById('gridCol').innerHTML=COLS.map(c=>`<col style="width:${colW(GRID_COL_W,c)}px">`).join('');
+  document.getElementById('gridHead').innerHTML=COLS.map(c=>{
+    let badge='';
+    if(stats){
+      if(c.k==='batch')badge=`<span class="hbadge">${stats.batch}</span>`;
+      else if(c.k==='shipDate')badge=`<span class="hbadge">${stats.ship}</span>`;
+      else if(c.k==='item')badge=`<span class="hbadge">${stats.item}</span>`;
+    }
+    return `<th class="${c.role==='a'?'g2':''}">${c.n}${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
+  }).join('');
+  attachColResize('gridHead','gridCol',GRID_COL_W);
+  setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
+}
+function renderAChips(){
+  const sc={};DB.records.forEach(x=>{if(x.sales)sc[x.sales]=(sc[x.sales]||0)+1});
+  document.getElementById('aSalesChips').innerHTML=
+    `<button class="chip ${ASales===''?'on':''}" onclick="ASales='';renderAChips();renderGrid()">全部</button>`+
+    SALES_NAMES.filter(s=>sc[s]).map(s=>`<button class="chip ${ASales===s?'on':''}" onclick="ASales='${jse(s)}';renderAChips();renderGrid()">${esc(s)}<span class="n">${sc[s]}</span></button>`).join('');
+  const ic={};DB.records.forEach(x=>{if(x.item)ic[x.item]=(ic[x.item]||0)+1});
+  document.getElementById('aItemChips').innerHTML=
+    `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGrid()">全部</button>`+
+    ITEM_CATALOG.filter(i=>ic[i]).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGrid()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
+  document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');}
+let INLINE_KIND=null;
+function toggleInlineFilter(e,kind){
+  e.stopPropagation();
+  const pop=document.getElementById('inlinePop');
+  if(INLINE_KIND===kind && pop.classList.contains('on')){pop.classList.remove('on');INLINE_KIND=null;return;}
+  INLINE_KIND=kind;
+  const btn=e.currentTarget.getBoundingClientRect();
+  pop.style.left=(btn.left+window.scrollX)+'px';
+  pop.style.top=(btn.bottom+window.scrollY+4)+'px';
+  document.getElementById('inlinePopSearch').value='';
+  pop.classList.add('on');
+  renderInlineFilter();
+  setTimeout(()=>document.getElementById('inlinePopSearch').focus(),50);
+}
+function renderInlineFilter(){
+  const q=document.getElementById('inlinePopSearch').value.trim();
+  const src=INLINE_KIND==='sales'?SALES_NAMES:ITEM_CATALOG;
+  const cur=INLINE_KIND==='sales'?ASales:AItem;
+  const list=q?src.filter(v=>v.includes(q)):src;
+  document.getElementById('inlinePopList').innerHTML=
+    `<div class="it ${cur===''?'on':''}" onclick="pickInlineFilter('')">全部</div>`+
+    list.map(v=>`<div class="it ${cur===v?'on':''}" onclick="pickInlineFilter('${jse(v)}')">${esc(v)}</div>`).join('');
+}
+function pickInlineFilter(v){
+  if(INLINE_KIND==='sales')ASales=v; else AItem=v;
+  document.getElementById('inlinePop').classList.remove('on');INLINE_KIND=null;
+  renderAChips();renderGrid();
+}
+document.addEventListener('click',e=>{
+  const pop=document.getElementById('inlinePop');
+  if(pop&&pop.classList.contains('on')&&!pop.contains(e.target)){pop.classList.remove('on');INLINE_KIND=null;}
+});
+function clearAdminFilter(which){
+  if(which==='sales')ASales=''; else AItem='';
+  renderAChips();renderGrid();
+}
+function tglEmpty(k){AEmpty.has(k)?AEmpty.delete(k):AEmpty.add(k);renderAChips();renderGrid();}
+function resetFilters(){ASales='';AItem='';AEmpty.clear();renderAChips();renderGrid();}
+function gridRows(){let rows=DB.records.slice();
+  if(ASales)rows=rows.filter(x=>x.sales===ASales);
+  if(AItem)rows=rows.filter(x=>x.item===AItem);
+  if(AEmpty.size)rows=rows.filter(x=>[...AEmpty].some(k=>!x[k]));
+  return rows;}
+function renderGrid(){GRID=gridRows();
+  // 依 備貨日期 > 品項 > 業務 的順序排序，讓同一組資料相鄰，再用雙色帶狀自動區隔各組
+  GRID.sort((a,b)=>(a.stockDate||'').localeCompare(b.stockDate||'')||(a.item||'').localeCompare(b.item||'')||(a.sales||'').localeCompare(b.sales||''));
+  let band=false,lastKey=null;
+  document.getElementById('gridBody').innerHTML=GRID.map(x=>{
+    const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
+    if(key!==lastKey){band=!band;lastKey=key;}
+    return `<tr class="${band?'band':''}">`+COLS.map(c=>{
+      const ek=x.recordId+'::'+c.k,ed=EDITS[ek]!==undefined,v=ed?EDITS[ek]:(x[c.k]||'');
+      const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
+      return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
+    }).join('')+`</tr>`;
+  }).join('');
+  document.getElementById('aCnt').textContent=GRID.length;
+  const ok=GRID.filter(x=>x.customer&&x.item&&x.stockDate).length;
+  document.getElementById('aOk').textContent=ok;document.getElementById('aNo').textContent=GRID.length-ok;
+  // 表頭統計：批號／送貨日期 顯示「確實有填寫」的筆數（去除頭尾空白後長度>0才算），品項顯示批號填寫數減去送貨日期填寫數
+  const batchN=GRID.filter(x=>isFilled(effVal(x,'batch'))).length;
+  const shipN=GRID.filter(x=>isFilled(effVal(x,'shipDate'))).length;
+  renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
+  updEditBar();}
+function cellEdit(el){const rid=el.dataset.rid,col=el.dataset.col,ek=rid+'::'+col;
+  const rec=DB.records.find(x=>x.recordId===rid);
+  if(String(el.value||'')===String(rec[col]||'')){delete EDITS[ek];el.classList.remove('ed');}
+  else{EDITS[ek]=el.value;el.classList.add('ed');}
+  if(col==='batch'||col==='shipDate'){
+    const batchN=GRID.filter(x=>isFilled(effVal(x,'batch'))).length;
+    const shipN=GRID.filter(x=>isFilled(effVal(x,'shipDate'))).length;
+    renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
+  }
+  updEditBar();}
+function cellPaste(e,el){const txt=(e.clipboardData||window.clipboardData).getData('text');
+  if(!txt||(!txt.includes('\t')&&!txt.includes('\n')))return;
+  e.preventDefault();
+  const rows=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(r=>r.split('\t'));
+  const ri=GRID.findIndex(x=>x.recordId===el.dataset.rid),ci=COLS.findIndex(c=>c.k===el.dataset.col);
+  let n=0;
+  rows.forEach((cells,dr)=>{const rec=GRID[ri+dr];if(!rec)return;
+    cells.forEach((v,dc)=>{const col=COLS[ci+dc];if(!col)return;
+      const ek=rec.recordId+'::'+col.k,vv=v.trim();
+      if(String(rec[col.k]||'')===vv)delete EDITS[ek];else{EDITS[ek]=vv;n++;}});});
+  renderGrid();toast(`已貼上 ${n} 格資料，請確認後送出`);}
+function updEditBar(){const n=Object.keys(EDITS).length;
+  document.getElementById('aEditN').textContent=n;
+  document.getElementById('aEdit').style.display=n?'inline':'none';
+  document.getElementById('btnSubmitGrid').disabled=!n;}
+function revertGrid(){if(!Object.keys(EDITS).length){toast('目前沒有未送出的變更');return;}
+  const n=Object.keys(EDITS).length;EDITS={};renderGrid();toast(`已還原 ${n} 格變更`);}
+function buildDiffs(){const by={};
+  Object.keys(EDITS).forEach(ek=>{const i=ek.indexOf('::'),rid=ek.slice(0,i),col=ek.slice(i+2);
+    const rec=DB.records.find(x=>x.recordId===rid);if(!rec)return;
+    (by[rid]=by[rid]||{rec,list:[]}).list.push({key:col,label:LBL[col],before:rec[col]||'',after:EDITS[ek]||''});});
+  return by;}
+function openDiff(){const by=buildDiffs(),ks=Object.keys(by);if(!ks.length)return;
+  let cells=0;ks.forEach(k=>cells+=by[k].list.length);
+  document.getElementById('dfCount').textContent=`${ks.length} 筆資料 · ${cells} 個欄位`;
+  document.getElementById('dfBody').innerHTML=
+    `<div style="font-size:12px;color:var(--tx-2);margin-bottom:14px;line-height:1.75">以下變更將寫入試算表，請確認「舊值 → 新值」無誤後送出。送出結果（成功或失敗）都會完整記錄於操作紀錄。</div>`+
+    ks.map(rid=>{const{rec,list}=by[rid];
+      return `<div class="df"><div class="df-h"><span>${esc(rec.customer||'（未填客戶）')}　${esc(rec.item||'（未填品項）')}</span><span class="m">${esc(rec.sales||'—')} · ${esc(rid)}</span></div>
+      ${list.map(d=>`<div class="df-r"><span class="df-k">${esc(d.label)}</span>
+        <span class="df-v"><span class="dl">${esc(d.before||'（空白）')}</span> <span style="color:var(--tx-3)">→</span> <span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('')}</div>`;}).join('');
+  document.getElementById('dfMv').classList.add('on');}
+function closeDiff(){document.getElementById('dfMv').classList.remove('on');}
+async function commitGrid(btn){
+  if(btn&&btn.disabled)return;
+  const by=buildDiffs(),ks=Object.keys(by);
+  const updates=ks.map(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);return{recordId:rid,changes:ch};});
+  busy(btn,true,'送出中…');
+  const res=await api('batchUpdate',{updates,actor:CUR});
+  if(res.status==='success'){
+    ks.forEach(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);const rec=DB.records.find(r=>r.recordId===rid);if(rec)Object.assign(rec,ch);});
+    EDITS={};closeDiff();renderGrid();
+    toast(`已更新 ${ks.length} 筆資料，操作已記錄`);
+    busy(btn,false);
+    loadAdminData(); // 背景校正
+  }else{
+    ks.forEach(rid=>addLog({act:'修改紀錄',ok:false,rid,diffs:by[rid].list,err:res.message||'未知錯誤',src:'行政端總表'}));
+    closeDiff();renderALog();toast('送出失敗：'+(res.message||'未知錯誤'),true);
+    busy(btn,false);
+  }}
+async function adminCreate(btn){
+  if(btn&&btn.disabled)return;
+  const item=PKV['ac-item'],sales=PKV['ac-sales']||'';
+  if(!item){addLog({act:'快速建立',ok:false,desc:'嘗試快速建立備貨資料',err:'未選擇品項',src:'行政端網頁'});
+    renderALog();toast('請選擇品項',true);return;}
+  busy(btn,true,'建立中…');
+  const res=await api('adminQuickCreate',{item,qty:AQ,sales,invoiceDate:val('ac-id'),invoiceNo:val('ac-in'),erp:val('ac-erp'),loanReturn:val('ac-lr'),loanOut:val('ac-lo')});
+  const who=sales?`業務「${sales}」`:'（尚未指定業務）';
+  if(res.status==='success'){
+    ['ac-id','ac-in','ac-erp','ac-lr','ac-lo'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+    clearPk('ac-item');clearPk('ac-sales');AQ=1;aq(0);
+    toast(`已建立 ${res.createdCount} 筆${sales?'，業務「'+sales+'」下次登入／重新整理會看到補齊提醒':'，可於總表指定業務'}`);
+    busy(btn,false);
+    loadAdminData(); // 背景校正，畫面不用等
+  }else{
+    addLog({act:'快速建立',ok:false,desc:`嘗試為${who}建立 ${AQ} 筆「${item}」`,err:res.message||'未知錯誤',src:'行政端網頁'});
+    renderALog();toast('建立失敗',true);
+    busy(btn,false);
+  }}
+function setLogF(f){LOGF=f;document.getElementById('lgAll').classList.toggle('on',f==='all');
+  document.getElementById('lgFail').classList.toggle('on',f==='fail');renderALog();}
+function renderALog(){let l=DB.logs.slice();
+  if(LOGF==='fail')l=l.filter(x=>!x.ok);
+  LOG_CACHE=l.reverse();
+  document.getElementById('aLogList').innerHTML=LOG_CACHE.length?`<div class="tl-wrap">`+LOG_CACHE.map((x,i)=>logHtml(x,i)).join('')+`</div>`
+    :`<div class="emp-s">${LOGF==='fail'?'目前沒有失敗紀錄':'尚無操作紀錄'}</div>`;}
