@@ -4,22 +4,22 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMj
 const IS_LIVE = (!CFG.USE_MOCK && CFG.GAS_URL && CFG.GAS_URL.trim() !== '');
 
 const COLS=[
-  {k:'stockDate',n:'備貨日期',w:75,role:'s'},
+  {k:'stockDate',n:'備貨日期',w:85,role:'s'},
   {k:'batch',n:'批號',w:65,role:'s'},
-  {k:'shipDate',n:'送貨日期',w:75,role:'s'},
+  {k:'shipDate',n:'送貨日期',w:90,role:'s'},
   {k:'item',n:'品項',w:158,role:'s'},
   {k:'customer',n:'客戶',w:70,role:'s'},
   {k:'category',n:'科別',w:50,role:'s'},
   {k:'type',n:'賣備樣',w:50,role:'s'},
   {k:'orderNo',n:'訂購單號',w:80,role:'s'},
-  {k:'remark',n:'備註',w:265,role:'s'},
-  {k:'invoiceDate',n:'發票日期',w:70,role:'a'},
-  {k:'invoiceNo',n:'發票號碼',w:102,role:'a'},
+  {k:'remark',n:'備註',w:280,role:'s'},
+  {k:'invoiceDate',n:'發票日期',w:85,role:'a'},
+  {k:'invoiceNo',n:'發票號碼',w:100,role:'a'},
   {k:'erp',n:'ERP銷帳',w:175,role:'a'},
-  {k:'loanReturn',n:'借出還回單',w:116,role:'a'},
-  {k:'loanOut',n:'借出單',w:112,role:'a'},
-  {k:'note',n:'註記',w:135,role:'a'},
-  {k:'sales',n:'業務',w:60,role:'a'}
+  {k:'loanReturn',n:'借出還回單',w:105,role:'a'},
+  {k:'loanOut',n:'借出單',w:105,role:'a'},
+  {k:'note',n:'註記',w:150,role:'a'},
+  {k:'sales',n:'業務',w:55,role:'a'}
 ];
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
