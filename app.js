@@ -22,12 +22,10 @@ const COLS=[
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
 
-// ══ DB：畫面實際渲染用的資料，登入時透過 API 從 GAS 載入 ══
 let DB={records:[],logs:[]};
 let ITEM_CATALOG=['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml','薇基因(盒裝)','妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)','歐儷芙舒口噴劑'];
-let SALES_NAMES=['王大明','李小美','陳建志']; // 這會在載入時由後端真實資料自動擴充
+let SALES_NAMES=['王大明','李小美','陳建志'];
 
-// 品牌家族分類
 const PRODUCT_FAMILIES=[
   {key:'newepi',name:'NEW EPI',color:'#1B4E8C',g1:'#7FB3E0',g2:'#3D7FC4',items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml']},
   {key:'vaginne',name:'薇基因',color:'#9B5FB5',g1:'#D2A0DC',g2:'#9B5FB5',items:['薇基因(盒裝)']},
@@ -41,13 +39,10 @@ async function api(a,p){
     const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p})});
     const text=await res.text();
     try{ return JSON.parse(text); }
-    catch(parseErr){
-      return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定（誰可以存取／是否為最新部署版本）。'};
-    }
+    catch(parseErr){ return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定。'}; }
   }catch(e){return{status:'error',message:'連線失敗：'+e.message};}
 }
 
-// 取得當下的真實月、日與時間，供純前端暫存 Log 使用
 function nowT(){
   const d = new Date();
   const m = String(d.getMonth()+1).padStart(2,'0');
@@ -74,7 +69,6 @@ function renderModeBadges(){
 }
 renderModeBadges();
 
-// 自動抓取目前的真實年月
 const CURRENT_YM=(function(){const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
 let FM=CURRENT_YM,FI='',ASales='',AItem='',AEmpty=new Set(),LOGF='all';
 let GRID=[],EDITS={};
@@ -84,43 +78,27 @@ function hideLoad(){document.getElementById('loadOverlay').style.display='none';
 
 const ROSTERS={
   sales:[
-    {name:'翁培文',email:'mavish@goodcare-biotech.com.tw'},
-    {name:'劉仲元',email:'marcus@goodcare-biotech.com.tw'},
-    {name:'郭其融',email:'lucas@goodcare-biotech.com.tw'},
-    {name:'謝羽宸',email:'daphne-hsieh@goodcare-biotech.com.tw'},
-    {name:'羅彩鳳',email:'ran@goodcare-biotech.com.tw'},
-    {name:'李雪梅',email:'mandy@goodcare-biotech.com.tw'},
-    {name:'李靜宜',email:'ella@goodcare-biotech.com.tw'},
-    {name:'陳玉屏',email:'maggie@goodcare-biotech.com.tw'},
-    {name:'陳怡伶',email:'rita@goodcare-biotech.com.tw'},
-    {name:'陳嬿伊',email:'amychen@goodcare-biotech.com.tw'},
-    {name:'李姸慧',email:'gina@goodcare-biotech.com.tw'},
-    {name:'孫郁婷',email:'sunny@goodcare-biotech.com.tw'},
-    {name:'李佩盈',email:'patty@goodcare-biotech.com.tw'},
-    {name:'徐純慧',email:'una@goodcare-biotech.com.tw'},
-    {name:'許智評',email:'deva@goodcare-biotech.com.tw'},
-    {name:'陳文嬛',email:'renee@goodcare-biotech.com.tw'},
-    {name:'涂宇萱',email:'hannah@goodcare-biotech.com.tw'},
-    {name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'},
+    {name:'翁培文',email:'mavish@goodcare-biotech.com.tw'},{name:'劉仲元',email:'marcus@goodcare-biotech.com.tw'},
+    {name:'郭其融',email:'lucas@goodcare-biotech.com.tw'},{name:'謝羽宸',email:'daphne-hsieh@goodcare-biotech.com.tw'},
+    {name:'羅彩鳳',email:'ran@goodcare-biotech.com.tw'},{name:'李雪梅',email:'mandy@goodcare-biotech.com.tw'},
+    {name:'李靜宜',email:'ella@goodcare-biotech.com.tw'},{name:'陳玉屏',email:'maggie@goodcare-biotech.com.tw'},
+    {name:'陳怡伶',email:'rita@goodcare-biotech.com.tw'},{name:'陳嬿伊',email:'amychen@goodcare-biotech.com.tw'},
+    {name:'李姸慧',email:'gina@goodcare-biotech.com.tw'},{name:'孫郁婷',email:'sunny@goodcare-biotech.com.tw'},
+    {name:'李佩盈',email:'patty@goodcare-biotech.com.tw'},{name:'徐純慧',email:'una@goodcare-biotech.com.tw'},
+    {name:'許智評',email:'deva@goodcare-biotech.com.tw'},{name:'陳文嬛',email:'renee@goodcare-biotech.com.tw'},
+    {name:'涂宇萱',email:'hannah@goodcare-biotech.com.tw'},{name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'},
     {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
   ],
   admin:[
-    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
-    {name:'顧晨馨',email:'chenhsin@goodcare-biotech.com.tw'},
-    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},
-    {name:'邱馨儀',email:'shinyi@goodcare-biotech.com.tw'},
-    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
-    {name:'李翊瑄',email:'vera@goodcare-biotech.com.tw'},
-    {name:'楊筱筠',email:'sherry@goodcare-biotech.com.tw'},
-    {name:'盧語璇',email:'zoe@goodcare-biotech.com.tw'},
-    {name:'詹琇竹',email:'vicky@goodcare-biotech.com.tw'},
-    {name:'江翰屏',email:'vicky-chiang@goodcare-biotech.com.tw'}
+    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},{name:'顧晨馨',email:'chenhsin@goodcare-biotech.com.tw'},
+    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},{name:'邱馨儀',email:'shinyi@goodcare-biotech.com.tw'},
+    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},{name:'李翊瑄',email:'vera@goodcare-biotech.com.tw'},
+    {name:'楊筱筠',email:'sherry@goodcare-biotech.com.tw'},{name:'盧語璇',email:'zoe@goodcare-biotech.com.tw'},
+    {name:'詹琇竹',email:'vicky@goodcare-biotech.com.tw'},{name:'江翰屏',email:'vicky-chiang@goodcare-biotech.com.tw'}
   ],
   manager:[
-    {name:'妙玉姐',email:'kelly@goodcare-biotech.com.tw'},
-    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
-    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},
-    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
+    {name:'妙玉姐',email:'kelly@goodcare-biotech.com.tw'},{name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
+    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},{name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
     {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
   ]
 };
@@ -132,10 +110,7 @@ function rolesForEmail(email){
   return order.filter(r=>roles.has(r));
 }
 function nameForEmail(email){
-  for(const k of ['sales','admin','manager']){
-    const f=ROSTERS[k].find(p=>p.email===email);
-    if(f)return f.name;
-  }
+  for(const k of ['sales','admin','manager']){ const f=ROSTERS[k].find(p=>p.email===email); if(f)return f.name; }
   return (email||'').split('@')[0]||'使用者';
 }
 
@@ -144,38 +119,23 @@ window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
   window.__fb.redirectResultPromise.then(result=>{
     if(result && result.user){ handleAuthedUser(result.user); }
-  }).catch(err=>{
-    toast('Google 登入失敗：'+(err.message||err.code||'未知錯誤'), true);
-  });
+  }).catch(err=>{ toast('Google 登入失敗：'+(err.message||err.code||'未知錯誤'), true); });
   window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
     FIREBASE_USER=user;
-    if(user && document.getElementById('login').style.display!=='none'){
-      handleAuthedUser(user);
-    }
+    if(user && document.getElementById('login').style.display!=='none'){ handleAuthedUser(user); }
   });
 });
 
-function isInAppBrowser(){
-  const ua=navigator.userAgent||'';
-  return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(ua);
-}
-function isMobile(){
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'') || window.innerWidth<900;
-}
+function isInAppBrowser(){ return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent||''); }
+function isMobile(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'') || window.innerWidth<900; }
 async function googleSignIn(btn){
   if(btn.disabled)return;
   if(!FIREBASE_READY){toast('Google 登入服務準備中，請稍後再試',true);return;}
-  if(isInAppBrowser()){
-    document.getElementById('inAppWarn').style.display='block';
-    return;
-  }
+  if(isInAppBrowser()){ document.getElementById('inAppWarn').style.display='block'; return; }
   const orig=document.getElementById('googleBtnText').textContent;
   btn.disabled=true;document.getElementById('googleBtnText').textContent='登入中…';
   try{
-    if(isMobile()){
-      await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider);
-      return; 
-    }
+    if(isMobile()){ await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider); return; }
     const result=await window.__fb.signInWithPopup(window.__fb.auth, window.__fb.provider);
     await handleAuthedUser(result.user);
   }catch(err){
@@ -183,20 +143,14 @@ async function googleSignIn(btn){
     if(code==='auth/popup-blocked'||code==='auth/operation-not-supported-in-this-environment'||String(err.message||'').includes('initial state')){
       try{ await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider); return; }catch(e2){}
     }
-    if(code!=='auth/popup-closed-by-user' && code!=='auth/cancelled-popup-request'){
-      toast('Google 登入失敗：'+(err.message||code), true);
-    }
+    if(code!=='auth/popup-closed-by-user' && code!=='auth/cancelled-popup-request'){ toast('Google 登入失敗：'+(err.message||code), true); }
   }
   btn.disabled=false;document.getElementById('googleBtnText').textContent=orig;
 }
 async function handleAuthedUser(user){
   const email=user.email||'';
   const roles=rolesForEmail(email);
-  if(!roles.length){
-    await window.__fb.signOut(window.__fb.auth);
-    toast('此帳號尚未開通使用權限：'+email, true);
-    return;
-  }
+  if(!roles.length){ await window.__fb.signOut(window.__fb.auth); toast('此帳號尚未開通使用權限：'+email, true); return; }
   CUR_EMAIL=email; CUR=nameForEmail(email);
   if(roles.length===1){ proceedLogin(roles[0]); return; }
   const remembered=localStorage.getItem('lastRole:'+email);
@@ -234,8 +188,7 @@ function proceedLogin(role){
   }
 }
 function setupRoleSwitcher(slotId){
-  const el=document.getElementById(slotId);
-  if(!el)return;
+  const el=document.getElementById(slotId); if(!el)return;
   const roles=rolesForEmail(CUR_EMAIL).filter(r=>r!==ROLE);
   if(roles.length){
     el.style.display='flex';
@@ -254,7 +207,7 @@ function logout(){
   const gb=document.getElementById('googleBtn');if(gb){gb.disabled=false;document.getElementById('googleBtnText').textContent='使用 Google 帳號登入';}
 }
 
-// ── 真正的資料讀取：登入 / 手動重新整理都會呼叫這裡，一律以伺服器為準 ──
+// ── 資料讀取 ──
 let STOCK_LEVELS=[];
 async function loadSalesData(silent){
   if(!silent)showLoad('讀取您的備貨紀錄中…');
@@ -298,12 +251,7 @@ async function ensureAdminLogsLoaded(force){
   if(ADMIN_LOGS_LOADED&&!force)return;
   document.getElementById('aLogList').innerHTML=`<div class="emp-s">讀取操作紀錄中…</div>`;
   try{
-    const res=await api('getLogs', {
-      keyword:document.getElementById('logKw').value.trim(),
-      actor:document.getElementById('logActor').value,
-      dateFrom:document.getElementById('logFrom').value,
-      dateTo:document.getElementById('logTo').value
-    });
+    const res=await api('getLogs', {});
     if(res.status==='success'){
       DB.logs=res.data; ADMIN_LOGS_LOADED=true;
       fillLogActorOptions();
@@ -325,13 +273,13 @@ function fillLogActorOptions(){
 }
 let _logTimer=null;
 function debounceLogSearch(){clearTimeout(_logTimer);_logTimer=setTimeout(applyLogSearch,400);}
-function applyLogSearch(){ensureAdminLogsLoaded(true);}
+function applyLogSearch(){renderALog();}
 function resetLogSearch(){
   document.getElementById('logKw').value='';
   document.getElementById('logActor').value='';
   document.getElementById('logFrom').value='';
   document.getElementById('logTo').value='';
-  ensureAdminLogsLoaded(true);
+  renderALog();
 }
 async function refreshAdmin(){
   const btn=document.getElementById('adminRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
@@ -686,46 +634,189 @@ function renderPend(){const rows=pendRecs(),n=rows.length;
   el.innerHTML=rows.map(x=>`<div class="pd"><div class="pd-t"><span class="pd-n">${esc(x.item||'（未指定品項）')}</span><span class="pd-d">${esc(x.invoiceDate||'—')}</span></div>
     <div class="pd-s">${x.invoiceNo?'發票 '+esc(x.invoiceNo)+' 已開立，':''}尚未有客戶與明細資料</div>
     <button class="pd-a" onclick="openEd('${x.recordId}')">補齊資料</button></div>`).join('');}
+
+// ==========================================
+// 1. 業務端與行政端的 LOG 渲染主入口
+// ==========================================
 let LOG_CACHE=[];
-function renderLogs(){const l=DB.logs.filter(x=>x.actor===CUR);
-  LOG_CACHE=l.slice().reverse();
-  document.getElementById('logList').innerHTML=LOG_CACHE.length?`<div class="tl-wrap">`+LOG_CACHE.map((x,i)=>logHtml(x,i)).join('')+`</div>`:`<div class="emp-s">尚無操作紀錄</div>`;}
-function logHtml(l,i){
-  LOG_CACHE[i]=l;
-  let summary='',hasMore=false;
-  if(l.diffs&&l.diffs.length){
-    const shown=l.diffs.slice(0,2);
-    summary=shown.map(d=>`${esc(d.label)}：<span class="dl">${esc(d.before||'（空白）')}</span> → <span class="nw">${esc(d.after||'（空白）')}</span>`).join(' ');
-    hasMore=l.diffs.length>2;
-  }else{ summary=esc(l.desc||''); }
-  if(!l.ok&&l.err)summary+=(summary?' ':'')+`<span style="color:var(--bad)">失敗原因：${esc(l.err)}</span>`;
-  const dotClass=!l.ok?'fail':(l.diffs?'edit':'create');
-  const needsDetail=hasMore||(l.diffs&&l.diffs.length>0);
-  return `<div class="tl-item">
-    <div class="tl-time">${esc(l.t)}</div>
-    <div class="tl-line"><span class="tl-dot ${dotClass}"></span></div>
-    <div class="tl-card">
-      <div class="tl-top"><span class="tl-act ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span><span class="tl-actor">${esc(l.actor)}</span></div>
-      <div class="tl-summary">${summary}</div>
-      <div class="tl-foot"><span class="tl-src">${esc(l.src||'')}</span>${needsDetail?`<button type="button" class="tl-detail-btn" onclick="openLogDetail(${i})">查看完整明細 ›</button>`:''}</div>
-    </div>
-  </div>`;}
-function openLogDetail(i){
-  const l=LOG_CACHE[i];if(!l)return;
-  document.getElementById('logDetailTitle').textContent=`${l.act}${l.ok?'':'（失敗）'}`;
-  document.getElementById('logDetailMeta').textContent=`${l.tFull||l.t} · ${l.actor||''} · ${l.src||''}`;
-  let body='';
-  if(l.diffs&&l.diffs.length){
-    body=l.diffs.map(d=>`<div class="ld-row"><span class="ld-k">${esc(d.label)}</span><span class="ld-v"><span class="dl">${esc(d.before||'（空白）')}</span><span class="ld-arrow">→</span><span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('');
-  }else{
-    body=`<div class="ld-row"><span class="ld-v">${esc(l.desc||'（無其他說明）')}</span></div>`;
+
+function renderLogs(){
+  applySalesLogSearch(); 
+}
+
+function renderALog(){
+  let l=DB.logs.slice();
+  const kw = document.getElementById('logKw').value.trim().toLowerCase();
+  const actor = document.getElementById('logActor').value;
+  const f = document.getElementById('logFrom').value;
+  const t = document.getElementById('logTo').value;
+  
+  if(LOGF==='fail') l=l.filter(x=>!x.ok);
+  if(actor) l=l.filter(x=>x.actor===actor);
+  if(kw) l=l.filter(x=>[x.act, x.desc, x.actor, x.rid, (x.diffs||[]).map(d=>d.label+d.before+d.after).join(' ')].join(' ').toLowerCase().includes(kw));
+  if(f) { const ft=new Date(f+' 00:00:00').getTime(); l=l.filter(x=>x.ts>=ft); }
+  if(t) { const tt=new Date(t+' 23:59:59').getTime(); l=l.filter(x=>x.ts<=tt); }
+  
+  LOG_CACHE=l.reverse();
+  document.getElementById('aLogList').innerHTML = LOG_CACHE.length 
+    ? `<div class="timeline-wrapper">` + LOG_CACHE.map((x,i)=>logHtml(x,i)).join('') + `</div>`
+    : `<div class="emp-s" style="margin-top:40px;">${LOGF==='fail'?'目前沒有失敗紀錄':'尚無符合條件的操作紀錄'}</div>`;
+}
+
+// ==========================================
+// 2. 產生精美時間軸卡片 (HTML)
+// ==========================================
+function logHtml(l, i){
+  LOG_CACHE[i] = l;
+  let summary = '';
+  const hasDiffs = l.diffs && l.diffs.length > 0;
+  
+  if(hasDiffs){
+    const fields = l.diffs.map(d=>d.label).join('、');
+    summary = `<span style="color:var(--tx-2)">異動了 <b>${l.diffs.length}</b> 個欄位：</span><br><span style="font-size:11.5px;color:var(--tx-3)">${esc(fields)}</span>`;
+  } else {
+    summary = esc(l.desc || '');
   }
-  if(!l.ok&&l.err)body+=`<div class="ld-row" style="color:var(--bad)"><span class="ld-k">失敗原因</span><span class="ld-v">${esc(l.err)}</span></div>`;
-  if(l.rid)body+=`<div class="ld-row"><span class="ld-k">RecordID</span><span class="ld-v mn">${esc(l.rid)}</span></div>`;
-  document.getElementById('logDetailBody').innerHTML=body;
+  
+  const dotClass = !l.ok ? 'fail' : (hasDiffs ? 'edit' : 'create');
+  const errHtml = (!l.ok && l.err) ? `<div class="log-err">失敗原因：${esc(l.err)}</div>` : '';
+  const detailBtn = hasDiffs ? `<button type="button" class="log-detail-link" onclick="openLogDetail(${i})">查看前後對照明細 ➔</button>` : '';
+
+  return `<div class="timeline-item">
+    <div class="timeline-time">${esc(l.t.replace(' ','<br>'))}</div>
+    <div class="timeline-node"><div class="timeline-dot ${dotClass}"></div></div>
+    <div class="timeline-content">
+      <div class="log-top">
+        <span class="log-act ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span>
+        ${ROLE==='admin' ? `<span class="log-actor">👤 ${esc(l.actor)}</span>` : `<span class="log-actor">${l.rid ? '#'+l.rid.slice(-5).toUpperCase() : ''}</span>`}
+      </div>
+      <div class="log-summary">${summary}</div>
+      ${errHtml}
+      <div class="log-foot">
+        <span class="log-src">📍 ${esc(l.src||'')}</span>
+        ${detailBtn}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ==========================================
+// 3. 打開明細彈窗 (產生表格化對照)
+// ==========================================
+function openLogDetail(i){
+  const l=LOG_CACHE[i]; if(!l)return;
+  document.getElementById('logDetailTitle').textContent = `${l.act}${l.ok?'':'（失敗）'}`;
+  document.getElementById('logDetailMeta').innerHTML = `時間：${l.tFull||l.t} ｜ 人員：${l.actor||''} ｜ 來源：${l.src||''} <br> Record ID：${l.rid||'無'}`;
+  
+  let body='';
+  if(l.diffs && l.diffs.length){
+    body = `<table class="diff-table">
+      <thead><tr><th width="30%">異動欄位</th><th>變更內容 (舊 ➔ 新)</th></tr></thead>
+      <tbody>` + l.diffs.map(d=>
+        `<tr>
+          <td style="font-weight:600;color:var(--tx-2);">${esc(d.label)}</td>
+          <td>
+            ${d.before ? `<span class="diff-del">${esc(d.before)}</span> <span class="diff-arrow">➔</span> ` : `<span class="diff-arrow" style="margin-left:0">➔</span> `}
+            ${d.after ? `<span class="diff-add">${esc(d.after)}</span>` : `<span class="diff-add" style="color:var(--tx-3);font-style:italic">（清除）</span>`}
+          </td>
+        </tr>`
+      ).join('') + `</tbody></table>`;
+  } else {
+    body = `<div class="detail-pre">${esc(l.desc||'（無其他說明）')}</div>`;
+  }
+  if(!l.ok && l.err) body += `<div style="margin-top:15px;color:var(--bad);font-weight:600;">❌ 失敗原因：${esc(l.err)}</div>`;
+  
+  document.getElementById('logDetailBody').innerHTML = body;
   document.getElementById('logDetailMv').classList.add('on');
 }
 
+function copyLogDetails() {
+    const el = document.getElementById('logDetailBody');
+    const text = el.innerText || el.textContent;
+    navigator.clipboard.writeText(text).then(()=>{
+        toast('✅ 內容已複製到剪貼簿');
+    }).catch(()=>{
+        toast('複製失敗，請手動圈選複製', true);
+    });
+}
+
+// ==========================================
+// 4. 業務端專用 LOG 篩選功能
+// ==========================================
+let _salesLogTimer=null;
+function debounceSalesLogSearch(){ clearTimeout(_salesLogTimer); _salesLogTimer=setTimeout(applySalesLogSearch,400); }
+function applySalesLogSearch(){
+    let l = DB.logs.filter(x => x.actor === CUR);
+    const kw = document.getElementById('salesLogKw').value.trim().toLowerCase();
+    const f = document.getElementById('salesLogFrom').value;
+    const t = document.getElementById('salesLogTo').value;
+    
+    if(kw) l = l.filter(x => [x.act, x.desc, x.rid, (x.diffs||[]).map(d=>d.label+d.before+d.after).join(' ')].join(' ').toLowerCase().includes(kw));
+    if(f) { const ft=new Date(f+' 00:00:00').getTime(); l=l.filter(x=>x.ts>=ft); }
+    if(t) { const tt=new Date(t+' 23:59:59').getTime(); l=l.filter(x=>x.ts<=tt); }
+    
+    LOG_CACHE = l.slice().reverse();
+    document.getElementById('logList').innerHTML = LOG_CACHE.length 
+      ? `<div class="timeline-wrapper">` + LOG_CACHE.map((x,i)=>logHtml(x,i)).join('') + `</div>` 
+      : `<div class="emp-s" style="margin-top:40px;">找不到符合條件的操作紀錄</div>`;
+}
+
+// ==========================================
+// 5. 匯出紀錄 (CSV)
+// ==========================================
+function exportLogs(mode) {
+    let dataToExport = mode === 'sales' ? DB.logs.filter(x=>x.actor===CUR) : DB.logs;
+    
+    if(mode === 'sales') {
+        const kw = document.getElementById('salesLogKw').value.trim().toLowerCase();
+        const f = document.getElementById('salesLogFrom').value;
+        const t = document.getElementById('salesLogTo').value;
+        if(kw) dataToExport = dataToExport.filter(l => [l.act, l.desc, l.rid].join(' ').toLowerCase().includes(kw));
+        if(f) { const ft=new Date(f+' 00:00:00').getTime(); dataToExport=dataToExport.filter(l=>l.ts>=ft); }
+        if(t) { const tt=new Date(t+' 23:59:59').getTime(); dataToExport=dataToExport.filter(l=>l.ts<=tt); }
+    } else {
+        const kw = document.getElementById('logKw').value.trim().toLowerCase();
+        const actor = document.getElementById('logActor').value;
+        const f = document.getElementById('logFrom').value;
+        const t = document.getElementById('logTo').value;
+        if(LOGF==='fail') dataToExport=dataToExport.filter(x=>!x.ok);
+        if(actor) dataToExport=dataToExport.filter(x=>x.actor===actor);
+        if(kw) dataToExport=dataToExport.filter(x=>[x.act, x.desc, x.actor, x.rid, (x.diffs||[]).map(d=>d.label+d.before+d.after).join(' ')].join(' ').toLowerCase().includes(kw));
+        if(f) { const ft=new Date(f+' 00:00:00').getTime(); dataToExport=dataToExport.filter(l=>l.ts>=ft); }
+        if(t) { const tt=new Date(t+' 23:59:59').getTime(); dataToExport=dataToExport.filter(l=>l.ts<=tt); }
+    }
+    
+    if(!dataToExport || !dataToExport.length){ toast('沒有資料可匯出', true); return; }
+    
+    let csv = '\uFEFF';
+    csv += '時間,操作人員,動作,狀態,RecordID,異動說明,來源\n';
+    dataToExport.reverse().forEach(l => {
+        const time = l.tFull || l.t;
+        const actor = l.actor;
+        const act = l.act;
+        const ok = l.ok ? '成功' : '失敗';
+        const rid = l.rid || '';
+        let desc = l.desc || '';
+        if(l.diffs && l.diffs.length) desc = l.diffs.map(d=>`${d.label}: ${d.before}->${d.after}`).join(' | ');
+        if(!l.ok && l.err) desc += ` (錯誤: ${l.err})`;
+        const src = l.src || '';
+        
+        const row = [time, actor, act, ok, rid, desc, src].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        csv += row + '\n';
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `系統操作紀錄_${nowT().replace(/[: ]/g,'')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ── 以下為原本新增備貨等按鈕邏輯 ──
 async function submitReg(btn){
   if(btn.disabled)return;
   const item={customer:PKV.customer||'',item:PKV.item||'',category:PKV.category||'',type:PKV.type||'',
@@ -1089,17 +1180,16 @@ function gridRows(){let rows=DB.records.slice();
   if(AEmpty.size)rows=rows.filter(x=>[...AEmpty].some(k=>!x[k]));
   return rows;}
 
-// ── 行政總表：分批非同步渲染，解決畫面卡死問題 ──
+// ── 行政總表：分批非同步渲染 ──
 let _gridRenderTimer = null;
 function renderGrid(){
   GRID=gridRows();
   GRID.sort((a,b)=>(a.stockDate||'').localeCompare(b.stockDate||'')||(a.item||'').localeCompare(b.item||'')||(a.sales||'').localeCompare(b.sales||''));
 
   const tbody = document.getElementById('gridBody');
-  tbody.innerHTML = ''; // 清空原本內容
-  if(_gridRenderTimer) clearTimeout(_gridRenderTimer); // 停下之前的繪製任務
+  tbody.innerHTML = ''; 
+  if(_gridRenderTimer) clearTimeout(_gridRenderTimer); 
 
-  // 先立刻更新最上方的統計數字，讓使用者覺得「瞬間完成」
   document.getElementById('aCnt').textContent=GRID.length;
   const ok=GRID.filter(x=>x.customer&&x.item&&x.stockDate).length;
   document.getElementById('aOk').textContent=ok;document.getElementById('aNo').textContent=GRID.length-ok;
@@ -1110,7 +1200,7 @@ function renderGrid(){
   updEditBar();
 
   let band=false, lastKey=null, i=0;
-  const CHUNK_SIZE = 80; // 每次只畫 80 列，避免瀏覽器當機
+  const CHUNK_SIZE = 80; 
 
   function renderChunk() {
     let html = '';
@@ -1126,16 +1216,13 @@ function renderGrid(){
       }).join('')+`</tr>`;
     }
     
-    // 將這一批 80 列塞進表格
     tbody.insertAdjacentHTML('beforeend', html);
     
-    // 如果還沒畫完，安排 0.01 秒後繼續畫下一批（這段時間讓瀏覽器可以處理點擊、滾動等操作）
     if (i < GRID.length) {
       _gridRenderTimer = setTimeout(renderChunk, 12); 
     }
   }
   
-  // 開始執行第一批繪製
   if(GRID.length > 0) renderChunk();
 }
 
@@ -1220,8 +1307,3 @@ async function adminCreate(btn){
   }}
 function setLogF(f){LOGF=f;document.getElementById('lgAll').classList.toggle('on',f==='all');
   document.getElementById('lgFail').classList.toggle('on',f==='fail');renderALog();}
-function renderALog(){let l=DB.logs.slice();
-  if(LOGF==='fail')l=l.filter(x=>!x.ok);
-  LOG_CACHE=l.reverse();
-  document.getElementById('aLogList').innerHTML=LOG_CACHE.length?`<div class="tl-wrap">`+LOG_CACHE.map((x,i)=>logHtml(x,i)).join('')+`</div>`
-    :`<div class="emp-s">${LOGF==='fail'?'目前沒有失敗紀錄':'尚無操作紀錄'}</div>`;}
