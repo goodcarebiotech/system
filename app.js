@@ -1,6 +1,7 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec'};
 
+/* 完美對齊您最新更新的精確寬度 */
 const COLS=[
   {k:'stockDate',n:'備貨日期',w:85,role:'s'},
   {k:'batch',n:'批號',w:85,role:'s'},
@@ -251,7 +252,12 @@ async function ensureAdminLogsLoaded(force){
   if(ADMIN_LOGS_LOADED&&!force)return;
   document.getElementById('aLogList').innerHTML=`<div class="emp-s">讀取操作紀錄中…</div>`;
   try{
-    const res=await api('getLogs', {});
+    const res=await api('getLogs', {
+      keyword:document.getElementById('logKw').value.trim(),
+      actor:document.getElementById('logActor').value,
+      dateFrom:document.getElementById('logFrom').value,
+      dateTo:document.getElementById('logTo').value
+    });
     if(res.status==='success'){
       DB.logs=res.data; ADMIN_LOGS_LOADED=true;
       fillLogActorOptions();
