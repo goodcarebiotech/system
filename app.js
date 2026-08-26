@@ -247,50 +247,6 @@ async function loadAdminData(){
     initAdmin();
   }finally{ hideLoad(); }
 }
-async function ensureAdminLogsLoaded(force){
-  if(ADMIN_LOGS_LOADED&&!force)return;
-  document.getElementById('aLogList').innerHTML=`<div class="emp-s">讀取操作紀錄中…</div>`;
-  try{
-    const res=await api('getLogs', {
-      keyword:document.getElementById('logKw').value.trim(),
-      actor:document.getElementById('logActor').value,
-      dateFrom:document.getElementById('logFrom').value,
-      dateTo:document.getElementById('logTo').value
-    });
-    if(res.status==='success'){
-      DB.logs=res.data; ADMIN_LOGS_LOADED=true;
-      fillLogActorOptions();
-      document.getElementById('aLogCount').textContent='共 '+res.data.length+' 筆';
-    }else{
-      document.getElementById('aLogList').innerHTML=`<div class="emp-s" style="color:var(--bad)">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;
-      return;
-    }
-    renderALog();
-  }catch(err){
-    document.getElementById('aLogList').innerHTML=`<div class="emp-s" style="color:var(--bad)">連線失敗：${esc(err.message)}</div>`;
-  }
-}
-function fillLogActorOptions(){
-  const sel=document.getElementById('logActor'), cur=sel.value;
-  const names=[...new Set(DB.logs.map(l=>l.actor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-TW'));
-  sel.innerHTML='<option value="">全部人員</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
-  if(names.includes(cur))sel.value=cur;
-}
-let _logTimer=null;
-function debounceLogSearch(){clearTimeout(_logTimer);_logTimer=setTimeout(applyLogSearch,400);}
-function applyLogSearch(){renderALog();}
-function resetLogSearch(){
-  document.getElementById('logKw').value='';
-  document.getElementById('logActor').value='';
-  document.getElementById('logFrom').value='';
-  document.getElementById('logTo').value='';
-  renderALog();
-}
-async function refreshAdmin(){
-  const btn=document.getElementById('adminRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
-  await loadAdminData();
-  btn.textContent=old;toast('已更新為最新資料');
-}
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function jse(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
@@ -823,22 +779,18 @@ async function delRec(btn){
 
 /* ── ADMIN & 總表 ── */
 function initAdmin(){
-  // 行政端一進來確保清除舊條件
   COL_FILTERS={};
   renderGrid(); renderALog();
 }
 
-// 💡 新增：漏斗篩選與快速標記 (Emoji) 狀態變數
 let COL_FILTERS = {}; 
 let ACTIVE_CF_COL = null;
 let ACTIVE_INPUT = null;
 
-// 記錄當前焦點，讓快速標記知道要插在哪一格
 document.addEventListener('focusin', e => {
   if(e.target && e.target.classList.contains('cel')) ACTIVE_INPUT = e.target;
 });
 
-// 💡 快速標記 ( Emoji 色彩 ) 函式
 function insertMarker(emoji) {
   if (!ACTIVE_INPUT) { toast('請先點選下方要標記的儲存格', true); return; }
   let val = ACTIVE_INPUT.value || '';
@@ -848,44 +800,31 @@ function insertMarker(emoji) {
     ACTIVE_INPUT.value = emoji + ' ' + val;
   }
   cellEdit(ACTIVE_INPUT);
-  renderGrid(); // 觸發重繪，讓背景顏色立即生效
+  renderGrid(); 
 }
 
-// 💡 漏斗篩選：打開彈窗
 function openColFilter(colKey, event) {
   event.stopPropagation();
   ACTIVE_CF_COL = colKey;
-  
   const pop = document.getElementById('colFilterPop');
   const btn = event.currentTarget.getBoundingClientRect();
   pop.style.left = (btn.left + window.scrollX) + 'px';
   pop.style.top = (btn.bottom + window.scrollY + 6) + 'px';
   document.getElementById('cfSearch').value = '';
-  
   if (!COL_FILTERS[colKey]) COL_FILTERS[colKey] = new Set();
-  
   pop.classList.add('on');
   renderColFilterList();
   setTimeout(()=>document.getElementById('cfSearch').focus(), 50);
 }
 
-// 💡 漏斗篩選：渲染選項列表
 function renderColFilterList() {
   if (!ACTIVE_CF_COL) return;
   const q = document.getElementById('cfSearch').value.trim().toLowerCase();
-  
-  // 找出該欄位所有不重複的值 (抓取完整原始資料 DB.records)
   const uniqueValues = new Set();
-  DB.records.forEach(r => {
-    let v = r[ACTIVE_CF_COL] || '';
-    uniqueValues.add(String(v).trim());
-  });
-  
+  DB.records.forEach(r => { uniqueValues.add(String(r[ACTIVE_CF_COL] || '').trim()); });
   let list = [...uniqueValues].sort((a,b)=>a.localeCompare(b,'zh-TW'));
   if(q) list = list.filter(v => v.toLowerCase().includes(q));
-  
   const checkedSet = COL_FILTERS[ACTIVE_CF_COL];
-  
   document.getElementById('cfList').innerHTML = list.map(v => {
     const isChecked = checkedSet.has(v) ? 'checked' : '';
     const display = v === '' ? '(空白)' : esc(v);
@@ -898,52 +837,26 @@ function toggleCfVal(checkbox) {
   if (checkbox.checked) COL_FILTERS[ACTIVE_CF_COL].add(v);
   else COL_FILTERS[ACTIVE_CF_COL].delete(v);
 }
+function applyColFilter() { document.getElementById('colFilterPop').classList.remove('on'); ACTIVE_CF_COL = null; renderGrid(); }
+function clearColFilter() { if (ACTIVE_CF_COL) COL_FILTERS[ACTIVE_CF_COL].clear(); document.getElementById('colFilterPop').classList.remove('on'); ACTIVE_CF_COL = null; renderGrid(); }
 
-function applyColFilter() {
-  document.getElementById('colFilterPop').classList.remove('on');
-  ACTIVE_CF_COL = null;
-  renderGrid();
-}
-
-function clearColFilter() {
-  if (ACTIVE_CF_COL) COL_FILTERS[ACTIVE_CF_COL].clear();
-  document.getElementById('colFilterPop').classList.remove('on');
-  ACTIVE_CF_COL = null;
-  renderGrid();
-}
-
-// 點擊外面關閉漏斗彈窗
 document.addEventListener('click', e => {
   const pop = document.getElementById('colFilterPop');
   if(pop && pop.classList.contains('on') && !pop.contains(e.target)) {
-    pop.classList.remove('on'); ACTIVE_CF_COL = null;
-    renderGrid();
+    pop.classList.remove('on'); ACTIVE_CF_COL = null; renderGrid();
   }
 });
 
-// 覆寫原本清空條件的函式，一併清空漏斗
-function resetFilters(){ 
-  AEmpty.clear(); 
-  COL_FILTERS = {}; 
-  renderGrid(); 
-}
+function resetFilters(){ AEmpty.clear(); COL_FILTERS = {}; renderGrid(); }
 
 function gridRows(){
   let rows=DB.records.slice();
-  
-  // 原有的 AEmpty 邏輯
   if(AEmpty.size)rows=rows.filter(x=>[...AEmpty].some(k=>!x[k]));
-  
-  // 套用表頭的漏斗篩選
   Object.keys(COL_FILTERS).forEach(col => {
     if (COL_FILTERS[col].size > 0) {
-      rows = rows.filter(x => {
-        const val = String(x[col] || '').trim();
-        return COL_FILTERS[col].has(val);
-      });
+      rows = rows.filter(x => { return COL_FILTERS[col].has(String(x[col] || '').trim()); });
     }
   });
-  
   return rows;
 }
 
@@ -956,24 +869,22 @@ function renderGridHead(stats){
       else if(c.k==='shipDate')badge=`<span class="hbadge">${stats.ship}</span>`;
       else if(c.k==='item')badge=`<span class="hbadge">${stats.item}</span>`;
     }
-    
-    // 判斷此欄位目前有沒有啟用的篩選條件，若有就亮起漏斗圖示
     const hasFilter = COL_FILTERS[c.k] && COL_FILTERS[c.k].size > 0;
     const filterIcon = `<svg class="th-filter-icon ${hasFilter?'active':''}" onclick="openColFilter('${c.k}', event)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>`;
-    
     return `<th class="${c.role==='a'?'g2':''}">
               <div style="display:flex;align-items:center;justify-content:space-between">
-                <span>${c.n}${badge}</span>
-                ${filterIcon}
-              </div>
-              <span class="col-rs" data-col="${c.k}"></span>
+                <span>${c.n}${badge}</span>${filterIcon}
+              </div><span class="col-rs" data-col="${c.k}"></span>
             </th>`;
   }).join('');
   attachColResize('gridHead','gridCol',GRID_COL_W);
   setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
 }
 
-// ── 行政總表：分批非同步渲染 ──
+// ── 行政總表：分批非同步渲染 (100% 包含在此) ──
+function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
+function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
+
 let _gridRenderTimer = null;
 function renderGrid(){
   GRID=gridRows();
@@ -1007,7 +918,6 @@ function renderGrid(){
         const ek=x.recordId+'::'+c.k, ed=EDITS[ek]!==undefined, v=ed?EDITS[ek]:(x[c.k]||'');
         const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
         
-        // 💡 判斷是否含有特定 Emoji，如果有就給予對應的 CSS 顏色 Class
         let bgClass = '';
         const vStr = String(v);
         if (vStr.includes('🔴')) bgClass = 'mark-red';
@@ -1018,12 +928,8 @@ function renderGrid(){
         return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''} ${bgClass}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
       }).join('')+`</tr>`;
     }
-    
     tbody.insertAdjacentHTML('beforeend', html);
-    
-    if (i < GRID.length) {
-      _gridRenderTimer = setTimeout(renderChunk, 12); 
-    }
+    if (i < GRID.length) { _gridRenderTimer = setTimeout(renderChunk, 12); }
   }
   
   if(GRID.length > 0) renderChunk();
@@ -1039,8 +945,6 @@ function cellEdit(el){const rid=el.dataset.rid,col=el.dataset.col,ek=rid+'::'+co
     renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
   }
   updEditBar();
-  
-  // 讓修改框當下立即反映 Emoji 上色
   el.classList.remove('mark-red', 'mark-yellow', 'mark-green', 'mark-blue');
   const vStr = String(el.value);
   if (vStr.includes('🔴')) el.classList.add('mark-red');
@@ -1110,101 +1014,7 @@ async function adminCreate(btn){
     toast(`已建立 ${res.createdCount} 筆`); busy(btn,false); loadAdminData(); 
   }else{ toast('建立失敗',true); busy(btn,false); }
 }
-
-/* ══════════════ MANAGER (主管儀表板) ══════════════ */
-let MGR_STOCK_ALL=[];
-async function loadManagerData(){
-  showLoad('讀取全公司資料中…');
-  try{
-    const res=await api('managerInit', {});
-    if(res.status==='success'){
-      DB.records = res.records||[];
-      MGR_STOCK_ALL = res.stock||[];
-    }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
-    renderManagerDashboard();
-  }catch(err){
-    toast('連線失敗：'+err.message, true);
-    renderManagerDashboard();
-  }finally{ hideLoad(); }
-}
-async function refreshManager(){
-  const btn=document.getElementById('mgrRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
-  await loadManagerData();
-  btn.textContent=old;toast('已更新為最新資料');
-}
-function monthsBack(ym,n){
-  const arr=[];let[y,m]=ym.split('-').map(Number);
-  for(let i=n-1;i>=0;i--){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}arr.push(yy+'-'+String(mm).padStart(2,'0'));}
-  return arr;
-}
-let MGR_SELECTED=null;
-function renderNameGrid(){
-  const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
-  document.getElementById('mgrNameGrid').innerHTML=ROSTERS.sales.map(p=>
-    `<button type="button" class="mgr-name-btn ${MGR_SELECTED===p.name?'on':''}" onclick="selectMgrPerson('${jse(p.name)}')">
-      <span class="rpt-dot ${reportedSet.has(p.name)?'reported':''}"></span>${esc(p.name)}
-    </button>`).join('');
-}
-async function selectMgrPerson(salesName){
-  MGR_SELECTED=salesName;
-  renderNameGrid();
-  const area=document.getElementById('mgrDetailArea');
-  area.scrollIntoView({behavior:'smooth',block:'nearest'});
-  area.innerHTML=`<div class="emp-s">讀取 ${esc(salesName)} 的資料中…</div>`;
-  const rows=DB.records.filter(x=>x.sales===salesName&&x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
-  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
-  const res=await api('getStockLevels',{salesName,yearMonth:CURRENT_YM});
-  if(MGR_SELECTED!==salesName)return;
-  if(res.status!=='success'){area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;return;}
-  const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
-  const head=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
-    <div class="mgr-detail-stats"><span>本月備貨 <b>${rows.length}</b></span><span>已出貨 <b style="color:var(--ok)">${cShip}</b></span><span>庫存中 <b>${cHold}</b></span></div></div>`;
-  if(!items.length){
-    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定期初庫存</div></div>`;
-    return;
-  }
-  const allItems=ITEM_CATALOG.map(name=>{
-    const found=items.find(x=>x.item===name);
-    return found||{item:name,opening:null,shipped:0,remaining:null,isSet:false,suggestedOpening:null};
-  }).filter(it=>it.isSet||it.shipped>0);
-  if(!allItems.length){
-    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 本月沒有庫存異動</div></div>`;
-    return;
-  }
-  const chartHtml=buildStockChartSVG(allItems);
-  const unsetList=allItems.filter(it=>!it.isSet&&it.shipped>0);
-  const unsetHtml=unsetList.length?`<div class="cmp-unset-list"><div class="cmp-unset-title">未設期初，僅顯示已出貨：</div>${unsetList.map(it=>`<span class="cmp-unset-tag">${esc(it.item)} <b>${it.shipped}</b></span>`).join('')}</div>`:'';
-  area.innerHTML=head+`<div class="chart-scroll">${chartHtml}</div>${unsetHtml}<div class="sr-key"><span><i style="background:#3E7CC4"></i>剩餘</span><span><i style="background:#9C2F2A"></i>已出貨</span></div>`;
-}
-function niceCeil_(v){ if(v<=5)return 5; const mag=Math.pow(10,Math.floor(Math.log10(v))),norm=v/mag; return (norm<=1?1:norm<=2?2:norm<=5?5:10)*mag; }
-function buildStockChartSVG(allItems){
-  const W=Math.max(560,allItems.length*76+70), H=300, padL=42,padT=18,padB=76,chartH=H-padT-padB,chartR=W-16;
-  const maxVal=Math.max(1,...allItems.map(it=>it.isSet?Math.max(it.opening,it.shipped):it.shipped)), niceMax=niceCeil_(maxVal);
-  const chartW=chartR-padL, gap=chartW/allItems.length, barW=Math.min(44,gap*0.52), yBase=padT+chartH;
-  let grid='',ylab='', bars='',xlab='';
-  for(let i=0;i<=4;i++){ const val=Math.round(niceMax*i/4), y=yBase-(val/niceMax*chartH);
-    grid+=`<line x1="${padL}" y1="${y}" x2="${chartR}" y2="${y}" stroke="#E3E6EA" stroke-width="1"/>`;
-    ylab+=`<text x="${padL-8}" y="${y+3.5}" text-anchor="end" font-size="9.5" fill="#939DA9" font-family="'IBM Plex Mono',monospace">${val}</text>`; }
-  allItems.forEach((it,i)=>{
-    const cx=padL+gap*i+gap/2, x=cx-barW/2, used=it.shipped, remain=it.isSet?it.remaining:0;
-    const usedH=Math.round(used/niceMax*chartH), remH=Math.round(remain/niceMax*chartH), total=it.isSet?Math.max(it.opening,used):used;
-    if(remH>0)bars+=`<rect x="${x}" y="${yBase-remH}" width="${barW}" height="${remH}" fill="#3E7CC4"/>`;
-    if(usedH>0)bars+=`<rect x="${x}" y="${yBase-remH-usedH}" width="${barW}" height="${usedH}" fill="#9C2F2A"/>`;
-    if(total>0)bars+=`<text x="${cx}" y="${yBase-remH-usedH-6}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#101720" font-family="'IBM Plex Mono',monospace">${total}</text>`;
-    xlab+=`<text x="${cx}" y="${yBase+14}" text-anchor="end" font-size="9.5" fill="#5E6A78" font-family="'Noto Sans TC',sans-serif" transform="rotate(-38 ${cx} ${yBase+14})">${esc(it.item.length>11?it.item.slice(0,10)+'…':it.item)}</text>`;
-  });
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${grid}${ylab}<line x1="${padL}" y1="${yBase}" x2="${chartR}" y2="${yBase}" stroke="#101720" stroke-width="1.2"/>${bars}${xlab}</svg>`;
-}
-function renderManagerDashboard(){
-  document.getElementById('mgrYM').textContent=CURRENT_YM;
-  const prevYM=monthsBack(CURRENT_YM,2)[0], rows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(CURRENT_YM)), prevRows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(prevYM));
-  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length, cPend=DB.records.filter(x=>!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn)).length;
-  document.getElementById('m1').textContent=rows.length; document.getElementById('m2').textContent=cShip; document.getElementById('m3').textContent=cHold; document.getElementById('m4').textContent=cPend;
-  const months=monthsBack(CURRENT_YM,6), counts=months.map(ym=>DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(ym)).length), mx=Math.max(...counts,1);
-  const bySales={}; ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
-  rows.forEach(x=>{if(!x.sales)return;if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].stock++; if(stOf(x)==='sh')bySales[x.sales].ship++; else bySales[x.sales].hold++;});
-  DB.records.forEach(x=>{if(!x.sales||x.customer||!(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn))return; if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].pend++;});
-  const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0})).sort((a,b)=>b.stock-a.stock);
-  const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
-  renderNameGrid(); if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } 
-}
+function atab(n,b){document.querySelectorAll('#adminApp .pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('#adminApp .nav-b').forEach(x=>x.classList.remove('on'));
+  document.getElementById('apg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});
+  if(n==='alog')ensureAdminLogsLoaded();}
