@@ -1,7 +1,6 @@
 :root{
   --ink:#101720;
   --paper:#FFFFFF; 
-  /* 精確對齊參考語法的純淨背景色 rgb(240, 240, 235) */
   --shell:#F0F0EB; 
   --sub:#FAFBFC;
   --line:#E3E6EA; --line-2:#CDD3DA; --line-3:#AEB6C0;
@@ -12,8 +11,6 @@
   --warn:#8A5D0B; --warn-tint:#FBF3E3;
   --bad:#9C2F2A; --bad-tint:#FAEDEC;
   --e:cubic-bezier(.22,1,.36,1);
-  
-  /* 新增 Stripe 風格的高級陰影變數 */
   --stripe-shadow: 0 1px 3px rgba(0,0,0,.06), 0 5px 15px rgba(53,53,53,.04), 0 10px 35px rgba(53,53,53,.08);
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -84,10 +81,11 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .wrap.wide .pg{max-width:none;padding:20px}
 @keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-/* ─── PANEL (全面升級為參考視覺的無邊框+柔和陰影+圓角) ─── */
-.pn{background:var(--paper); margin-bottom:20px; border-radius:12px; box-shadow:var(--stripe-shadow); overflow:hidden;}
-.elevated{border:none; box-shadow:var(--stripe-shadow);} /* 原本的 elevated 也統一對齊 */
-.pn-h{padding:20px 24px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px 14px; flex-wrap:wrap; min-width:0}
+/* ─── PANEL ─── */
+/* 移除 overflow:hidden 避免大量節點時瀏覽器渲染崩潰 */
+.pn{background:var(--paper); margin-bottom:20px; border-radius:12px; box-shadow:var(--stripe-shadow);}
+.elevated{border:none; box-shadow:var(--stripe-shadow);}
+.pn-h{padding:20px 24px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px 14px; flex-wrap:wrap; min-width:0; border-radius: 12px 12px 0 0;}
 .pn-h>*{min-width:0}
 .pn-t{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:.06em}
 .pn-n{font-size:11px;color:var(--tx-3)}
@@ -143,7 +141,7 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .stp-lg button:last-child{border-left:1px solid var(--line)}
 .stp-lg .v{width:52px;font-size:17px;font-weight:600;color:var(--ink)}
 
-/* ─── STATS (統計數字也加入柔和圓角與陰影) ─── */
+/* ─── STATS ─── */
 .st{display:flex;background:var(--paper);border-radius:12px;box-shadow:var(--stripe-shadow);margin-bottom:20px;overflow:hidden;}
 .st-u{flex:1;padding:22px 8px 20px;text-align:center;border-right:1px solid var(--line);min-width:0;position:relative}
 .st-u:last-child{border-right:none}
@@ -235,7 +233,7 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stk-edit{flex:none;font-size:11px;color:var(--nav-2);cursor:pointer;background:var(--nav-tint);padding:5px 10px;border-radius:4px;white-space:nowrap;transition:.2s;}
 .stk-edit:hover{background:var(--nav);color:#fff;}
 
-/* ─── ALERT (通知區塊升級) ─── */
+/* ─── ALERT ─── */
 .al{background:var(--paper);border:1px solid rgba(138,93,11,.2);border-left:3px solid var(--warn);border-radius:8px;padding:16px 18px;margin-bottom:20px;display:flex;align-items:center;gap:16px;cursor:pointer;box-shadow:0 2px 8px rgba(138,93,11,.05);transition:.2s var(--e)}
 .al:hover{box-shadow:0 4px 12px rgba(138,93,11,.1);transform:translateY(-1px);}
 .al-c{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:600;color:var(--warn);line-height:1;flex:none;min-width:22px;text-align:center}
@@ -243,7 +241,7 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .al-s{font-size:11px;color:var(--tx-3);margin-top:3px;font-weight:300}
 .al-g{margin-left:auto;color:var(--warn);font-size:15px;flex:none}
 
-/* ─── RECORD CARD (單筆卡片升級) ─── */
+/* ─── RECORD CARD ─── */
 .rc{display:flex;background:var(--paper);border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,.03);margin-bottom:12px;cursor:pointer;transition:.2s var(--e);overflow:hidden;border:1px solid transparent;}
 .rc:hover{box-shadow:0 6px 15px rgba(0,0,0,.06);transform:translateY(-2px);border-color:rgba(0,0,0,.05);}
 .rc-s{width:4px;flex:none}
@@ -280,7 +278,7 @@ table.gprev tr:last-child td{border-bottom:none}
 .rc-sr:last-child{border-bottom:none}
 .rc-sr span:last-child{color:var(--nav-2);flex:none;font-weight:500;}
 
-/* ─── SEG / CHIPS (篩選按鈕升級) ─── */
+/* ─── SEG / CHIPS ─── */
 .seg{display:inline-flex;background:var(--sub);border:1px solid var(--line-2);border-radius:6px;padding:2px;flex:none}
 .seg button{padding:6px 14px;background:transparent;border:none;border-radius:4px;font-size:11.5px;color:var(--tx-2);cursor:pointer;white-space:nowrap;transition:.2s var(--e)}
 .seg button.on{background:var(--paper);color:var(--nav);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08);}
@@ -307,9 +305,10 @@ table.gprev tr:last-child td{border-bottom:none}
 
 /* ─── TABLE ─── */
 .tsc{overflow:auto;max-height:52vh;border-top:1px solid var(--line)}
-table.dt{border-collapse:separate;border-spacing:0;font-size:12.5px;width:100%}
+table.dt{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
 table.dt.grid{table-layout:fixed}
-table.dt th{position:sticky;top:0;text-align:left;padding:10px 12px;background:var(--nav);color:rgba(255,255,255,.95);font-weight:600;white-space:nowrap;font-size:11.5px;z-index:3;border-right:1px solid rgba(255,255,255,.1)}
+/* 還原緊湊表頭 */
+table.dt th{position:sticky;top:0;text-align:left;padding:8px 9px;background:var(--nav);color:rgba(255,255,255,.95);font-weight:600;white-space:nowrap;font-size:11.5px;z-index:3;border-right:1px solid rgba(255,255,255,.1)}
 .col-rs{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;z-index:6;transition:background .15s}
 .col-rs:hover,.col-rs.active{background:rgba(255,255,255,.35)}
 .hbadge{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:4px;background:rgba(255,255,255,.22);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600}
@@ -318,11 +317,13 @@ table.dt th.g2{background:var(--nav);color:rgba(255,255,255,.62)}
 table.dt td{padding:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--paper)}
 table.dt tbody tr.band td{background:#F8F9FA}
 table.dt tbody tr:hover td{background:var(--nav-tint)!important}
-table.dt td.pad{padding:12px 12px}
-.cel{width:100%;border:none;background:transparent;padding:10px 11px;outline:none;font-size:12.5px;min-width:0;transition:.15s var(--e);overflow:hidden;text-overflow:ellipsis}
+/* 還原緊湊內容框 */
+table.dt td.pad{padding:9px 10px}
+/* 移除 transition 解決 16000 格輸入框同時渲染造成的瀏覽器卡死，並還原字體與內距 */
+.cel{width:100%;border:none;background:transparent;padding:6px 7px;outline:none;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cel:focus{background:#fff;box-shadow:inset 0 0 0 2px var(--nav)}
 .cel.ed{background:var(--gold-tint);box-shadow:inset 3px 0 0 var(--gold)}
-.sm{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;white-space:nowrap;padding:0 10px}
+.sm{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;white-space:nowrap;padding:0 10px}
 .th-status{position:relative;padding-right:34px!important}
 .th-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:4px;padding:0;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .th-toggle:hover{background:rgba(255,255,255,.32)}
@@ -354,7 +355,7 @@ table.dt td.pad{padding:12px 12px}
 .ch-x span{flex:1;text-align:center;font-size:10.5px;color:var(--tx-3);font-weight:500;min-width:0}
 
 /* =========================================
-   LOGS 操作紀錄與搜尋列優化專用樣式
+   LOGS 操作紀錄與搜尋列
 ========================================= */
 .search-bar { display: flex; gap: 12px; margin-bottom: 20px; background: var(--paper); padding: 18px 24px; border-radius: 12px; border: 1px solid var(--line); box-shadow: var(--stripe-shadow); align-items: center; flex-wrap: wrap; }
 .search-bar input[type="text"], .search-bar input[type="date"], .search-bar select { padding: 9px 14px; border: 1px solid var(--line-2); border-radius: 6px; font-size: 13px; background: var(--sub); color: var(--tx); font-family: inherit; transition: .2s; height: 38px; outline: none; }
@@ -413,7 +414,7 @@ table.dt td.pad{padding:12px 12px}
 .emp-t{font-size:13.5px;color:var(--tx-2);font-weight:600;margin-bottom:6px}
 .emp-s{font-size:11.5px;color:var(--tx-3);font-weight:300}
 
-/* ─── MODALS (彈窗也換上柔和圓角與高級陰影) ─── */
+/* ─── MODALS ─── */
 .mv{display:none;position:fixed;inset:0;background:rgba(16,23,32,.55);backdrop-filter:blur(2px);z-index:200;align-items:center;justify-content:center;padding:18px}
 .mv.on{display:flex}
 .mb{background:var(--paper);width:100%;max-width:460px;max-height:88vh;display:flex;flex-direction:column;animation:mi .28s var(--e);border:1px solid var(--line-2);border-radius:12px;overflow:hidden;box-shadow:0 25px 50px rgba(0,0,0,.15);}
