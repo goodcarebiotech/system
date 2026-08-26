@@ -43,8 +43,8 @@ let SERVER={
     r('r9','2026-08-04','CD12AD','2026-08-05','歐儷芙舒口噴劑','和平醫院','刀房','樣','247292','','','','','','','','陳建志')
   ],
   logs:[
-    {t:'08-05 14:22',actor:'王大明',act:'新增紀錄',ok:true,rid:'r1',desc:'新增客戶「健仁醫院」／速原2.5ml-2級　備貨紀錄（批次建立 3 筆）',src:'業務端網頁'},
-    {t:'08-03 09:10',actor:'王大明',act:'新增紀錄',ok:true,rid:'r4',desc:'新增客戶「中正診所」／樂業5ml　備貨紀錄',src:'業務端網頁'}
+    {t:'08-05 14:22',actor:'王大明',act:'新增紀錄',ok:true,rid:'r1',desc:'新增客戶「健仁醫院」／速原2.5ml-2級 備貨紀錄（批次建立 3 筆）',src:'業務端網頁'},
+    {t:'08-03 09:10',actor:'王大明',act:'新增紀錄',ok:true,rid:'r4',desc:'新增客戶「中正診所」／樂業5ml 備貨紀錄',src:'業務端網頁'}
   ],
   stock:[ // 期初庫存 mock 種子資料（模擬「上個月已設定過」）
     {yearMonth:'2026-07',sales:'王大明',item:'速原2.5ml-2級',qty:20},
@@ -95,7 +95,7 @@ function mock(a,p){
     const ids=[];
     for(let i=0;i<p.qty;i++){const id=genId();ids.push(id);
       SERVER.records.push({recordId:id,...p.item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:p.actor,updatedAt:now()});}
-    pushLog(ids[0],p.actor,'新增紀錄',[],p.source,true,'',`新增客戶「${p.item.customer}」／${p.item.item}　備貨紀錄`+(p.qty>1?`（批次建立 ${p.qty} 筆）`:''));
+    pushLog(ids[0],p.actor,'新增紀錄',[],p.source,true,'',`新增客戶「${p.item.customer}」／${p.item.item} 備貨紀錄`+(p.qty>1?`（批次建立 ${p.qty} 筆）`:''));
     return{status:'success',createdCount:p.qty,ids};
   }
   if(a==='updateRecord'){
@@ -438,7 +438,9 @@ async function loadSalesData(silent){
       DB.logs = res.logs||[];           // 後端已一併回傳，不需額外再打一次
       STOCK_LEVELS = res.stock&&res.stock.items||[];
       SALES_LOGS_LOADED=false;   // 資料有變動，下次點開操作紀錄時重新抓最新的
-      autoFitColumns(REC_COL_W, DB.records, {resizeHandle:true});
+      
+      // 關閉自動欄寬，改用固定設定值以提升效能，並讓手動設定的寬度生效
+      // autoFitColumns(REC_COL_W, DB.records, {resizeHandle:true});
     }else if(!silent) toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     initSales();
   }catch(err){
@@ -463,7 +465,9 @@ async function loadAdminData(){
     if(res.status==='success'){
       DB.records = res.data||[];
       if(res.options && res.options.salesNames && res.options.salesNames.length) SALES_NAMES = res.options.salesNames;
-      autoFitColumns(GRID_COL_W, DB.records, {resizeHandle:true});
+      
+      // 關閉自動欄寬，改用固定設定值以提升效能，並讓手動設定的寬度生效
+      // autoFitColumns(GRID_COL_W, DB.records, {resizeHandle:true});
     }else toast('讀取總表失敗：'+(res.message||'未知錯誤'), true);
     ADMIN_LOGS_LOADED=false;
     initAdmin();
@@ -703,7 +707,7 @@ function renderRec(){
       <div class="rc-i" style="color:${itemColor(f.item)}">${esc(f.item||'（未填）')}</div>
       <div class="rc-m"><span class="mn">${esc(f.stockDate)}</span><span>科別 <b>${esc(f.category||'—')}</b></span>
         <span class="rc-batch" onclick="event.stopPropagation();openGroupEdit(${i})">批次編輯本組 ›</span></div>
-      <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')}　${stOf(x)==='sh'?'已出貨':'庫存中'}</span><span>編輯 ›</span></div>`).join('')}</div>
+      <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')} ${stOf(x)==='sh'?'已出貨':'庫存中'}</span><span>編輯 ›</span></div>`).join('')}</div>
       </div><div class="rc-a">▾</div></div>`;}).join('');}
 
   if(VIEW==='list'){
@@ -714,7 +718,7 @@ function renderRec(){
     document.getElementById('recTB').innerHTML=Object.values(g).map((its,i)=>{const f=its[0];
       const parent=`<tr class="grp-row" onclick="tgT(${i})" style="cursor:pointer;background:var(--sub)">
         <td class="pad mn">${esc(f.stockDate)}</td><td class="pad" colspan="${totalCols-1}">
-          <b>${esc(f.customer||'（未填）')}</b>　${esc(f.item||'（未填）')}　<span class="mn" style="color:var(--nav-2)">×${its.length} 筆</span>
+          <b>${esc(f.customer||'（未填）')}</b> ${esc(f.item||'（未填）')} <span class="mn" style="color:var(--nav-2)">×${its.length} 筆</span>
           <span style="float:right;color:var(--tx-3)">展開 ▾</span></td></tr>`;
       const children=its.map(x=>`<tr id="tgt-${i}" style="display:none">`+recRowHtml(x).replace(/^<tr[^>]*>/,'')).join('');
       return parent+children;
@@ -888,10 +892,10 @@ function logHtml(l,i){
   let summary='',hasMore=false;
   if(l.diffs&&l.diffs.length){
     const shown=l.diffs.slice(0,2);
-    summary=shown.map(d=>`${esc(d.label)}：<span class="dl">${esc(d.before||'（空白）')}</span> → <span class="nw">${esc(d.after||'（空白）')}</span>`).join('　');
+    summary=shown.map(d=>`${esc(d.label)}：<span class="dl">${esc(d.before||'（空白）')}</span> → <span class="nw">${esc(d.after||'（空白）')}</span>`).join(' ');
     hasMore=l.diffs.length>2;
   }else{ summary=esc(l.desc||''); }
-  if(!l.ok&&l.err)summary+=(summary?'　':'')+`<span style="color:var(--bad)">失敗原因：${esc(l.err)}</span>`;
+  if(!l.ok&&l.err)summary+=(summary?' ':'')+`<span style="color:var(--bad)">失敗原因：${esc(l.err)}</span>`;
   const dotClass=!l.ok?'fail':(l.diffs?'edit':'create');
   const needsDetail=hasMore||(l.diffs&&l.diffs.length>0);
   return `<div class="tl-item">
@@ -968,7 +972,7 @@ function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
   fields.forEach(([k,label])=>{
     const cnt={};its.forEach(x=>{const v=x[k]&&x[k].trim()?x[k]:'（空白）';cnt[v]=(cnt[v]||0)+1;});
     const keys=Object.keys(cnt);
-    if(keys.length>1)warn+=`<div class="gwarn"><b>${label}</b>　組內原本不一致：${keys.map(v=>`${esc(v)}×${cnt[v]}`).join('、')}</div>`;
+    if(keys.length>1)warn+=`<div class="gwarn"><b>${label}</b> 組內原本不一致：${keys.map(v=>`${esc(v)}×${cnt[v]}`).join('、')}</div>`;
   });
   document.getElementById('gEdWarn').innerHTML=warn?`<div class="gwarn-box">此組別部分欄位原本就填得不一樣，套用後將全部覆蓋為您輸入的新值：${warn}</div>`:'';
   document.getElementById('gEdMv').classList.add('on');}
@@ -1353,7 +1357,7 @@ function openDiff(){const by=buildDiffs(),ks=Object.keys(by);if(!ks.length)retur
   document.getElementById('dfBody').innerHTML=
     `<div style="font-size:12px;color:var(--tx-2);margin-bottom:14px;line-height:1.75">以下變更將寫入試算表，請確認「舊值 → 新值」無誤後送出。送出結果（成功或失敗）都會完整記錄於操作紀錄。</div>`+
     ks.map(rid=>{const{rec,list}=by[rid];
-      return `<div class="df"><div class="df-h"><span>${esc(rec.customer||'（未填客戶）')}　${esc(rec.item||'（未填品項）')}</span><span class="m">${esc(rec.sales||'—')} · ${esc(rid)}</span></div>
+      return `<div class="df"><div class="df-h"><span>${esc(rec.customer||'（未填客戶）')} ${esc(rec.item||'（未填品項）')}</span><span class="m">${esc(rec.sales||'—')} · ${esc(rid)}</span></div>
       ${list.map(d=>`<div class="df-r"><span class="df-k">${esc(d.label)}</span>
         <span class="df-v"><span class="dl">${esc(d.before||'（空白）')}</span> <span style="color:var(--tx-3)">→</span> <span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('')}</div>`;}).join('');
   document.getElementById('dfMv').classList.add('on');}
