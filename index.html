@@ -146,10 +146,11 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .btn-d:hover{background:var(--ink);border-color:var(--ink)}
 .btn-d:disabled{background:var(--line-2);border-color:var(--line-2);color:var(--tx-3);cursor:not-allowed}
 .dock{position:sticky;bottom:0;padding:14px 0 0;background:linear-gradient(180deg,rgba(242,243,245,0),var(--shell) 30%);z-index:40}
-.dock-row{display:flex;gap:12px;align-items:stretch}
+.dock-row{display:flex;gap:8px;align-items:stretch}
 .dock-row .btn-p{flex:1}
-.qty-inline{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:var(--paper);border:1px solid var(--line-2);padding:6px 12px}
-.qty-lbl{font-size:10px;color:var(--tx-2);letter-spacing:.06em}
+.stp-lg{flex:none}
+.stp-lg button{width:44px;height:100%}
+.stp-lg .v{width:40px;font-size:16px}
 
 /* ─── STATS ─── */
 .st{display:flex;background:var(--paper);border:1px solid var(--line);margin-bottom:18px}
@@ -176,17 +177,20 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .fb-track{flex:1;height:5px;background:var(--sub);border:1px solid var(--line)}
 .fb-track span{display:block;height:100%;background:var(--nav-3)}
 .fb-row .mn{width:24px;text-align:right;flex:none;color:var(--tx-2)}
+.fam-card{border-radius:18px;padding:22px 18px 20px;margin-bottom:16px;box-shadow:0 10px 24px rgba(16,23,32,.1);position:relative;overflow:hidden}
+.fam-card-name{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.92);margin-bottom:8px}
+.fam-card-total{text-align:center;font-family:'Noto Serif TC',serif;font-weight:700;font-size:44px;line-height:1;color:#fff;margin-bottom:18px;text-shadow:0 2px 6px rgba(0,0,0,.12)}
+.fam-spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:10px}
+.fam-spec-card{background:rgba(255,255,255,.32);border-radius:12px;padding:12px 6px 10px;text-align:center}
+.fam-spec-card .fsn{font-size:10px;font-weight:700;color:rgba(10,20,35,.72);margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fam-spec-card .fsv{font-family:'Noto Serif TC',serif;font-size:23px;font-weight:700;color:#fff;line-height:1;text-shadow:0 1px 3px rgba(0,0,0,.1)}
+/* 主管儀表板用的精簡版品牌列表（跟業務端的大卡片是不同使用情境，維持原本緊湊列表樣式）*/
 .fam-block{border-left:3px solid var(--line);padding:14px 0 16px 14px;margin-bottom:18px}
 .fam-block:last-child{margin-bottom:0}
 .fam-head{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap}
 .fam-dot{width:9px;height:9px;border-radius:50%;flex:none}
 .fam-name{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;color:var(--ink)}
 .fam-total{font-size:10.5px;color:var(--tx-3);margin-left:auto}
-.fam-spec{padding:8px 0;border-bottom:1px solid var(--line)}
-.fam-spec:last-child{border-bottom:none}
-.fam-spec-n{font-size:12px;color:var(--tx);font-weight:500}
-.fam-spec-v{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--tx-3);float:right}
-.fam-spec .stk{clear:both;margin-top:6px}
 .sr-row{padding:14px 0;border-bottom:1px solid var(--line)}
 .sr-row:last-child{border-bottom:none}
 .sr-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;gap:10px;flex-wrap:wrap}
@@ -303,7 +307,7 @@ table.gprev tr:last-child td{border-bottom:none}
 /* ─── TABLE ─── */
 .tsc{overflow:auto;max-height:62vh;border-top:1px solid var(--line)}
 table.dt{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
-table.dt.grid{table-layout:fixed;width:max-content;min-width:100%}
+table.dt.grid{table-layout:fixed}
 table.dt th{position:sticky;top:0;text-align:left;padding:8px 9px;background:var(--nav);color:rgba(255,255,255,.95);font-weight:600;white-space:nowrap;font-size:11.5px;z-index:3;border-right:1px solid rgba(255,255,255,.1)}
 .col-rs{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;z-index:6;transition:background .15s}
 .col-rs:hover,.col-rs.active{background:rgba(255,255,255,.35)}
@@ -573,10 +577,7 @@ table.dt td.pad{padding:9px 10px}
     </div>
 
     <div class="dock"><div class="dock-row">
-      <div class="qty-inline">
-        <span class="qty-lbl">數量</span>
-        <div class="stp"><button type="button" onclick="bq(-1)">－</button><input class="v" id="bqV" type="text" inputmode="numeric" autocomplete="off" value="1" onchange="bqSet(this.value)" oninput="bqSetLive(this.value)"><button type="button" onclick="bq(1)">＋</button></div>
-      </div>
+      <div class="stp stp-lg"><button type="button" onclick="bq(-1)">－</button><input class="v" id="bqV" type="text" inputmode="numeric" autocomplete="off" value="1" onchange="bqSet(this.value)" oninput="bqSetLive(this.value)"><button type="button" onclick="bq(1)">＋</button></div>
       <button class="btn-p" onclick="submitReg(this)">建立 <span id="bqBtnN">1</span> 筆資料</button>
     </div></div>
   </section>
@@ -596,7 +597,7 @@ table.dt td.pad{padding:9px 10px}
       <div id="recCards" style="padding:16px"></div>
       <div id="recTableWrap">
         <div class="tsc" style="max-height:64vh">
-          <table class="dt grid"><colgroup id="recCol"></colgroup><thead><tr id="recHead"></tr></thead><tbody id="recTB"></tbody></table>
+          <table class="dt grid" id="recTableEl"><colgroup id="recCol"></colgroup><thead><tr id="recHead"></tr></thead><tbody id="recTB"></tbody></table>
         </div>
       </div>
     </div>
@@ -604,6 +605,12 @@ table.dt td.pad{padding:9px 10px}
   </section>
 
   <section class="pg" id="pg-stats">
+
+    <!-- 品項庫存明細：最上方，直接看數字，色系對應各品牌實際包裝色 -->
+    <div class="pn">
+      <div class="pn-h"><span class="pn-t">品項庫存明細</span><span class="pn-n">本月備貨數量，依品牌分類</span></div>
+      <div class="pn-b" id="ibStat"></div>
+    </div>
 
     <!-- 本月庫存追蹤（主要內容）：期初庫存 − 本月已出貨 = 本月剩餘，提醒業務手上應該還有多少樣品 -->
     <div class="pn">
@@ -631,17 +638,16 @@ table.dt td.pad{padding:9px 10px}
         <div class="ch" id="chW"></div>
         <div class="ch-x"><span>3月</span><span>4月</span><span>5月</span><span>6月</span><span>7月</span><span>8月</span></div>
       </div></div>
-      <div class="pn"><div class="pn-h"><span class="pn-t">品項庫存明細</span></div><div class="pn-b" id="ibStat"></div></div>
-    </div>
-    <div class="two" style="margin-top:18px">
       <div class="pn"><div class="pn-h"><span class="pn-t">客戶排行榜</span><span class="pn-n">本月備貨筆數</span></div><div class="pn-b" id="topCust"></div></div>
-      <div class="pn"><div class="pn-h"><span class="pn-t">出貨效率</span><span class="pn-n">備貨到送貨天數</span></div><div class="pn-b">
+    </div>
+    <div class="pn" style="margin-top:18px">
+      <div class="pn-h"><span class="pn-t">出貨效率</span><span class="pn-n">備貨到送貨天數</span></div><div class="pn-b">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line)">
           <span class="sf" style="font-size:26px;font-weight:500;color:var(--ink)" id="fulfillAvg">—</span>
           <span style="font-size:11px;color:var(--tx-3)">天　平均（<span id="fulfillN">0</span> 筆已有送貨日期）</span>
         </div>
         <div id="fulfillBars"></div>
-      </div></div>
+      </div>
     </div>
   </section>
 
@@ -700,7 +706,7 @@ table.dt td.pad{padding:9px 10px}
       </div>
       <div class="cf"><div class="cf-h">僅顯示空值欄位</div><div class="cf-r" id="aEmptyChips"></div></div>
       <div class="tsc">
-        <table class="dt grid"><colgroup id="gridCol"></colgroup><thead><tr id="gridHead"></tr></thead><tbody id="gridBody"></tbody></table>
+        <table class="dt grid" id="gridTableEl"><colgroup id="gridCol"></colgroup><thead><tr id="gridHead"></tr></thead><tbody id="gridBody"></tbody></table>
       </div>
       <div class="tf">
         <span>顯示 <b id="aCnt">0</b> 筆</span>
@@ -917,7 +923,7 @@ const COLS=[
   {k:'erp',n:'ERP銷帳',w:130,role:'a'},
   {k:'loanReturn',n:'借出還回單',w:70,role:'a'},
   {k:'loanOut',n:'借出單',w:70,role:'a'},
-  {k:'note',n:'註記',w:90,role:'a'},
+  {k:'note',n:'註記',w:130,role:'a'},
   {k:'sales',n:'業務',w:35,role:'a'}
 ];
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
@@ -960,12 +966,12 @@ let DB={records:[],logs:[]}, ITEM_CATALOG=SERVER.items.slice(), SALES_NAMES=SERV
 // 顏色取自各品牌實際包裝色：NewEpi 深藍＋金（醫療科技感）、薇基因粉紫漸層、
 // 妙癒修復霜墨綠、歐儷芙藍綠。用在庫存統計跟主管儀表板的分類色條。
 const PRODUCT_FAMILIES=[
-  {key:'newepi',name:'NewEpi',color:'#1B4E8C',items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml']},
-  {key:'vaginne',name:'薇基因',color:'#9B5FB5',items:['薇基因(盒裝)']},
-  {key:'wonder',name:'妙癒修復霜',color:'#1F6B45',items:['妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)']},
-  {key:'orelief',name:'歐儷芙',color:'#1A8A8A',items:['歐儷芙舒口噴劑']}
+  {key:'newepi',name:'NEW EPI',color:'#1B4E8C',g1:'#7FB3E0',g2:'#3D7FC4',items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml']},
+  {key:'vaginne',name:'薇基因',color:'#9B5FB5',g1:'#D2A0DC',g2:'#9B5FB5',items:['薇基因(盒裝)']},
+  {key:'wonder',name:'妙癒修復霜',color:'#1F6B45',g1:'#A9D6AE',g2:'#5B9F68',items:['妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)']},
+  {key:'orelief',name:'歐儷芙',color:'#1A8A8A',g1:'#7FD9D9',g2:'#22A6A6',items:['歐儷芙舒口噴劑']}
 ];
-function familyOf(item){ return PRODUCT_FAMILIES.find(f=>f.items.includes(item)) || {key:'other',name:'其他',color:'var(--tx-3)',items:[]}; }
+function familyOf(item){ return PRODUCT_FAMILIES.find(f=>f.items.includes(item)) || {key:'other',name:'其他',color:'var(--tx-3)',g1:'#ccc',g2:'#999',items:[]}; }
 
 async function api(a,p){
   if(IS_LIVE){
@@ -1263,10 +1269,13 @@ function proceedLogin(role){
     setupRoleSwitcher('mgrSwitchRole');
     loadManagerData();
   }else{
+    // 業務登入直接看到「備貨登記」畫面可以馬上開始打字（表單本身不需要等資料回來才能用），
+    // 資料在背景悄悄載入，載完再把「我的紀錄／庫存統計／待補齊／操作紀錄」這幾個分頁的內容補上，
+    // 不會為了這些之後才需要看的資料，讓業務多等一次可以馬上使用的畫面。
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
     setupRoleSwitcher('salesSwitchRole');
-    loadSalesData();
+    loadSalesData(true); // true = 靜默背景載入，不擋畫面、不show loading圖層
   }
 }
 function setupRoleSwitcher(slotId){
@@ -1293,8 +1302,8 @@ function logout(){
 // ── 真正的資料讀取：登入 / 手動重新整理都會呼叫這裡，一律以伺服器（或 mock 的 SERVER）為準 ──
 const CURRENT_YM='2026-08';
 let STOCK_LEVELS=[];
-async function loadSalesData(){
-  showLoad('讀取您的備貨紀錄中…');
+async function loadSalesData(silent){
+  if(!silent)showLoad('讀取您的備貨紀錄中…');
   try{
     // 合併成一趟請求：原本要打三次 API（各自都是一趟獨立的網路來回＋GAS 啟動開銷），
     // 現在後端一次算好三個部分一起回傳，網路來回從 3 趟降到 1 趟。
@@ -1303,16 +1312,16 @@ async function loadSalesData(){
       DB.records = res.records||[];
       DB.logs = res.logs||[];
       STOCK_LEVELS = res.stock&&res.stock.items||[];
-    }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
+    }else if(!silent) toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     initSales();
   }catch(err){
-    toast('連線失敗，暫時顯示上次的資料：'+err.message, true);
+    if(!silent) toast('連線失敗，暫時顯示上次的資料：'+err.message, true);
     initSales();
-  }finally{ hideLoad(); }
+  }finally{ if(!silent) hideLoad(); }
 }
 async function refreshSales(){
   const btn=document.getElementById('salesRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
-  await loadSalesData();
+  await loadSalesData(false);
   btn.textContent=old;toast('已更新為最新資料');
 }
 
@@ -1427,18 +1436,25 @@ function colW(store,c){ if(store[c.k]===undefined) store[c.k]=c.w; return store[
 function attachColResize(rowId, colgroupId, store){
   const row=document.getElementById(rowId), colgroup=document.getElementById(colgroupId);
   if(!row||!colgroup) return;
+  const tableId = colgroupId==='recCol' ? 'recTableEl' : 'gridTableEl';
   row.querySelectorAll('.col-rs').forEach(handle=>{
     handle.addEventListener('mousedown', function(e){
       e.preventDefault(); e.stopPropagation();
       const key=handle.dataset.col, idx=COLS.findIndex(c=>c.k===key), col=colgroup.children[idx];
       if(!col) return;
       handle.classList.add('active');
+      const table=document.getElementById(tableId);
       const startX=e.clientX, startW=col.offsetWidth||parseInt(col.style.width)||80;
+      const startTableW=table?(parseInt(table.style.width)||table.offsetWidth):0;
       let raf=null, pending=startW;
       document.body.style.cursor='col-resize';
       function onMove(ev){
         pending=Math.max(40, startW+(ev.clientX-startX));
-        if(!raf) raf=requestAnimationFrame(()=>{ col.style.width=pending+'px'; raf=null; });
+        if(!raf) raf=requestAnimationFrame(()=>{
+          col.style.width=pending+'px';
+          if(table)table.style.width=(startTableW+(pending-startW))+'px'; // 欄寬變動時同步調整表格總寬，維持 table-layout:fixed 正確運作
+          raf=null;
+        });
       }
       function onUp(){
         store[key]=pending;
@@ -1459,6 +1475,18 @@ function renderRecHead(){
     +'<th>狀態</th>'
     +`<th class="th-toggle" style="text-align:center;cursor:pointer" onclick="toggleRecFull()" title="${RECFULL?'收合發票～業務欄位':'展開發票～業務欄位'}">${RECFULL?'－':'＋'}</th>`;
   attachColResize('recHead','recCol',REC_COL_W);
+  setExactTableWidth('recTableEl',COLS,REC_COL_W,RECFULL,98);
+}
+// table-layout:fixed 若搭配 width:auto／max-content，瀏覽器仍會依內容微調各欄比例，
+// 導致「明明宣告一樣的寬度，實際畫出來卻不一樣大」——這就是欄寬設定看起來沒生效的真正原因。
+// 正確做法：table 本身要有「明確的總寬度」（所有欄位寬度加總），瀏覽器才會完全按照宣告值分配，
+// 不再受標題文字長短或內容影響。
+function setExactTableWidth(tableId,cols,store,onlyVisible,extra){
+  const table=document.getElementById(tableId);
+  if(!table)return;
+  let total=0;
+  cols.forEach(c=>{ if(onlyVisible!==undefined && c.role==='a' && !onlyVisible) return; total+=colW(store,c); });
+  table.style.width=(total+(extra||0))+'px';
 }
 function recRowHtml(x){
   return `<tr onclick="openEd('${x.recordId}')" style="cursor:pointer">`+COLS.map(c=>
@@ -1545,12 +1573,11 @@ function renderStats(){
   const v=[39,52,33,62,47,rows.length||1],mx=Math.max(...v);
   document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===5?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
 
-  // 品項庫存明細 → 四大品牌分類：NewEpi（速原／樂業）、薇基因、妙癒修復霜、歐儷芙。
-  // 一律列出「全部品項」（不是只列有資料的），沒有紀錄的規格就直接顯示 0，
-  // 這樣業務永遠能看到完整的產品線分佈，不會因為當月剛好沒資料就整塊消失。
+  // 品項庫存明細 → 大卡片直接呈現數字（參考產品實際包裝色），一律列出「全部品項」，
+  // 沒有紀錄的規格直接顯示 0，業務永遠能一眼看到完整的產品線分佈與數量。
   const fam={};
   PRODUCT_FAMILIES.forEach(f=>{
-    fam[f.key]={name:f.name,color:f.color,items:{}};
+    fam[f.key]={name:f.name,g1:f.g1,g2:f.g2,items:{}};
     f.items.forEach(itemName=>{fam[f.key].items[itemName]={sh:0,hd:0};});
   });
   DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>{
@@ -1561,16 +1588,13 @@ function renderStats(){
   });
   const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]);
   document.getElementById('ibStat').innerHTML=famList.map(f=>{
-    let famSh=0,famHd=0;Object.values(f.items).forEach(v=>{famSh+=v.sh;famHd+=v.hd;});
-    const specRows=Object.entries(f.items).map(([n,vv])=>{
-      const t=vv.sh+vv.hd,p=t?Math.round(vv.sh/t*100):0;
-      return `<div class="fam-spec"><span class="fam-spec-n">${esc(n)}</span><span class="fam-spec-v">出貨 <b>${vv.sh}</b> ／ 庫存 <b>${vv.hd}</b></span>
-        <div class="stk"><div class="a" style="width:${p}%;background:${f.color}"></div><div class="b" style="width:${100-p}%"></div></div></div>`;
-    }).join('');
-    return `<div class="fam-block" style="border-left-color:${f.color}">
-      <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
-        <span class="fam-total">共 ${famSh+famHd} 筆　出貨 ${famSh} ／ 庫存 ${famHd}</span></div>
-      ${specRows}
+    let famTotal=0;Object.values(f.items).forEach(v=>{famTotal+=v.sh+v.hd;});
+    const specCards=Object.entries(f.items).map(([n,vv])=>
+      `<div class="fam-spec-card"><div class="fsn">${esc(n)}</div><div class="fsv">${vv.sh+vv.hd}</div></div>`).join('');
+    return `<div class="fam-card" style="background:linear-gradient(160deg,${f.g1} 0%,${f.g2} 100%)">
+      <div class="fam-card-name">${esc(f.name)}</div>
+      <div class="fam-card-total">${famTotal}</div>
+      <div class="fam-spec-grid">${specCards}</div>
     </div>`;
   }).join('');
 
@@ -1938,6 +1962,7 @@ function renderGridHead(stats){
     return `<th class="${c.role==='a'?'g2':''}">${c.n}${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
   }).join('');
   attachColResize('gridHead','gridCol',GRID_COL_W);
+  setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
 }
 function renderAChips(){
   document.getElementById('aSalesFilterLabel').textContent=ASales||'全部';
