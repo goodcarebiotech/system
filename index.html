@@ -55,6 +55,8 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .lg-f{text-align:center;font-size:10.5px;color:var(--tx-3);margin-top:20px;line-height:1.9;font-weight:300}
 .lg-divider{height:1px;background:var(--line);margin:0 0 22px}
 .btn-google{width:100%;padding:13px 16px;background:#fff;border:1px solid var(--line-2);color:var(--tx);font-size:13.5px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:.2s var(--e)}
+.btn-role-choice{width:100%;padding:15px;background:var(--sub);border:1px solid var(--line-2);color:var(--ink);font-size:13.5px;font-weight:600;cursor:pointer;letter-spacing:.04em;transition:.2s var(--e);text-align:left}
+.btn-role-choice:hover{background:var(--nav);color:#fff;border-color:var(--nav)}
 .btn-google:hover{background:var(--sub);border-color:var(--line-3)}
 .btn-google:disabled{opacity:.55;cursor:not-allowed}
 
@@ -144,6 +146,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .btn-d:hover{background:var(--ink);border-color:var(--ink)}
 .btn-d:disabled{background:var(--line-2);border-color:var(--line-2);color:var(--tx-3);cursor:not-allowed}
 .dock{position:sticky;bottom:0;padding:14px 0 0;background:linear-gradient(180deg,rgba(242,243,245,0),var(--shell) 30%);z-index:40}
+.dock-row{display:flex;gap:12px;align-items:stretch}
+.dock-row .btn-p{flex:1}
+.qty-inline{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:var(--paper);border:1px solid var(--line-2);padding:6px 12px}
+.qty-lbl{font-size:10px;color:var(--tx-2);letter-spacing:.06em}
 
 /* ─── STATS ─── */
 .st{display:flex;background:var(--paper);border:1px solid var(--line);margin-bottom:18px}
@@ -170,6 +176,17 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .fb-track{flex:1;height:5px;background:var(--sub);border:1px solid var(--line)}
 .fb-track span{display:block;height:100%;background:var(--nav-3)}
 .fb-row .mn{width:24px;text-align:right;flex:none;color:var(--tx-2)}
+.fam-block{border-left:3px solid var(--line);padding:14px 0 16px 14px;margin-bottom:18px}
+.fam-block:last-child{margin-bottom:0}
+.fam-head{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap}
+.fam-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.fam-name{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;color:var(--ink)}
+.fam-total{font-size:10.5px;color:var(--tx-3);margin-left:auto}
+.fam-spec{padding:8px 0;border-bottom:1px solid var(--line)}
+.fam-spec:last-child{border-bottom:none}
+.fam-spec-n{font-size:12px;color:var(--tx);font-weight:500}
+.fam-spec-v{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--tx-3);float:right}
+.fam-spec .stk{clear:both;margin-top:6px}
 .stk-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .stk-row:last-child{border-bottom:none}
 .stk-name{flex:1;min-width:120px;font-size:13px;font-weight:500;color:var(--ink)}
@@ -400,9 +417,8 @@ table.dt td.pad{padding:9px 10px}
 </style>
 </head>
 <script type="module">
-  // Firebase Google 登入 — 只負責「驗證身分」，角色（業務／行政）仍由畫面上的分頁選擇決定，
-  // 因為目前業務跟行政共用同一組測試帳號。之後若要依帳號自動判斷角色，可以在 ALLOWED_EMAILS
-  // 旁邊加一個對照表（email -> 'sales'|'admin'）即可，架構已經留了空間。
+  // Firebase Google 登入 — 只負責「驗證身分」，實際角色（業務／行政／主管）由 ROSTERS 名冊
+  // 依登入信箱自動判斷，詳見主程式區塊的 rolesForEmail() / handleAuthedUser()。
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence }
     from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
@@ -436,21 +452,25 @@ table.dt td.pad{padding:9px 10px}
     <div class="lg-mark sf">備</div>
     <div class="lg-t">業務備貨管理系統</div>
     <div class="lg-s">STOCK MANAGEMENT</div>
-    <div class="lg-seg">
-      <button class="on" id="rSales" onclick="setRole('sales')">業務登入</button>
-      <button id="rAdmin" onclick="setRole('admin')">行政登入</button>
+    <div class="lg-divider" style="margin-top:26px"></div>
+
+    <div id="googleStep">
+      <button class="btn-google" id="googleBtn" onclick="googleSignIn(this)">
+        <svg width="17" height="17" viewBox="0 0 18 18" style="flex:none">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.69-3.87 2.69-6.64z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.27c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
+          <path fill="#FBBC05" d="M3.95 10.69A5.4 5.4 0 013.68 9c0-.59.1-1.16.27-1.69V4.97H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.03l2.99-2.34z"/>
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.97l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
+        </svg>
+        <span id="googleBtnText">使用 Google 帳號登入</span>
+      </button>
+      <div class="lg-f">僅限公司核准的 Google 帳號可以登入<br>帳號權限由系統自動判斷，不用手動選擇身份</div>
     </div>
-    <div class="lg-divider"></div>
-    <button class="btn-google" id="googleBtn" onclick="googleSignIn(this)">
-      <svg width="17" height="17" viewBox="0 0 18 18" style="flex:none">
-        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.69-3.87 2.69-6.64z"/>
-        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.27c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
-        <path fill="#FBBC05" d="M3.95 10.69A5.4 5.4 0 013.68 9c0-.59.1-1.16.27-1.69V4.97H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.03l2.99-2.34z"/>
-        <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.97l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
-      </svg>
-      <span id="googleBtnText">使用 Google 帳號登入</span>
-    </button>
-    <div class="lg-f" id="lgHint">僅限公司核准的 Google 帳號可以登入<br>目前開放帳號：liam@goodcare-biotech.com.tw</div>
+
+    <div id="roleChooser" style="display:none">
+      <div class="lg-f" style="margin-top:0;margin-bottom:18px">您的帳號有多重身份，請選擇要進入的畫面：</div>
+      <div id="roleChooserOptions" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
   </div>
 </div>
 
@@ -494,32 +514,30 @@ table.dt td.pad{padding:9px 10px}
         </div>
         <div class="grp">
           <div class="grp-h"><span class="grp-n">02</span><span class="grp-t">批號與日期</span><span class="grp-l"></span></div>
-          <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input class="fb tx" type="text" id="f-batch" oninput="mk(this)"></div></div>
+          <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="f-batch" oninput="mk(this)"></div></div>
           <div class="fr">
             <div class="fg"><label class="fl">備貨日期<span class="rq">＊</span></label><div class="fw ok"><span class="fs"></span><input class="fb tx on" type="date" id="f-sd" value="2026-08-07" oninput="mk(this)"></div></div>
-            <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input class="fb tx" type="date" id="f-hd" oninput="mk(this)"></div>
+            <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="f-hd" oninput="mk(this)"></div>
               <div class="qk"><button type="button" onclick="qd('f-hd',0)">今天</button><button type="button" onclick="qd('f-hd',1)">明天</button></div></div>
           </div>
         </div>
         <div class="grp">
           <div class="grp-h"><span class="grp-n">03</span><span class="grp-t">其他資訊</span><span class="grp-l"></span></div>
           <div class="fr">
-            <div class="fg"><label class="fl">訂購單號</label><div class="fw"><span class="fs"></span><input class="fb tx" type="text" id="f-on" oninput="mk(this)"></div></div>
-            <div class="fg"><label class="fl">備註</label><div class="fw"><span class="fs"></span><input class="fb tx" type="text" id="f-rm" oninput="mk(this)"></div></div>
+            <div class="fg"><label class="fl">訂購單號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="f-on" oninput="mk(this)"></div></div>
+            <div class="fg"><label class="fl">備註</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="f-rm" oninput="mk(this)"></div></div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="pn"><div class="pn-b"><div class="bbox">
-      <div class="bbox-r">
-        <div style="min-width:0"><div class="bbox-t">重複建立筆數</div><div class="bbox-s">同樣的資料一次建立幾筆</div></div>
-        <div class="stp"><button type="button" onclick="bq(-1)">－</button><input class="v" id="bqV" type="text" inputmode="numeric" value="1" onchange="bqSet(this.value)" oninput="bqSetLive(this.value)"><button type="button" onclick="bq(1)">＋</button></div>
+    <div class="dock"><div class="dock-row">
+      <div class="qty-inline">
+        <span class="qty-lbl">數量</span>
+        <div class="stp"><button type="button" onclick="bq(-1)">－</button><input class="v" id="bqV" type="text" inputmode="numeric" autocomplete="off" value="1" onchange="bqSet(this.value)" oninput="bqSetLive(this.value)"><button type="button" onclick="bq(1)">＋</button></div>
       </div>
-      <div class="bbox-f">送出後將建立 <b id="bqH">1</b> 筆相同的備貨紀錄</div>
-    </div></div></div>
-
-    <div class="dock"><button class="btn-p" onclick="submitReg(this)">送出備貨紀錄</button></div>
+      <button class="btn-p" onclick="submitReg(this)">建立 <span id="bqBtnN">1</span> 筆資料</button>
+    </div></div>
   </section>
 
   <section class="pg" id="pg-rec">
@@ -650,14 +668,14 @@ table.dt td.pad{padding:9px 10px}
         <div class="grp">
           <div class="grp-h"><span class="grp-n">02</span><span class="grp-t">行政資訊（可留白）</span><span class="grp-l"></span></div>
           <div class="fr">
-            <div class="fg"><label class="fl">發票日期</label><div class="fw"><span class="fs"></span><input class="fb tx" type="date" id="ac-id" oninput="mk(this)"></div></div>
-            <div class="fg"><label class="fl">發票號碼</label><div class="fw"><span class="fs"></span><input class="fb tx" type="text" id="ac-in" oninput="mk(this)"></div></div>
+            <div class="fg"><label class="fl">發票日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="ac-id" oninput="mk(this)"></div></div>
+            <div class="fg"><label class="fl">發票號碼</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-in" oninput="mk(this)"></div></div>
           </div>
           <div class="fr">
-            <div class="fg"><label class="fl">ERP銷帳</label><div class="fw"><span class="fs"></span><input class="fb tx" type="text" id="ac-erp" oninput="mk(this)"></div></div>
-            <div class="fg"><label class="fl">借出還回單</label><div class="fw"><span class="fs"></span><input class="fb tx" type="text" id="ac-lr" oninput="mk(this)"></div></div>
+            <div class="fg"><label class="fl">ERP銷帳</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-erp" oninput="mk(this)"></div></div>
+            <div class="fg"><label class="fl">借出還回單</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-lr" oninput="mk(this)"></div></div>
           </div>
-          <div class="fg"><label class="fl">借出單</label><div class="fw"><span class="fs"></span><input class="fb tx" type="text" id="ac-lo" oninput="mk(this)"></div></div>
+          <div class="fg"><label class="fl">借出單</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-lo" oninput="mk(this)"></div></div>
         </div>
         <div class="grp">
           <div class="grp-h"><span class="grp-n">03</span><span class="grp-t">指定業務（選填）</span><span class="grp-l"></span></div>
@@ -678,13 +696,59 @@ table.dt td.pad{padding:9px 10px}
   </section>
 </div>
 
+<!-- ══ MANAGER ══ -->
+<div class="wrap wide" id="managerApp" style="display:none">
+  <div class="bar"><div class="bar-in">
+    <div class="bar-id"><div class="av sf">主</div><div style="min-width:0"><div class="bar-n" id="mgrName">主管</div><div class="bar-d">MANAGEMENT OVERVIEW</div></div></div>
+    <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot3"></div>
+  </div></div>
+
+  <section class="pg on" id="pg-manager" style="max-width:1600px;margin:0 auto">
+    <div class="pn" style="margin-bottom:16px"><div class="pn-b" style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div style="font-size:11.5px;color:var(--tx-2)">檢視期間：<b class="mn" id="mgrYM" style="color:var(--ink)"></b>（與上月比較）</div>
+      <div id="mgrSwitchRole" style="display:none"></div>
+    </div></div>
+
+    <div class="st">
+      <div class="st-u"><div class="v" id="m1">0</div><div class="k">全公司本月備貨</div><div class="dlt" id="m1d"></div></div>
+      <div class="st-u g"><div class="v" id="m2">0</div><div class="k">已出貨</div><div class="dlt" id="m2d"></div></div>
+      <div class="st-u a"><div class="v" id="m3">0</div><div class="k">庫存中</div><div class="dlt" id="m3d"></div></div>
+      <div class="st-u w"><div class="v" id="m4">0</div><div class="k">全公司待補齊</div><div class="dlt" id="m4d"></div></div>
+    </div>
+
+    <div class="two">
+      <div class="pn"><div class="pn-h"><span class="pn-t">近六個月全公司備貨量</span></div><div class="pn-b">
+        <div class="ch" id="mgrChart"></div>
+        <div class="ch-x" id="mgrChartX"></div>
+      </div></div>
+      <div class="pn"><div class="pn-h"><span class="pn-t">品牌家族本月出貨量</span></div><div class="pn-b" id="mgrFamily"></div></div>
+    </div>
+
+    <div class="two" style="margin-top:18px">
+      <div class="pn">
+        <div class="pn-h"><span class="pn-t">業務績效排行</span><span class="pn-n">依本月備貨筆數排序</span></div>
+        <div class="tsc" style="max-height:52vh"><table class="dt"><thead><tr>
+          <th>業務</th><th>本月備貨</th><th>已出貨</th><th>庫存中</th><th>待補齊</th><th>出貨率</th>
+        </tr></thead><tbody id="mgrRankBody"></tbody></table></div>
+      </div>
+      <div class="pn"><div class="pn-h"><span class="pn-t">期初庫存回報進度</span><span class="pn-n" id="mgrStockProgN"></span></div>
+        <div class="pn-b">
+          <div class="stk" style="height:8px;margin-bottom:14px"><div class="a" id="mgrStockProgBar" style="width:0%;background:var(--nav)"></div><div class="b"></div></div>
+          <div style="font-size:11px;color:var(--tx-3);line-height:1.8;margin-bottom:14px">本月已設定期初庫存的業務人數，反映團隊對「月初盤點」流程的落實程度。</div>
+          <div id="mgrStockMissing"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
 <!-- ══ PICKER ══ -->
 <div class="pk" id="pkBg" onclick="if(event.target===this)closePk()">
   <div class="pk-s">
     <div class="pk-h">
       <div class="pk-t"><span id="pkT">選擇項目</span><span class="pk-c" onclick="closePk()">✕ 關閉</span></div>
       <div style="display:flex;gap:8px;align-items:stretch">
-        <input class="pk-i" id="pkS" placeholder="輸入搜尋，或直接輸入新名稱" oninput="renderPk()" onkeydown="if(event.key==='Enter')confirmCustomPk()" style="flex:1">
+        <input class="pk-i" id="pkS" autocomplete="off" placeholder="輸入搜尋，或直接輸入新名稱" oninput="renderPk()" onkeydown="if(event.key==='Enter')confirmCustomPk()" style="flex:1">
         <button type="button" class="pk-ok" onclick="confirmCustomPk()">確認</button>
       </div>
     </div>
@@ -697,20 +761,20 @@ table.dt td.pad{padding:9px 10px}
   <div class="mb">
     <div class="mh"><span class="mh-t">編輯備貨紀錄</span><span class="mh-r" id="edRef"></span></div>
     <div class="mbd">
-      <div class="fg"><label class="fl">客戶名稱</label><div class="fw"><span class="fs"></span><input class="fb tx" id="e-cu" oninput="mk(this)"></div></div>
-      <div class="fg"><label class="fl">品項</label><div class="fw"><span class="fs"></span><input class="fb tx" id="e-it" oninput="mk(this)"></div></div>
+      <div class="fg"><label class="fl">客戶名稱</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-cu" oninput="mk(this)"></div></div>
+      <div class="fg"><label class="fl">品項</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-it" oninput="mk(this)"></div></div>
       <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input class="fb tx" id="e-ca" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input class="fb tx" id="e-ty" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ca" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ty" oninput="mk(this)"></div></div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">備貨日期</label><div class="fw"><span class="fs"></span><input class="fb tx" type="date" id="e-sd" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input class="fb tx" id="e-ba" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">備貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-sd" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ba" oninput="mk(this)"></div></div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">送貨日期<span class="rq">＊</span></label><div class="fw"><span class="fs"></span><input class="fb tx" type="date" id="e-hd" oninput="mk(this)"></div>
+        <div class="fg"><label class="fl">送貨日期<span class="rq">＊</span></label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-hd" oninput="mk(this)"></div>
           <div class="qk"><button type="button" onclick="qd('e-hd',0)">今天</button><button type="button" onclick="qd('e-hd',1)">明天</button></div></div>
-        <div class="fg"><label class="fl">訂購單號</label><div class="fw"><span class="fs"></span><input class="fb tx" id="e-on" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">訂購單號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-on" oninput="mk(this)"></div></div>
       </div>
     </div>
     <div class="ma"><button onclick="closeEd()">取消</button><button class="del" onclick="delRec(this)">刪除</button><button class="sv" onclick="saveEd(this)">儲存修改</button></div>
@@ -727,12 +791,12 @@ table.dt td.pad{padding:9px 10px}
       <div id="gEdWarn"></div>
       <div style="font-size:11px;color:var(--tx-3);margin:16px 0;line-height:1.7">以下留白的欄位不會被更動，僅套用您有填寫的欄位到組內全部 <span id="gEdCount">0</span> 筆紀錄。</div>
       <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input class="fb tx" id="g-ca" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input class="fb tx" id="g-ty" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ca" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ty" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input class="fb tx" id="g-ba" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input class="fb tx" type="date" id="g-hd" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ba" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="g-hd" oninput="mk(this)"></div></div>
       </div>
     </div>
     <div class="ma"><button onclick="closeGroupEdit()">取消</button><button class="sv" onclick="saveGroupEdit(this)">套用到整組</button></div>
@@ -746,7 +810,7 @@ table.dt td.pad{padding:9px 10px}
     <div class="mbd">
       <div class="fg"><label class="fl">品項</label><div style="font-size:14.5px;font-weight:600;color:var(--ink)" id="stockItemName">—</div></div>
       <div class="fg" style="margin-bottom:8px"><label class="fl">期初庫存數量<span class="rq">＊</span></label>
-        <div class="fw"><span class="fs"></span><input class="fb tx" type="number" min="0" id="stock-qty" oninput="mk(this)"></div></div>
+        <div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="number" min="0" autocomplete="off" id="stock-qty" oninput="mk(this)"></div></div>
       <div id="stockSuggest" style="font-size:11px;color:var(--tx-3);margin-bottom:4px"></div>
     </div>
     <div class="ma"><button onclick="closeStockEdit()">取消</button><button class="sv" onclick="saveStockEdit(this)">儲存</button></div>
@@ -782,18 +846,18 @@ const COLS=[
   {k:'batch',n:'批號',w:48,role:'s'},
   {k:'shipDate',n:'送貨日期',w:55,role:'s'},
   {k:'item',n:'品項',w:100,role:'s'},
-  {k:'customer',n:'客戶',w:64,role:'s'},
-  {k:'category',n:'科別',w:38,role:'s'},
-  {k:'type',n:'賣備樣',w:40,role:'s'},
+  {k:'customer',n:'客戶',w:48,role:'s'},
+  {k:'category',n:'科別',w:30,role:'s'},
+  {k:'type',n:'賣備樣',w:30,role:'s'},
   {k:'orderNo',n:'訂購單號',w:56,role:'s'},
-  {k:'remark',n:'備註',w:170,role:'s'},
+  {k:'remark',n:'備註',w:200,role:'s'},
   {k:'invoiceDate',n:'發票日期',w:55,role:'a'},
   {k:'invoiceNo',n:'發票號碼',w:68,role:'a'},
   {k:'erp',n:'ERP銷帳',w:130,role:'a'},
   {k:'loanReturn',n:'借出還回單',w:70,role:'a'},
-  {k:'loanOut',n:'借出單',w:60,role:'a'},
+  {k:'loanOut',n:'借出單',w:70,role:'a'},
   {k:'note',n:'註記',w:90,role:'a'},
-  {k:'sales',n:'業務',w:44,role:'a'}
+  {k:'sales',n:'業務',w:35,role:'a'}
 ];
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
@@ -830,6 +894,17 @@ let SERVER={
 };
 // ══ DB：畫面實際渲染用的「目前這次讀到的資料」，登入 / 重新整理時透過 API 從 SERVER（或真正的 GAS）載入
 let DB={records:[],logs:[]}, ITEM_CATALOG=SERVER.items.slice(), SALES_NAMES=SERVER.sales.slice();
+
+// 品牌家族分類：速原／樂業都掛在 NewEpi 底下（同一支噴劑產品線的不同規格）。
+// 顏色取自各品牌實際包裝色：NewEpi 深藍＋金（醫療科技感）、薇基因粉紫漸層、
+// 妙癒修復霜墨綠、歐儷芙藍綠。用在庫存統計跟主管儀表板的分類色條。
+const PRODUCT_FAMILIES=[
+  {key:'newepi',name:'NewEpi',color:'#1B4E8C',items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml']},
+  {key:'vaginne',name:'薇基因',color:'#9B5FB5',items:['薇基因(盒裝)']},
+  {key:'wonder',name:'妙癒修復霜',color:'#1F6B45',items:['妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)']},
+  {key:'orelief',name:'歐儷芙',color:'#1A8A8A',items:['歐儷芙舒口噴劑']}
+];
+function familyOf(item){ return PRODUCT_FAMILIES.find(f=>f.items.includes(item)) || {key:'other',name:'其他',color:'var(--tx-3)',items:[]}; }
 
 async function api(a,p){
   if(IS_LIVE){
@@ -966,34 +1041,89 @@ let ROLE='sales',CUR='王大明',CUR_EMAIL='',VIEW='list',BQ=1,AQ=1,PKT=null,PKV
 // 避免再發生「畫面顯示成功，但雲端試算表其實完全沒有動」這種無聲的誤會。
 function renderModeBadges(){
   const html = IS_LIVE
-    ? `<span class="mode-badge live">● 已連線 GAS</span><div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`
+    ? `<div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`
     : `<span class="mode-badge demo" title="尚未連上 Google Sheet，所有資料都只存在瀏覽器裡，重新整理頁面就會消失">⚠ 示範模式（未連上試算表）</span><div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`;
   const slot1 = document.getElementById('modeBadgeSlot1');
   const slot2 = document.getElementById('modeBadgeSlot2');
+  const slot3 = document.getElementById('modeBadgeSlot3');
   if (slot1) { slot1.innerHTML = html.replace('__REFRESH__','salesRefreshBtn'); slot1.querySelector('#salesRefreshBtn').setAttribute('onclick','refreshSales()'); }
   if (slot2) { slot2.innerHTML = html.replace('__REFRESH__','adminRefreshBtn'); slot2.querySelector('#adminRefreshBtn').setAttribute('onclick','refreshAdmin()'); }
+  if (slot3) { slot3.innerHTML = html.replace('__REFRESH__','mgrRefreshBtn'); slot3.querySelector('#mgrRefreshBtn').setAttribute('onclick','refreshManager()'); }
 }
 renderModeBadges();
 let FM='2026-08',FI='',ASales='',AItem='',AEmpty=new Set(),LOGF='all';
 let GRID=[],EDITS={};
 
-function setRole(x){ROLE=x;
-  document.getElementById('rSales').classList.toggle('on',x==='sales');
-  document.getElementById('rAdmin').classList.toggle('on',x==='admin');}
 function showLoad(msg){document.getElementById('loadOverlayText').textContent=msg||'讀取資料中…';document.getElementById('loadOverlay').style.display='flex';}
 function hideLoad(){document.getElementById('loadOverlay').style.display='none';}
 
 // 目前開放的帳號清單。之後要開放更多人，直接加進這個陣列即可；
 // 若要依帳號自動判斷業務／行政角色，可以改成 {email:'...',roles:['sales','admin']} 的物件陣列。
-const ALLOWED_EMAILS=['liam@goodcare-biotech.com.tw'];
+// ══ 人員名冊：業務／行政／主管，依登入的 Google 帳號自動判斷身份，不用手動選 ══
+// 有些人同時橫跨多個角色（例如同時是行政也是主管），登入時會列出他實際擁有的身份讓他選，
+// 選過一次之後會記住（存在瀏覽器裡，跟帳號綁定），下次重新整理／重開頁面會直接回到上次選的畫面，
+// 不會再發生「明明是行政、重新整理後卻跳回業務畫面」這種情況。真正的權限判斷永遠是即時算出來的，
+// 「記住」的只是「這個帳號上次選了哪個身份」這個使用習慣，不是權限本身。
+const ROSTERS={
+  sales:[
+    {name:'翁培文',email:'mavish@goodcare-biotech.com.tw'},
+    {name:'劉仲元',email:'marcus@goodcare-biotech.com.tw'},
+    {name:'郭其融',email:'lucas@goodcare-biotech.com.tw'},
+    {name:'謝羽宸',email:'daphne-hsieh@goodcare-biotech.com.tw'},
+    {name:'羅彩鳳',email:'ran@goodcare-biotech.com.tw'},
+    {name:'李雪梅',email:'mandy@goodcare-biotech.com.tw'},
+    {name:'李靜宜',email:'ella@goodcare-biotech.com.tw'},
+    {name:'陳玉屏',email:'maggie@goodcare-biotech.com.tw'},
+    {name:'陳怡伶',email:'rita@goodcare-biotech.com.tw'},
+    {name:'陳嬿伊',email:'amychen@goodcare-biotech.com.tw'},
+    {name:'李姸慧',email:'gina@goodcare-biotech.com.tw'},
+    {name:'孫郁婷',email:'sunny@goodcare-biotech.com.tw'},
+    {name:'李佩盈',email:'patty@goodcare-biotech.com.tw'},
+    {name:'徐純慧',email:'una@goodcare-biotech.com.tw'},
+    {name:'許智評',email:'deva@goodcare-biotech.com.tw'},
+    {name:'陳文嬛',email:'renee@goodcare-biotech.com.tw'},
+    {name:'涂宇萱',email:'hannah@goodcare-biotech.com.tw'},
+    {name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'}
+  ],
+  admin:[
+    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
+    {name:'顧晨馨',email:'chenhsin@goodcare-biotech.com.tw'},
+    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},
+    {name:'邱馨儀',email:'shinyi@goodcare-biotech.com.tw'},
+    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
+    {name:'李翊瑄',email:'vera@goodcare-biotech.com.tw'},
+    {name:'楊筱筠',email:'sherry@goodcare-biotech.com.tw'},
+    {name:'盧語璇',email:'zoe@goodcare-biotech.com.tw'},
+    {name:'詹琇竹',email:'vicky@goodcare-biotech.com.tw'},
+    {name:'江翰屏',email:'vicky-chiang@goodcare-biotech.com.tw'}
+  ],
+  manager:[
+    {name:'妙玉姐',email:'kelly@goodcare-biotech.com.tw'},
+    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
+    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},
+    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
+    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
+  ]
+};
+const ROLE_LABEL={sales:'業務登入',admin:'行政登入',manager:'主管儀表板'};
+function rolesForEmail(email){
+  return Object.keys(ROSTERS).filter(k=>ROSTERS[k].some(p=>p.email===email));
+}
+function nameForEmail(email){
+  for(const k of ['sales','admin','manager']){
+    const f=ROSTERS[k].find(p=>p.email===email);
+    if(f)return f.name;
+  }
+  return (email||'').split('@')[0]||'使用者';
+}
+
 let FIREBASE_READY=false, FIREBASE_USER=null;
 window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
   window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
     FIREBASE_USER=user;
-    // 常駐登入：如果瀏覽器本來就有登入狀態（上次沒登出），且目前還停在登入畫面，直接幫他跳過去
-    if(user && ALLOWED_EMAILS.includes(user.email) && document.getElementById('login').style.display!=='none'){
-      proceedLogin(user);
+    if(user && document.getElementById('login').style.display!=='none'){
+      handleAuthedUser(user);
     }
   });
 });
@@ -1004,38 +1134,70 @@ async function googleSignIn(btn){
   btn.disabled=true;document.getElementById('googleBtnText').textContent='登入中…';
   try{
     const result=await window.__fb.signInWithPopup(window.__fb.auth, window.__fb.provider);
-    const email=result.user.email;
-    if(!ALLOWED_EMAILS.includes(email)){
-      await window.__fb.signOut(window.__fb.auth);
-      toast('此帳號尚未開通使用權限：'+email, true);
-      btn.disabled=false;document.getElementById('googleBtnText').textContent=orig;
-      return;
-    }
-    await proceedLogin(result.user);
+    await handleAuthedUser(result.user);
   }catch(err){
     if(err.code!=='auth/popup-closed-by-user' && err.code!=='auth/cancelled-popup-request'){
       toast('Google 登入失敗：'+(err.message||err.code), true);
     }
-    btn.disabled=false;document.getElementById('googleBtnText').textContent=orig;
   }
+  btn.disabled=false;document.getElementById('googleBtnText').textContent=orig;
 }
-async function proceedLogin(user){
-  CUR = user.displayName || (user.email||'').split('@')[0] || '使用者';
-  CUR_EMAIL = user.email || '';
+async function handleAuthedUser(user){
+  const email=user.email||'';
+  const roles=rolesForEmail(email);
+  if(!roles.length){
+    await window.__fb.signOut(window.__fb.auth);
+    toast('此帳號尚未開通使用權限：'+email, true);
+    return;
+  }
+  CUR_EMAIL=email; CUR=nameForEmail(email);
+  if(roles.length===1){ proceedLogin(roles[0]); return; }
+  const remembered=localStorage.getItem('lastRole:'+email);
+  if(remembered && roles.includes(remembered)){ proceedLogin(remembered); return; }
+  showRoleChooser(roles);
+}
+function showRoleChooser(roles){
+  const box=document.getElementById('roleChooserOptions');
+  box.innerHTML=roles.map(r=>`<button class="btn-role-choice" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
+  document.getElementById('googleStep').style.display='none';
+  document.getElementById('roleChooser').style.display='block';
+}
+function proceedLogin(role){
+  ROLE=role;
+  localStorage.setItem('lastRole:'+CUR_EMAIL, role);
   document.getElementById('login').style.display='none';
-  if(ROLE==='admin'){
+  document.getElementById('roleChooser').style.display='none';
+  if(role==='admin'){
     document.getElementById('adminApp').style.display='block';
-    await loadAdminData();
+    loadAdminData();
+  }else if(role==='manager'){
+    document.getElementById('managerApp').style.display='block';
+    document.getElementById('mgrName').textContent=CUR;
+    setupManagerRoleSwitch();
+    loadManagerData();
   }else{
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
-    await loadSalesData();
+    loadSalesData();
   }
+}
+function setupManagerRoleSwitch(){
+  const roles=rolesForEmail(CUR_EMAIL);
+  const el=document.getElementById('mgrSwitchRole');
+  if(roles.length>1){
+    el.style.display='block';
+    el.innerHTML=`<span style="font-size:11px;color:var(--tx-3)">切換身份：</span>`+
+      roles.map(r=>`<button class="btn-g" style="margin-left:6px" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
+  }else{ el.style.display='none'; }
 }
 function logout(){
   if(window.__fb && window.__fb.auth) window.__fb.signOut(window.__fb.auth).catch(()=>{});
   document.getElementById('login').style.display='flex';
-  document.getElementById('salesApp').style.display='none';document.getElementById('adminApp').style.display='none';
+  document.getElementById('googleStep').style.display='block';
+  document.getElementById('roleChooser').style.display='none';
+  document.getElementById('salesApp').style.display='none';
+  document.getElementById('adminApp').style.display='none';
+  document.getElementById('managerApp').style.display='none';
   const gb=document.getElementById('googleBtn');if(gb){gb.disabled=false;document.getElementById('googleBtnText').textContent='使用 Google 帳號登入';}
 }
 
@@ -1066,22 +1228,34 @@ async function refreshSales(){
   btn.textContent=old;toast('已更新為最新資料');
 }
 
+let ADMIN_LOGS_LOADED=false;
 async function loadAdminData(){
   showLoad('讀取整份總表中…');
   try{
-    const [recRes, logRes] = await Promise.all([
+    // 三個請求平行送出（原本 getOptions 是等前兩個都完成才再打一次，多等了一趟來回）；
+    // LOG 也不在這裡載入了——那筆資料量會隨時間變大，總表本身用不到，挪到「操作紀錄」分頁
+    // 第一次被打開時才抓，總表本身的讀取速度不會再被它拖慢。
+    const [recRes, optRes] = await Promise.all([
       api('adminList', {}), // 不帶篩選＝取得全部
-      api('getLogs', {})
+      api('getOptions', {})
     ]);
     if(recRes.status==='success'){ DB.records = recRes.data; }
     else toast('讀取總表失敗：'+(recRes.message||'未知錯誤'), true);
-    if(logRes.status==='success'){ DB.logs = logRes.data; }
-    const optRes = await api('getOptions', {});
     if(optRes.status==='success' && optRes.salesNames && optRes.salesNames.length) SALES_NAMES = optRes.salesNames;
+    ADMIN_LOGS_LOADED=false;
     initAdmin();
   }catch(err){
     toast('連線失敗，暫時顯示上次的資料：'+err.message, true);
     initAdmin();
+  }finally{ hideLoad(); }
+}
+async function ensureAdminLogsLoaded(){
+  if(ADMIN_LOGS_LOADED)return;
+  showLoad('讀取操作紀錄中…');
+  try{
+    const res=await api('getLogs', {});
+    if(res.status==='success'){ DB.logs=res.data; ADMIN_LOGS_LOADED=true; }
+    renderALog();
   }finally{ hideLoad(); }
 }
 async function refreshAdmin(){
@@ -1104,9 +1278,9 @@ function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.c
 function mk(el){const w=el.closest('.fw');const v=el.value&&el.value.trim()!=='';el.classList.toggle('on',v);if(w)w.classList.toggle('ok',v);fillCount();}
 function fillCount(){const el=document.getElementById('fCnt');if(el)el.textContent=document.querySelectorAll('#pg-reg .fw.ok').length;}
 function qd(id,off){const d=new Date('2026-08-07');d.setDate(d.getDate()+off);const el=document.getElementById(id);el.value=d.toISOString().slice(0,10);mk(el);}
-function bq(d){BQ=Math.max(1,Math.min(50,BQ+d));document.getElementById('bqV').value=BQ;document.getElementById('bqH').textContent=BQ;}
-function bqSetLive(v){document.getElementById('bqH').textContent=(parseInt(v)||0);}
-function bqSet(v){let n=parseInt(v);if(isNaN(n)||n<1)n=1;if(n>50)n=50;BQ=n;document.getElementById('bqV').value=BQ;document.getElementById('bqH').textContent=BQ;}
+function bq(d){BQ=Math.max(1,Math.min(50,BQ+d));document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
+function bqSetLive(v){document.getElementById('bqBtnN').textContent=(parseInt(v)||0);}
+function bqSet(v){let n=parseInt(v);if(isNaN(n)||n<1)n=1;if(n>50)n=50;BQ=n;document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
 function aq(d){AQ=Math.max(1,Math.min(50,AQ+d));document.getElementById('aqV').textContent=AQ;}
 function val(id){return document.getElementById(id).value.trim();}
 
@@ -1281,10 +1455,28 @@ function renderStats(){
   const v=[39,52,33,62,47,rows.length||1],mx=Math.max(...v);
   document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===5?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
 
-  const m={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>{m[x.item]=m[x.item]||{sh:0,hd:0};m[x.item][stOf(x)]++});
-  document.getElementById('ibStat').innerHTML=Object.entries(m).map(([n,vv])=>{const t=vv.sh+vv.hd,p=Math.round(vv.sh/t*100);
-    return `<div class="sp"><div class="sp-t"><span class="sp-n">${esc(n)}</span><span class="sp-v">出貨 <b>${vv.sh}</b> ／ 庫存 <b>${vv.hd}</b></span></div>
-    <div class="stk"><div class="a" style="width:${p}%"></div><div class="b" style="width:${100-p}%"></div></div></div>`;}).join('')+keyHtml();
+  // 品項庫存明細 → 改成四大品牌分類：NewEpi（速原／樂業）、薇基因、妙癒修復霜、歐儷芙，
+  // 每個色塊代表該品牌實際包裝色，底下列出各規格的出貨/庫存數字
+  const fam={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>{
+    const f=familyOf(x.item);
+    fam[f.key]=fam[f.key]||{name:f.name,color:f.color,items:{}};
+    fam[f.key].items[x.item]=fam[f.key].items[x.item]||{sh:0,hd:0};
+    fam[f.key].items[x.item][stOf(x)]++;
+  });
+  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
+  document.getElementById('ibStat').innerHTML=famList.length?famList.map(f=>{
+    let famSh=0,famHd=0;Object.values(f.items).forEach(v=>{famSh+=v.sh;famHd+=v.hd;});
+    const specRows=Object.entries(f.items).map(([n,vv])=>{
+      const t=vv.sh+vv.hd,p=t?Math.round(vv.sh/t*100):0;
+      return `<div class="fam-spec"><span class="fam-spec-n">${esc(n)}</span><span class="fam-spec-v">出貨 <b>${vv.sh}</b> ／ 庫存 <b>${vv.hd}</b></span>
+        <div class="stk"><div class="a" style="width:${p}%;background:${f.color}"></div><div class="b" style="width:${100-p}%"></div></div></div>`;
+    }).join('');
+    return `<div class="fam-block" style="border-left-color:${f.color}">
+      <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
+        <span class="fam-total">共 ${famSh+famHd} 筆　出貨 ${famSh} ／ 庫存 ${famHd}</span></div>
+      ${specRows}
+    </div>`;
+  }).join('') : `<div class="emp-s">本月尚無資料</div>`;
 
   // 客戶排行榜（本月，依備貨筆數）
   const cm={};rows.forEach(x=>{if(x.customer)cm[x.customer]=(cm[x.customer]||0)+1;});
@@ -1498,11 +1690,107 @@ async function delRec(btn){
 
 /* ── ADMIN ── */
 function initAdmin(){renderAChips();renderGrid();renderALog();}
+
+/* ══════════════ MANAGER (主管儀表板，唯讀) ══════════════ */
+let MGR_STOCK_ALL=[];
+async function loadManagerData(){
+  showLoad('讀取全公司資料中…');
+  try{
+    const [recRes, stockRes] = await Promise.all([
+      api('adminList', {}),
+      api('getStockAll', {})
+    ]);
+    if(recRes.status==='success'){ DB.records = recRes.data; }
+    else toast('讀取資料失敗：'+(recRes.message||'未知錯誤'), true);
+    if(stockRes.status==='success'){ MGR_STOCK_ALL = stockRes.data||[]; }
+    renderManagerDashboard();
+  }catch(err){
+    toast('連線失敗：'+err.message, true);
+    renderManagerDashboard();
+  }finally{ hideLoad(); }
+}
+async function refreshManager(){
+  const btn=document.getElementById('mgrRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  await loadManagerData();
+  btn.textContent=old;toast('已更新為最新資料');
+}
+function monthsBack(ym,n){
+  const arr=[];let[y,m]=ym.split('-').map(Number);
+  for(let i=n-1;i>=0;i--){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}arr.push(yy+'-'+String(mm).padStart(2,'0'));}
+  return arr;
+}
+function renderManagerDashboard(){
+  document.getElementById('mgrYM').textContent=CURRENT_YM;
+  const prevYM=monthsBack(CURRENT_YM,2)[0];
+  const rows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
+  const prevRows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(prevYM));
+  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
+  const cPend=DB.records.filter(x=>!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn)).length;
+  const pShip=prevRows.filter(x=>stOf(x)==='sh').length, pHold=prevRows.filter(x=>stOf(x)==='hd').length;
+  document.getElementById('m1').textContent=rows.length;
+  document.getElementById('m2').textContent=cShip;
+  document.getElementById('m3').textContent=cHold;
+  document.getElementById('m4').textContent=cPend;
+  pctDelta('m1d',rows.length,prevRows.length);
+  pctDelta('m2d',cShip,pShip);
+  pctDelta('m3d',cHold,pHold);
+  document.getElementById('m4d').textContent=cPend?'需要追蹤':'目前無積壓';
+  document.getElementById('m4d').className='dlt'+(cPend?' down':' up');
+
+  // 近六個月：直接從全公司真實資料逐月統計，不是估算值
+  const months=monthsBack(CURRENT_YM,6);
+  const counts=months.map(ym=>DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(ym)).length);
+  const mx=Math.max(...counts,1);
+  document.getElementById('mgrChart').innerHTML=counts.map((n,i)=>
+    `<div class="ch-c"><div class="ch-b ${i===counts.length-1?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
+  document.getElementById('mgrChartX').innerHTML=months.map(ym=>`<span>${+ym.slice(5)}月</span>`).join('');
+
+  // 品牌家族本月出貨量（全公司）
+  const fam={};
+  rows.forEach(x=>{if(!x.item)return;const f=familyOf(x.item);
+    fam[f.key]=fam[f.key]||{name:f.name,color:f.color,total:0,ship:0};
+    fam[f.key].total++; if(stOf(x)==='sh')fam[f.key].ship++;});
+  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
+  const famMax=famList.length?Math.max(...famList.map(f=>f.total)):1;
+  document.getElementById('mgrFamily').innerHTML=famList.length?famList.map(f=>`
+    <div class="fam-block" style="border-left-color:${f.color}">
+      <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
+        <span class="fam-total">本月 ${f.total} 筆　已出貨 ${f.ship}</span></div>
+      <div class="stk"><div class="a" style="width:${Math.round(f.total/famMax*100)}%;background:${f.color}"></div><div class="b"></div></div>
+    </div>`).join('') : `<div class="emp-s">本月尚無資料</div>`;
+
+  // 業務績效排行：以名冊為底，確保就算某人本月完全沒動作也會列出來（0 筆本身就是一種訊號）
+  const bySales={};
+  ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
+  rows.forEach(x=>{if(!x.sales)return;if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0};
+    bySales[x.sales].stock++; if(stOf(x)==='sh')bySales[x.sales].ship++; else bySales[x.sales].hold++;});
+  DB.records.forEach(x=>{if(!x.sales||x.customer||!(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn))return;
+    if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].pend++;});
+  const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0}));
+  rankArr.sort((a,b)=>b.stock-a.stock);
+  document.getElementById('mgrRankBody').innerHTML=rankArr.map(r=>`
+    <tr><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
+    <td class="pad mn" style="color:var(--ok)">${r.ship}</td><td class="pad mn">${r.hold}</td>
+    <td class="pad mn" style="color:${r.pend>0?'var(--bad)':'var(--tx-3)'}">${r.pend}</td>
+    <td class="pad mn">${r.stock?r.rate+'%':'—'}</td></tr>`).join('');
+
+  // 期初庫存回報進度
+  const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
+  const totalN=ROSTERS.sales.length, reportedN=reportedSet.size;
+  document.getElementById('mgrStockProgN').textContent=reportedN+' / '+totalN+' 人';
+  document.getElementById('mgrStockProgBar').style.width=Math.round(reportedN/totalN*100)+'%';
+  const missing=ROSTERS.sales.filter(p=>!reportedSet.has(p.name));
+  document.getElementById('mgrStockMissing').innerHTML=missing.length?
+    `<div style="font-size:11px;color:var(--tx-2);margin-bottom:9px;font-weight:500">尚未設定的業務：</div>`+
+    missing.map(p=>`<span class="chip" style="margin:0 6px 6px 0">${esc(p.name)}</span>`).join('')
+    : `<div style="font-size:11.5px;color:var(--ok)">✓ 全部業務都已完成本月設定</div>`;
+}
 function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
 function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
 function atab(n,b){document.querySelectorAll('#adminApp .pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('#adminApp .nav-b').forEach(x=>x.classList.remove('on'));
-  document.getElementById('apg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}
+  document.getElementById('apg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});
+  if(n==='alog')ensureAdminLogsLoaded();}
 function renderGridHead(stats){
   document.getElementById('gridCol').innerHTML=COLS.map(c=>`<col style="width:${colW(GRID_COL_W,c)}px">`).join('');
   document.getElementById('gridHead').innerHTML=COLS.map(c=>{
@@ -1541,7 +1829,7 @@ function renderGrid(){GRID=gridRows();
     return `<tr class="${band?'band':''}">`+COLS.map(c=>{
       const ek=x.recordId+'::'+c.k,ed=EDITS[ek]!==undefined,v=ed?EDITS[ek]:(x[c.k]||'');
       const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
-      return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}" data-rid="${x.recordId}" data-col="${c.k}" type="text" placeholder="${isDateCol?'YYYY-MM-DD':''}" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
+      return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${isDateCol?'YYYY-MM-DD':''}" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
     }).join('')+`</tr>`;
   }).join('');
   document.getElementById('aCnt').textContent=GRID.length;
