@@ -201,6 +201,18 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .sr-key{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .sr-key span{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--tx-2)}
 .sr-key i{width:10px;height:10px;flex:none}
+.mgr-name-grid{display:flex;flex-wrap:wrap;gap:8px}
+.mgr-name-btn{display:flex;align-items:center;gap:7px;padding:8px 13px;background:var(--sub);border:1px solid var(--line-2);cursor:pointer;font-size:12px;color:var(--tx);transition:.16s var(--e)}
+.mgr-name-btn:hover{border-color:var(--nav);color:var(--nav)}
+.mgr-name-btn.on{background:var(--nav);color:#fff;border-color:var(--nav)}
+.mgr-name-btn.on .rpt-dot{border-color:#fff}
+.rpt-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--tx-3);border:1px solid transparent}
+.rpt-dot.reported{background:var(--ok)}
+.mgr-detail{border-top:1px solid var(--line);padding:20px;min-height:80px}
+.mgr-detail-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;flex-wrap:wrap;gap:10px}
+.mgr-detail-name{font-family:'Noto Serif TC',serif;font-size:16px;font-weight:600;color:var(--ink)}
+.mgr-detail-stats{display:flex;gap:18px;font-size:11px;color:var(--tx-2)}
+.mgr-detail-stats b{color:var(--ink);font-family:'IBM Plex Mono',monospace;font-weight:600}
 .rank-row.clickable, tr.rank-clickable{cursor:pointer;transition:background .15s}
 tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stk-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -273,6 +285,16 @@ table.gprev tr:last-child td{border-bottom:none}
 .cf-r{display:flex;gap:6px;flex-wrap:wrap}
 @media(max-width:999px){.cf-r{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.cf-r::-webkit-scrollbar{display:none}}
 .chip{padding:6px 12px;background:var(--sub);border:1px solid var(--line-2);font-size:11.5px;color:var(--tx-2);cursor:pointer;white-space:nowrap;transition:.16s var(--e)}
+.icon-filter{display:flex;align-items:stretch}
+.icon-filter-btn{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--paper);border:1px solid var(--line-2);cursor:pointer;font-size:12px;color:var(--tx);transition:.18s var(--e)}
+.icon-filter-btn svg{flex:none;color:var(--tx-3)}
+.icon-filter-btn:hover{border-color:var(--nav);color:var(--nav)}
+.icon-filter-btn.active{background:var(--nav);color:#fff;border-color:var(--nav)}
+.icon-filter-btn.active svg{color:#fff}
+.icon-filter-btn b{font-weight:600}
+.icon-filter-clear{display:none;align-items:center;padding:0 10px;background:var(--paper);border:1px solid var(--line-2);border-left:none;color:var(--tx-3);cursor:pointer;font-size:11px}
+.icon-filter-clear:hover{color:var(--bad)}
+.icon-filter.show-clear .icon-filter-clear{display:flex}
 .chip:hover{border-color:var(--line-3);color:var(--tx)}
 .chip.on{background:var(--nav);border-color:var(--nav);color:#fff;font-weight:500}
 .chip.wo.on{background:var(--warn);border-color:var(--warn)}
@@ -660,8 +682,22 @@ table.dt td.pad{padding:9px 10px}
           <button class="btn-d" id="btnSubmitGrid" onclick="openDiff()" disabled>送出更新</button>
         </div>
       </div>
-      <div class="cf"><div class="cf-h">業務</div><div class="cf-r" id="aSalesChips"></div></div>
-      <div class="cf"><div class="cf-h">品項</div><div class="cf-r" id="aItemChips"></div></div>
+      <div class="cf" style="display:flex;gap:14px;flex-wrap:wrap">
+        <div class="icon-filter" id="aSalesFilterWrap">
+          <button type="button" class="icon-filter-btn" id="aSalesFilterBtn" onclick="openPk('admin-sales-filter')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1"/></svg>
+            <span>業務：<b id="aSalesFilterLabel">全部</b></span>
+          </button>
+          <span class="icon-filter-clear" onclick="clearAdminFilter('sales')" title="清除篩選">✕</span>
+        </div>
+        <div class="icon-filter" id="aItemFilterWrap">
+          <button type="button" class="icon-filter-btn" id="aItemFilterBtn" onclick="openPk('admin-item-filter')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+            <span>品項：<b id="aItemFilterLabel">全部</b></span>
+          </button>
+          <span class="icon-filter-clear" onclick="clearAdminFilter('item')" title="清除篩選">✕</span>
+        </div>
+      </div>
       <div class="cf"><div class="cf-h">僅顯示空值欄位</div><div class="cf-r" id="aEmptyChips"></div></div>
       <div class="tsc">
         <table class="dt grid"><colgroup id="gridCol"></colgroup><thead><tr id="gridHead"></tr></thead><tbody id="gridBody"></tbody></table>
@@ -748,34 +784,26 @@ table.dt td.pad{padding:9px 10px}
       <div class="pn"><div class="pn-h"><span class="pn-t">品牌家族本月出貨量</span></div><div class="pn-b" id="mgrFamily"></div></div>
     </div>
 
-    <div class="two" style="margin-top:18px">
-      <div class="pn">
-        <div class="pn-h"><span class="pn-t">業務績效排行</span><span class="pn-n">依本月備貨筆數排序，點列可查看該人庫存明細</span></div>
-        <div class="tsc" style="max-height:52vh"><table class="dt"><thead><tr>
-          <th>業務</th><th>本月備貨</th><th>已出貨</th><th>庫存中</th><th>待補齊</th><th>出貨率</th>
-        </tr></thead><tbody id="mgrRankBody"></tbody></table></div>
+    <div class="pn" style="margin-top:18px">
+      <div class="pn-h"><span class="pn-t">業務庫存明細報表</span><span class="pn-n" id="mgrStockProgN"></span></div>
+      <div class="pn-b" style="padding-bottom:16px">
+        <div class="stk" style="height:6px;margin-bottom:16px"><div class="a" id="mgrStockProgBar" style="width:0%;background:var(--nav)"></div><div class="b"></div></div>
+        <div style="font-size:11px;color:var(--tx-3);margin-bottom:16px">點選任一位業務，查看他本月各品項「期初／本月已用（紅色）／剩餘」的完整明細。灰點代表尚未設定本月期初庫存。</div>
+        <div id="mgrNameGrid" class="mgr-name-grid"></div>
       </div>
-      <div class="pn"><div class="pn-h"><span class="pn-t">期初庫存回報進度</span><span class="pn-n" id="mgrStockProgN"></span></div>
-        <div class="pn-b">
-          <div class="stk" style="height:8px;margin-bottom:14px"><div class="a" id="mgrStockProgBar" style="width:0%;background:var(--nav)"></div><div class="b"></div></div>
-          <div style="font-size:11px;color:var(--tx-3);line-height:1.8;margin-bottom:14px">本月已設定期初庫存的業務人數，反映團隊對「月初盤點」流程的落實程度。</div>
-          <div id="mgrStockMissing"></div>
-        </div>
-      </div>
+      <div id="mgrDetailArea" class="mgr-detail"></div>
+    </div>
+
+    <div class="pn" style="margin-top:18px">
+      <div class="pn-h"><span class="pn-t">業務績效排行</span><span class="pn-n">依本月備貨筆數排序，點列可查看該人庫存明細</span></div>
+      <div class="tsc" style="max-height:52vh"><table class="dt"><thead><tr>
+        <th>業務</th><th>本月備貨</th><th>已出貨</th><th>庫存中</th><th>待補齊</th><th>出貨率</th>
+      </tr></thead><tbody id="mgrRankBody"></tbody></table></div>
     </div>
   </section>
 </div>
 
 <!-- ══ PICKER ══ -->
-<!-- ══ STOCK REPORT（主管報表：點某位業務看他各品項的期初/已用/剩餘）══ -->
-<div class="mv" id="stockReportMv">
-  <div class="mb lg2">
-    <div class="mh"><span class="mh-t" id="stockReportName">業務庫存報表</span><span class="mh-r" id="stockReportYM"></span></div>
-    <div class="mbd" id="stockReportBody"></div>
-    <div class="ma"><button onclick="document.getElementById('stockReportMv').classList.remove('on')" style="flex:1">關閉</button></div>
-  </div>
-</div>
-
 <div class="pk" id="pkBg" onclick="if(event.target===this)closePk()">
   <div class="pk-s">
     <div class="pk-h">
@@ -1006,6 +1034,22 @@ function mock(a,p){
   }
   if(a==='listBySales'){
     return{status:'success',data:SERVER.records.filter(x=>x.sales===p.salesName)};
+  }
+  if(a==='salesInit'){
+    const records=SERVER.records.filter(x=>x.sales===p.salesName);
+    const logs=SERVER.logs.filter(l=>l.actor===p.salesName);
+    const stock=mock('getStockLevels',{salesName:p.salesName,yearMonth:p.yearMonth});
+    return{status:'success',records,logs,stock:{items:stock.items,yearMonth:stock.yearMonth,prevYearMonth:stock.prevYearMonth}};
+  }
+  if(a==='adminInit'){
+    const uniq=arr=>[...new Set(arr.filter(v=>v))];
+    return{status:'success',data:SERVER.records.slice(),options:{
+      customers:uniq(SERVER.records.map(r=>r.customer)),
+      items:SERVER.items.slice(),
+      categories:uniq(SERVER.records.map(r=>r.category)),
+      types:uniq(SERVER.records.map(r=>r.type)),
+      salesNames:uniq(SERVER.records.map(r=>r.sales).concat(SERVER.sales))
+    }};
   }
   if(a==='adminList'){
     let rows=SERVER.records.slice();
@@ -1252,15 +1296,14 @@ let STOCK_LEVELS=[];
 async function loadSalesData(){
   showLoad('讀取您的備貨紀錄中…');
   try{
-    const [recRes, logRes, stockRes] = await Promise.all([
-      api('listBySales', {salesName:CUR}),
-      api('getLogs', {salesName:CUR}),
-      api('getStockLevels', {salesName:CUR, yearMonth:CURRENT_YM})
-    ]);
-    if(recRes.status==='success'){ DB.records = recRes.data; }
-    else toast('讀取備貨紀錄失敗：'+(recRes.message||'未知錯誤'), true);
-    if(logRes.status==='success'){ DB.logs = logRes.data; }
-    if(stockRes.status==='success'){ STOCK_LEVELS = stockRes.items||[]; }
+    // 合併成一趟請求：原本要打三次 API（各自都是一趟獨立的網路來回＋GAS 啟動開銷），
+    // 現在後端一次算好三個部分一起回傳，網路來回從 3 趟降到 1 趟。
+    const res=await api('salesInit', {salesName:CUR, yearMonth:CURRENT_YM});
+    if(res.status==='success'){
+      DB.records = res.records||[];
+      DB.logs = res.logs||[];
+      STOCK_LEVELS = res.stock&&res.stock.items||[];
+    }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     initSales();
   }catch(err){
     toast('連線失敗，暫時顯示上次的資料：'+err.message, true);
@@ -1277,16 +1320,14 @@ let ADMIN_LOGS_LOADED=false;
 async function loadAdminData(){
   showLoad('讀取整份總表中…');
   try{
-    // 三個請求平行送出（原本 getOptions 是等前兩個都完成才再打一次，多等了一趟來回）；
-    // LOG 也不在這裡載入了——那筆資料量會隨時間變大，總表本身用不到，挪到「操作紀錄」分頁
-    // 第一次被打開時才抓，總表本身的讀取速度不會再被它拖慢。
-    const [recRes, optRes] = await Promise.all([
-      api('adminList', {}), // 不帶篩選＝取得全部
-      api('getOptions', {})
-    ]);
-    if(recRes.status==='success'){ DB.records = recRes.data; }
-    else toast('讀取總表失敗：'+(recRes.message||'未知錯誤'), true);
-    if(optRes.status==='success' && optRes.salesNames && optRes.salesNames.length) SALES_NAMES = optRes.salesNames;
+    // 合併成一趟請求：原本 adminList + getOptions 是兩趟獨立來回，且各自在 GAS 裡都重新讀一次
+    // 整張工作表；現在後端只讀一次，兩份資料一起算好回傳。這裡故意不帶篩選條件——
+    // 一定要抓「全部」資料回來，篩選 chip 才能在瀏覽器裡即時切換，不用每點一次就重打一次 API。
+    const res=await api('adminInit', {});
+    if(res.status==='success'){
+      DB.records = res.data||[];
+      if(res.options && res.options.salesNames && res.options.salesNames.length) SALES_NAMES = res.options.salesNames;
+    }else toast('讀取總表失敗：'+(res.message||'未知錯誤'), true);
     ADMIN_LOGS_LOADED=false;
     initAdmin();
   }catch(err){
@@ -1337,7 +1378,9 @@ const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l
   type:{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
   'ac-item':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   'ac-sales':{t:'選擇業務',ph:'請選擇業務',l:()=>SALES_NAMES},
-  'stock-item':{t:'選擇要設定期初庫存的品項',ph:'',l:()=>ITEM_CATALOG}};
+  'stock-item':{t:'選擇要設定期初庫存的品項',ph:'',l:()=>ITEM_CATALOG},
+  'admin-sales-filter':{t:'篩選業務',ph:'',l:()=>SALES_NAMES},
+  'admin-item-filter':{t:'篩選品項',ph:'',l:()=>ITEM_CATALOG}};
 function openPk(k){PKT=k;document.getElementById('pkT').textContent=PK[k].t;document.getElementById('pkS').value='';
   document.getElementById('pkBg').classList.add('on');renderPk();setTimeout(()=>document.getElementById('pkS').focus(),80);}
 function closePk(){document.getElementById('pkBg').classList.remove('on');}
@@ -1353,6 +1396,8 @@ function confirmCustomPk(){
 }
 function pickV(v){
   if(PKT==='stock-item'){closePk();openStockEditFor(v);return;} // 一次性動作，不對應畫面上常駐的欄位
+  if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
+  if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
   s.textContent=v;s.classList.remove('ph');b.classList.add('on');b.closest('.fw').classList.add('ok');closePk();fillCount();}
 function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
@@ -1500,16 +1545,22 @@ function renderStats(){
   const v=[39,52,33,62,47,rows.length||1],mx=Math.max(...v);
   document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===5?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
 
-  // 品項庫存明細 → 改成四大品牌分類：NewEpi（速原／樂業）、薇基因、妙癒修復霜、歐儷芙，
-  // 每個色塊代表該品牌實際包裝色，底下列出各規格的出貨/庫存數字
-  const fam={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>{
+  // 品項庫存明細 → 四大品牌分類：NewEpi（速原／樂業）、薇基因、妙癒修復霜、歐儷芙。
+  // 一律列出「全部品項」（不是只列有資料的），沒有紀錄的規格就直接顯示 0，
+  // 這樣業務永遠能看到完整的產品線分佈，不會因為當月剛好沒資料就整塊消失。
+  const fam={};
+  PRODUCT_FAMILIES.forEach(f=>{
+    fam[f.key]={name:f.name,color:f.color,items:{}};
+    f.items.forEach(itemName=>{fam[f.key].items[itemName]={sh:0,hd:0};});
+  });
+  DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>{
     const f=familyOf(x.item);
-    fam[f.key]=fam[f.key]||{name:f.name,color:f.color,items:{}};
-    fam[f.key].items[x.item]=fam[f.key].items[x.item]||{sh:0,hd:0};
+    if(!fam[f.key])return;
+    if(!fam[f.key].items[x.item])fam[f.key].items[x.item]={sh:0,hd:0};
     fam[f.key].items[x.item][stOf(x)]++;
   });
-  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
-  document.getElementById('ibStat').innerHTML=famList.length?famList.map(f=>{
+  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]);
+  document.getElementById('ibStat').innerHTML=famList.map(f=>{
     let famSh=0,famHd=0;Object.values(f.items).forEach(v=>{famSh+=v.sh;famHd+=v.hd;});
     const specRows=Object.entries(f.items).map(([n,vv])=>{
       const t=vv.sh+vv.hd,p=t?Math.round(vv.sh/t*100):0;
@@ -1521,7 +1572,7 @@ function renderStats(){
         <span class="fam-total">共 ${famSh+famHd} 筆　出貨 ${famSh} ／ 庫存 ${famHd}</span></div>
       ${specRows}
     </div>`;
-  }).join('') : `<div class="emp-s">本月尚無資料</div>`;
+  }).join('');
 
   // 客戶排行榜（本月，依備貨筆數）
   const cm={};rows.forEach(x=>{if(x.customer)cm[x.customer]=(cm[x.customer]||0)+1;});
@@ -1764,16 +1815,29 @@ function monthsBack(ym,n){
   for(let i=n-1;i>=0;i--){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}arr.push(yy+'-'+String(mm).padStart(2,'0'));}
   return arr;
 }
-async function openStockReport(salesName){
-  document.getElementById('stockReportName').textContent=salesName+' — 本月備貨明細';
-  document.getElementById('stockReportYM').textContent=CURRENT_YM;
-  document.getElementById('stockReportBody').innerHTML=`<div class="emp-s">讀取中…</div>`;
-  document.getElementById('stockReportMv').classList.add('on');
+let MGR_SELECTED=null;
+function renderNameGrid(){
+  const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
+  document.getElementById('mgrNameGrid').innerHTML=ROSTERS.sales.map(p=>
+    `<button type="button" class="mgr-name-btn ${MGR_SELECTED===p.name?'on':''}" onclick="selectMgrPerson('${jse(p.name)}')">
+      <span class="rpt-dot ${reportedSet.has(p.name)?'reported':''}"></span>${esc(p.name)}
+    </button>`).join('');
+}
+async function selectMgrPerson(salesName){
+  MGR_SELECTED=salesName;
+  renderNameGrid();
+  const area=document.getElementById('mgrDetailArea');
+  area.scrollIntoView({behavior:'smooth',block:'nearest'});
+  area.innerHTML=`<div class="emp-s">讀取 ${esc(salesName)} 的資料中…</div>`;
+  const rows=DB.records.filter(x=>x.sales===salesName&&x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
+  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
   const res=await api('getStockLevels',{salesName,yearMonth:CURRENT_YM});
-  if(res.status!=='success'){document.getElementById('stockReportBody').innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;return;}
+  if(res.status!=='success'){area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`;return;}
   const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
+  const head=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
+    <div class="mgr-detail-stats"><span>本月備貨 <b>${rows.length}</b></span><span>已出貨 <b style="color:var(--ok)">${cShip}</b></span><span>庫存中 <b>${cHold}</b></span></div></div>`;
   if(!items.length){
-    document.getElementById('stockReportBody').innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
+    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
     return;
   }
   const body=items.map(it=>{
@@ -1791,7 +1855,7 @@ async function openStockReport(salesName){
       ${over?`<div style="font-size:10.5px;color:var(--bad);margin-top:6px">⚠ 本月使用量已超出期初庫存 ${used-opening} 件，請確認數量是否正確</div>`:''}
     </div>`;
   }).join('')+`<div class="sr-key"><span><i style="background:var(--nav-3)"></i>剩餘庫存</span><span><i style="background:var(--bad)"></i>本月已用（已建立備貨登記）</span></div>`;
-  document.getElementById('stockReportBody').innerHTML=body;
+  area.innerHTML=head+body;
 }
 function renderManagerDashboard(){
   document.getElementById('mgrYM').textContent=CURRENT_YM;
@@ -1843,21 +1907,18 @@ function renderManagerDashboard(){
   const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0}));
   rankArr.sort((a,b)=>b.stock-a.stock);
   document.getElementById('mgrRankBody').innerHTML=rankArr.map(r=>`
-    <tr class="rank-clickable" onclick="openStockReport('${jse(r.name)}')"><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
+    <tr class="rank-clickable" onclick="selectMgrPerson('${jse(r.name)}')"><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
     <td class="pad mn" style="color:var(--ok)">${r.ship}</td><td class="pad mn">${r.hold}</td>
     <td class="pad mn" style="color:${r.pend>0?'var(--bad)':'var(--tx-3)'}">${r.pend}</td>
     <td class="pad mn">${r.stock?r.rate+'%':'—'}</td></tr>`).join('');
 
-  // 期初庫存回報進度
+  // 期初庫存回報進度 + 業務名字選單
   const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
   const totalN=ROSTERS.sales.length, reportedN=reportedSet.size;
-  document.getElementById('mgrStockProgN').textContent=reportedN+' / '+totalN+' 人';
+  document.getElementById('mgrStockProgN').textContent=reportedN+' / '+totalN+' 人已回報本月期初庫存';
   document.getElementById('mgrStockProgBar').style.width=Math.round(reportedN/totalN*100)+'%';
-  const missing=ROSTERS.sales.filter(p=>!reportedSet.has(p.name));
-  document.getElementById('mgrStockMissing').innerHTML=missing.length?
-    `<div style="font-size:11px;color:var(--tx-2);margin-bottom:9px;font-weight:500">尚未設定的業務（點選可查看該人本月備貨明細）：</div>`+
-    missing.map(p=>`<span class="chip" style="margin:0 6px 6px 0;cursor:pointer" onclick="openStockReport('${jse(p.name)}')">${esc(p.name)}</span>`).join('')
-    : `<div style="font-size:11.5px;color:var(--ok)">✓ 全部業務都已完成本月設定</div>`;
+  renderNameGrid();
+  if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } // 預設先展開第一位，畫面一進來就有內容可看
 }
 function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
 function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
@@ -1879,13 +1940,17 @@ function renderGridHead(stats){
   attachColResize('gridHead','gridCol',GRID_COL_W);
 }
 function renderAChips(){
-  const sc={};DB.records.forEach(x=>{if(x.sales)sc[x.sales]=(sc[x.sales]||0)+1});
-  document.getElementById('aSalesChips').innerHTML=`<button class="chip ${ASales===''?'on':''}" onclick="ASales='';renderAChips();renderGrid()">全部</button>`+
-    Object.keys(sc).map(s=>`<button class="chip ${ASales===s?'on':''}" onclick="ASales='${jse(s)}';renderAChips();renderGrid()">${esc(s)}<span class="n">${sc[s]}</span></button>`).join('');
-  const ic={};DB.records.forEach(x=>{if(x.item)ic[x.item]=(ic[x.item]||0)+1});
-  document.getElementById('aItemChips').innerHTML=`<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGrid()">全部</button>`+
-    Object.keys(ic).map(s=>`<button class="chip ${AItem===s?'on':''}" onclick="AItem='${jse(s)}';renderAChips();renderGrid()">${esc(s)}<span class="n">${ic[s]}</span></button>`).join('');
+  document.getElementById('aSalesFilterLabel').textContent=ASales||'全部';
+  document.getElementById('aSalesFilterBtn').classList.toggle('active',!!ASales);
+  document.getElementById('aSalesFilterWrap').classList.toggle('show-clear',!!ASales);
+  document.getElementById('aItemFilterLabel').textContent=AItem||'全部';
+  document.getElementById('aItemFilterBtn').classList.toggle('active',!!AItem);
+  document.getElementById('aItemFilterWrap').classList.toggle('show-clear',!!AItem);
   document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');}
+function clearAdminFilter(which){
+  if(which==='sales')ASales=''; else AItem='';
+  renderAChips();renderGrid();
+}
 function tglEmpty(k){AEmpty.has(k)?AEmpty.delete(k):AEmpty.add(k);renderAChips();renderGrid();}
 function resetFilters(){ASales='';AItem='';AEmpty.clear();renderAChips();renderGrid();}
 function gridRows(){let rows=DB.records.slice();
