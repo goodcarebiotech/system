@@ -1,7 +1,6 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec'};
 
-/* 完美對齊您最新更新的精確寬度 */
 const COLS=[
   {k:'stockDate',n:'備貨日期',w:85,role:'s'},
   {k:'batch',n:'批號',w:85,role:'s'},
@@ -325,9 +324,7 @@ const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l
   type:{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
   'ac-item':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   'ac-sales':{t:'選擇業務',ph:'請選擇業務',l:()=>SALES_NAMES},
-  'stock-item':{t:'選擇要設定期初庫存的品項',ph:'',l:()=>ITEM_CATALOG},
-  'admin-sales-filter':{t:'篩選業務',ph:'',l:()=>SALES_NAMES},
-  'admin-item-filter':{t:'篩選品項',ph:'',l:()=>ITEM_CATALOG}};
+  'stock-item':{t:'選擇要設定期初庫存的品項',ph:'',l:()=>ITEM_CATALOG}};
 function openPk(k){PKT=k;document.getElementById('pkT').textContent=PK[k].t;document.getElementById('pkS').value='';
   document.getElementById('pkBg').classList.add('on');renderPk();setTimeout(()=>document.getElementById('pkS').focus(),80);}
 function closePk(){document.getElementById('pkBg').classList.remove('on');}
@@ -343,8 +340,6 @@ function confirmCustomPk(){
 }
 function pickV(v){
   if(PKT==='stock-item'){closePk();openStockEditFor(v);return;} 
-  if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
-  if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
   s.textContent=v;s.classList.remove('ph');b.classList.add('on');b.closest('.fw').classList.add('ok');closePk();fillCount();}
 function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
@@ -641,114 +636,56 @@ function renderPend(){const rows=pendRecs(),n=rows.length;
     <div class="pd-s">${x.invoiceNo?'發票 '+esc(x.invoiceNo)+' 已開立，':''}尚未有客戶與明細資料</div>
     <button class="pd-a" onclick="openEd('${x.recordId}')">補齊資料</button></div>`).join('');}
 
-// ==========================================
-// 1. 業務端與行政端的 LOG 渲染主入口
-// ==========================================
+// ── LOGS ──
 let LOG_CACHE=[];
-
-function renderLogs(){
-  applySalesLogSearch(); 
-}
-
+function renderLogs(){ applySalesLogSearch(); }
 function renderALog(){
   let l=DB.logs.slice();
   const kw = document.getElementById('logKw').value.trim().toLowerCase();
   const actor = document.getElementById('logActor').value;
   const f = document.getElementById('logFrom').value;
   const t = document.getElementById('logTo').value;
-  
   if(LOGF==='fail') l=l.filter(x=>!x.ok);
   if(actor) l=l.filter(x=>x.actor===actor);
   if(kw) l=l.filter(x=>[x.act, x.desc, x.actor, x.rid, (x.diffs||[]).map(d=>d.label+d.before+d.after).join(' ')].join(' ').toLowerCase().includes(kw));
   if(f) { const ft=new Date(f+' 00:00:00').getTime(); l=l.filter(x=>x.ts>=ft); }
   if(t) { const tt=new Date(t+' 23:59:59').getTime(); l=l.filter(x=>x.ts<=tt); }
-  
   LOG_CACHE=l.reverse();
   document.getElementById('aLogList').innerHTML = LOG_CACHE.length 
     ? `<div class="timeline-wrapper">` + LOG_CACHE.map((x,i)=>logHtml(x,i)).join('') + `</div>`
     : `<div class="emp-s" style="margin-top:40px;">${LOGF==='fail'?'目前沒有失敗紀錄':'尚無符合條件的操作紀錄'}</div>`;
 }
-
-// ==========================================
-// 2. 產生精美時間軸卡片 (HTML)
-// ==========================================
 function logHtml(l, i){
   LOG_CACHE[i] = l;
   let summary = '';
   const hasDiffs = l.diffs && l.diffs.length > 0;
-  
   if(hasDiffs){
     const fields = l.diffs.map(d=>d.label).join('、');
     summary = `<span style="color:var(--tx-2)">異動了 <b>${l.diffs.length}</b> 個欄位：</span><br><span style="font-size:11.5px;color:var(--tx-3)">${esc(fields)}</span>`;
-  } else {
-    summary = esc(l.desc || '');
-  }
-  
+  } else { summary = esc(l.desc || ''); }
   const dotClass = !l.ok ? 'fail' : (hasDiffs ? 'edit' : 'create');
   const errHtml = (!l.ok && l.err) ? `<div class="log-err">失敗原因：${esc(l.err)}</div>` : '';
   const detailBtn = hasDiffs ? `<button type="button" class="log-detail-link" onclick="openLogDetail(${i})">查看前後對照明細 ➔</button>` : '';
-
-  return `<div class="timeline-item">
-    <div class="timeline-time">${esc(l.t.replace(' ','<br>'))}</div>
-    <div class="timeline-node"><div class="timeline-dot ${dotClass}"></div></div>
-    <div class="timeline-content">
-      <div class="log-top">
-        <span class="log-act ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span>
-        ${ROLE==='admin' ? `<span class="log-actor">👤 ${esc(l.actor)}</span>` : `<span class="log-actor">${l.rid ? '#'+l.rid.slice(-5).toUpperCase() : ''}</span>`}
-      </div>
-      <div class="log-summary">${summary}</div>
-      ${errHtml}
-      <div class="log-foot">
-        <span class="log-src">📍 ${esc(l.src||'')}</span>
-        ${detailBtn}
-      </div>
-    </div>
-  </div>`;
+  return `<div class="timeline-item"><div class="timeline-time">${esc(l.t.replace(' ','<br>'))}</div><div class="timeline-node"><div class="timeline-dot ${dotClass}"></div></div><div class="timeline-content"><div class="log-top"><span class="log-act ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span>${ROLE==='admin' ? `<span class="log-actor">👤 ${esc(l.actor)}</span>` : `<span class="log-actor">${l.rid ? '#'+l.rid.slice(-5).toUpperCase() : ''}</span>`}</div><div class="log-summary">${summary}</div>${errHtml}<div class="log-foot"><span class="log-src">📍 ${esc(l.src||'')}</span>${detailBtn}</div></div></div>`;
 }
-
-// ==========================================
-// 3. 打開明細彈窗 (產生表格化對照)
-// ==========================================
 function openLogDetail(i){
   const l=LOG_CACHE[i]; if(!l)return;
   document.getElementById('logDetailTitle').textContent = `${l.act}${l.ok?'':'（失敗）'}`;
   document.getElementById('logDetailMeta').innerHTML = `時間：${l.tFull||l.t} ｜ 人員：${l.actor||''} ｜ 來源：${l.src||''} <br> Record ID：${l.rid||'無'}`;
-  
   let body='';
   if(l.diffs && l.diffs.length){
-    body = `<table class="diff-table">
-      <thead><tr><th width="30%">異動欄位</th><th>變更內容 (舊 ➔ 新)</th></tr></thead>
-      <tbody>` + l.diffs.map(d=>
-        `<tr>
-          <td style="font-weight:600;color:var(--tx-2);">${esc(d.label)}</td>
-          <td>
-            ${d.before ? `<span class="diff-del">${esc(d.before)}</span> <span class="diff-arrow">➔</span> ` : `<span class="diff-arrow" style="margin-left:0">➔</span> `}
-            ${d.after ? `<span class="diff-add">${esc(d.after)}</span>` : `<span class="diff-add" style="color:var(--tx-3);font-style:italic">（清除）</span>`}
-          </td>
-        </tr>`
+    body = `<table class="diff-table"><thead><tr><th width="30%">異動欄位</th><th>變更內容 (舊 ➔ 新)</th></tr></thead><tbody>` + l.diffs.map(d=>
+        `<tr><td style="font-weight:600;color:var(--tx-2);">${esc(d.label)}</td><td>${d.before ? `<span class="diff-del">${esc(d.before)}</span> <span class="diff-arrow">➔</span> ` : `<span class="diff-arrow" style="margin-left:0">➔</span> `}${d.after ? `<span class="diff-add">${esc(d.after)}</span>` : `<span class="diff-add" style="color:var(--tx-3);font-style:italic">（清除）</span>`}</td></tr>`
       ).join('') + `</tbody></table>`;
-  } else {
-    body = `<div class="detail-pre">${esc(l.desc||'（無其他說明）')}</div>`;
-  }
+  } else { body = `<div class="detail-pre">${esc(l.desc||'（無其他說明）')}</div>`; }
   if(!l.ok && l.err) body += `<div style="margin-top:15px;color:var(--bad);font-weight:600;">❌ 失敗原因：${esc(l.err)}</div>`;
-  
   document.getElementById('logDetailBody').innerHTML = body;
   document.getElementById('logDetailMv').classList.add('on');
 }
-
 function copyLogDetails() {
-    const el = document.getElementById('logDetailBody');
-    const text = el.innerText || el.textContent;
-    navigator.clipboard.writeText(text).then(()=>{
-        toast('✅ 內容已複製到剪貼簿');
-    }).catch(()=>{
-        toast('複製失敗，請手動圈選複製', true);
-    });
+    const text = document.getElementById('logDetailBody').innerText || document.getElementById('logDetailBody').textContent;
+    navigator.clipboard.writeText(text).then(()=>{ toast('✅ 內容已複製到剪貼簿'); }).catch(()=>{ toast('複製失敗，請手動圈選複製', true); });
 }
-
-// ==========================================
-// 4. 業務端專用 LOG 篩選功能
-// ==========================================
 let _salesLogTimer=null;
 function debounceSalesLogSearch(){ clearTimeout(_salesLogTimer); _salesLogTimer=setTimeout(applySalesLogSearch,400); }
 function applySalesLogSearch(){
@@ -756,23 +693,14 @@ function applySalesLogSearch(){
     const kw = document.getElementById('salesLogKw').value.trim().toLowerCase();
     const f = document.getElementById('salesLogFrom').value;
     const t = document.getElementById('salesLogTo').value;
-    
     if(kw) l = l.filter(x => [x.act, x.desc, x.rid, (x.diffs||[]).map(d=>d.label+d.before+d.after).join(' ')].join(' ').toLowerCase().includes(kw));
     if(f) { const ft=new Date(f+' 00:00:00').getTime(); l=l.filter(x=>x.ts>=ft); }
     if(t) { const tt=new Date(t+' 23:59:59').getTime(); l=l.filter(x=>x.ts<=tt); }
-    
     LOG_CACHE = l.slice().reverse();
-    document.getElementById('logList').innerHTML = LOG_CACHE.length 
-      ? `<div class="timeline-wrapper">` + LOG_CACHE.map((x,i)=>logHtml(x,i)).join('') + `</div>` 
-      : `<div class="emp-s" style="margin-top:40px;">找不到符合條件的操作紀錄</div>`;
+    document.getElementById('logList').innerHTML = LOG_CACHE.length ? `<div class="timeline-wrapper">` + LOG_CACHE.map((x,i)=>logHtml(x,i)).join('') + `</div>` : `<div class="emp-s" style="margin-top:40px;">找不到符合條件的操作紀錄</div>`;
 }
-
-// ==========================================
-// 5. 匯出紀錄 (CSV)
-// ==========================================
 function exportLogs(mode) {
     let dataToExport = mode === 'sales' ? DB.logs.filter(x=>x.actor===CUR) : DB.logs;
-    
     if(mode === 'sales') {
         const kw = document.getElementById('salesLogKw').value.trim().toLowerCase();
         const f = document.getElementById('salesLogFrom').value;
@@ -791,60 +719,40 @@ function exportLogs(mode) {
         if(f) { const ft=new Date(f+' 00:00:00').getTime(); dataToExport=dataToExport.filter(l=>l.ts>=ft); }
         if(t) { const tt=new Date(t+' 23:59:59').getTime(); dataToExport=dataToExport.filter(l=>l.ts<=tt); }
     }
-    
     if(!dataToExport || !dataToExport.length){ toast('沒有資料可匯出', true); return; }
-    
     let csv = '\uFEFF';
     csv += '時間,操作人員,動作,狀態,RecordID,異動說明,來源\n';
     dataToExport.reverse().forEach(l => {
-        const time = l.tFull || l.t;
-        const actor = l.actor;
-        const act = l.act;
-        const ok = l.ok ? '成功' : '失敗';
-        const rid = l.rid || '';
+        const time = l.tFull || l.t; const actor = l.actor; const act = l.act; const ok = l.ok ? '成功' : '失敗'; const rid = l.rid || '';
         let desc = l.desc || '';
         if(l.diffs && l.diffs.length) desc = l.diffs.map(d=>`${d.label}: ${d.before}->${d.after}`).join(' | ');
         if(!l.ok && l.err) desc += ` (錯誤: ${l.err})`;
-        const src = l.src || '';
-        
-        const row = [time, actor, act, ok, rid, desc, src].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
-        csv += row + '\n';
+        csv += [time, actor, act, ok, rid, desc, (l.src||'')].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
     });
-    
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `系統操作紀錄_${nowT().replace(/[: ]/g,'')}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const a = document.createElement('a'); a.href = url; a.download = `系統操作紀錄_${nowT().replace(/[: ]/g,'')}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-// ── 以下為原本新增備貨等按鈕邏輯 ──
+// ── 表單送出 ──
 async function submitReg(btn){
   if(btn.disabled)return;
   const item={customer:PKV.customer||'',item:PKV.item||'',category:PKV.category||'',type:PKV.type||'',
     batch:val('f-batch'),stockDate:val('f-sd'),shipDate:val('f-hd'),orderNo:val('f-on'),remark:val('f-rm')};
-  if(!item.customer||!item.item){
-    addLog({act:'新增紀錄',ok:false,desc:'嘗試新增備貨紀錄',err:'必填欄位未完成（客戶名稱／品項）'});
-    renderLogs();toast('請填寫客戶名稱與品項',true);return;}
+  if(!item.customer||!item.item){ addLog({act:'新增紀錄',ok:false,desc:'嘗試新增',err:'必填未完成'}); renderLogs(); toast('請填寫客戶與品項',true); return; }
   busy(btn,true,'送出中…');
   const res=await api('createRecords',{item,qty:BQ,actor:CUR});
   if(res.status==='success'){
-    toast(`已建立 ${res.createdCount} 筆備貨紀錄`);
+    toast(`已建立 ${res.createdCount} 筆`);
     ['f-batch','f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
     ['customer','item','category','type'].forEach(clearPk);BQ=1;bq(0);
     (res.ids||[]).forEach(id=>DB.records.push({recordId:id,...item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:CUR,updatedAt:new Date().toISOString()}));
     renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();
     tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
-    busy(btn,false);
-    loadSalesData(); 
+    busy(btn,false); loadSalesData(); 
   }else{
-    addLog({act:'新增紀錄',ok:false,desc:`嘗試新增客戶「${item.customer}」備貨紀錄`,err:res.message||'未知錯誤'});
-    renderLogs();toast('送出失敗：'+(res.message||'未知錯誤'),true);
-    busy(btn,false);
+    addLog({act:'新增紀錄',ok:false,desc:`嘗試新增「${item.customer}」`,err:res.message||'未知錯誤'});
+    renderLogs(); toast('送出失敗',true); busy(btn,false);
   }
 }
 function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;EDID=id;
@@ -854,93 +762,354 @@ function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;EDI
 function set(id,v){const e=document.getElementById(id);e.value=v||'';mk(e);}
 function closeEd(){document.getElementById('edMv').classList.remove('on');}
 function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
-  document.getElementById('gEdRef').textContent=its.length+' 筆';
-  document.getElementById('gEdCount').textContent=its.length;
+  document.getElementById('gEdRef').textContent=its.length+' 筆'; document.getElementById('gEdCount').textContent=its.length;
   ['g-ca','g-ty','g-ba','g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
-
   const previewCols=COLS.filter(c=>c.k!=='stockDate'&&c.k!=='customer'&&c.k!=='item'); 
   const head='<tr><th>單號</th>'+previewCols.map(c=>`<th>${c.n}</th>`).join('')+'</tr>';
-  const body=its.map((x,ri)=>`<tr><td class="mn">#${ri+1} ${esc(x.orderNo||x.recordId)}</td>`+
-    previewCols.map(c=>`<td class="${c.k==='remark'?'':'mn'}">${esc(x[c.k]||'—')}</td>`).join('')+'</tr>').join('');
+  const body=its.map((x,ri)=>`<tr><td class="mn">#${ri+1} ${esc(x.orderNo||x.recordId)}</td>`+previewCols.map(c=>`<td class="${c.k==='remark'?'':'mn'}">${esc(x[c.k]||'—')}</td>`).join('')+'</tr>').join('');
   document.getElementById('gEdPreview').innerHTML=head+body;
-
-  const fields=[['category','科別'],['type','賣/備/樣'],['batch','批號'],['shipDate','送貨日期']];
-  let warn='';
+  const fields=[['category','科別'],['type','賣/備/樣'],['batch','批號'],['shipDate','送貨日期']]; let warn='';
   fields.forEach(([k,label])=>{
     const cnt={};its.forEach(x=>{const v=x[k]&&x[k].trim()?x[k]:'（空白）';cnt[v]=(cnt[v]||0)+1;});
-    const keys=Object.keys(cnt);
-    if(keys.length>1)warn+=`<div class="gwarn"><b>${label}</b> 組內原本不一致：${keys.map(v=>`${esc(v)}×${cnt[v]}`).join('、')}</div>`;
+    const keys=Object.keys(cnt); if(keys.length>1)warn+=`<div class="gwarn"><b>${label}</b>組內不一致：${keys.map(v=>`${esc(v)}×${cnt[v]}`).join('、')}</div>`;
   });
-  document.getElementById('gEdWarn').innerHTML=warn?`<div class="gwarn-box">此組別部分欄位原本就填得不一樣，套用後將全部覆蓋為您輸入的新值：${warn}</div>`:'';
+  document.getElementById('gEdWarn').innerHTML=warn?`<div class="gwarn-box">此組別部分欄位不一致，將被新值覆蓋：${warn}</div>`:'';
   document.getElementById('gEdMv').classList.add('on');}
 function closeGroupEdit(){document.getElementById('gEdMv').classList.remove('on');}
 async function saveGroupEdit(btn){
-  if(btn&&btn.disabled)return;
-  const its=GROUPS[GEDI];if(!its)return;
-  const changes={};
+  if(btn&&btn.disabled)return; const its=GROUPS[GEDI];if(!its)return; const changes={};
   const ca=val('g-ca'),ty=val('g-ty'),ba=val('g-ba'),hd=val('g-hd');
   if(ca)changes.category=ca;if(ty)changes.type=ty;if(ba)changes.batch=ba;if(hd)changes.shipDate=hd;
   if(!Object.keys(changes).length){toast('請至少填寫一個要套用的欄位');return;}
-  busy(btn,true,'套用中…');
-  let okAll=true,applied=0;
+  busy(btn,true,'套用中…'); let okAll=true,applied=0;
   for(const x of its){
     const diffs=[];Object.keys(changes).forEach(k=>{if(String(x[k]||'')!==String(changes[k]))diffs.push({label:LBL[k],before:x[k],after:changes[k]});});
     if(!diffs.length)continue;
     const res=await api('updateRecord',{recordId:x.recordId,changes,actor:CUR,source:'業務端網頁（整組批次）'});
-    if(res.status==='success'){applied++;Object.assign(x,changes);}
-    else{okAll=false;addLog({act:'批次修改',ok:false,rid:x.recordId,diffs,err:res.message||'未知錯誤',src:'業務端網頁（整組批次）'});}
+    if(res.status==='success'){applied++;Object.assign(x,changes);} else{okAll=false;addLog({act:'批次修改',ok:false,rid:x.recordId,diffs,err:res.message||'未知錯誤',src:'業務端網頁（整組批次）'});}
   }
-  closeGroupEdit();
-  renderRec();renderStats();renderPend();
-  busy(btn,false);
-  if(applied===0)toast('組內資料已與輸入值相同，沒有變更');
-  else toast(okAll?`已套用到 ${applied} 筆紀錄`:'部分紀錄更新失敗，請查看操作紀錄',!okAll);
+  closeGroupEdit(); renderRec();renderStats();renderPend(); busy(btn,false);
+  if(applied===0)toast('沒有變更'); else toast(okAll?`已套用到 ${applied} 筆紀錄`:'部分失敗，請查看紀錄',!okAll);
   loadSalesData(); 
 }
 async function saveEd(btn){
-  if(btn&&btn.disabled)return;
-  const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
+  if(btn&&btn.disabled)return; const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
   const nv={customer:val('e-cu'),item:val('e-it'),category:val('e-ca'),type:val('e-ty'),stockDate:val('e-sd'),shipDate:val('e-hd'),batch:val('e-ba'),orderNo:val('e-on')};
   const diffs=[];Object.keys(nv).forEach(k=>{if(String(x[k]||'')!==String(nv[k]||''))diffs.push({label:LBL[k],before:x[k],after:nv[k]});});
   if(!diffs.length){toast('沒有任何變更');closeEd();return;}
   busy(btn,true,'儲存中…');
   const res=await api('updateRecord',{recordId:EDID,changes:nv,actor:CUR,expectedUpdatedAt:x.updatedAt});
   if(res.status==='success'){
-    Object.assign(x,nv);
-    closeEd();
+    Object.assign(x,nv); closeEd();
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
-    toast('已儲存修改，操作已記錄');
-    busy(btn,false);
+    toast('已儲存'); busy(btn,false);
     if(ROLE==='admin')loadAdminData();else loadSalesData(); 
   }else if(res.status==='conflict'){
-    addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:'版本衝突：這筆資料已被他人修改'});
-    renderLogs();toast('這筆資料剛剛被其他人改過，已為您載入最新版本，請重新確認後再儲存',true);
-    busy(btn,false);closeEd();
+    toast('這筆資料剛剛被改過，請重新確認',true); busy(btn,false);closeEd();
     if(ROLE==='admin')loadAdminData();else loadSalesData();
-  }else{
-    addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:res.message||'未知錯誤'});
-    renderLogs();toast('儲存失敗：'+(res.message||'未知錯誤'),true);
-    busy(btn,false);
-  }}
+  }else{ toast('儲存失敗',true); busy(btn,false); }
+}
 async function delRec(btn){
-  if(btn&&btn.disabled)return;
-  const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
+  if(btn&&btn.disabled)return; const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
   busy(btn,true,'刪除中…');
   const res=await api('deleteRecord',{recordId:EDID,actor:CUR});
   if(res.status==='success'){
-    DB.records=DB.records.filter(v=>v.recordId!==EDID); 
-    closeEd();
+    DB.records=DB.records.filter(v=>v.recordId!==EDID); closeEd();
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
-    toast('已刪除此筆紀錄');
-    busy(btn,false);
+    toast('已刪除'); busy(btn,false);
     if(ROLE==='admin')loadAdminData();else loadSalesData();
+  }else{ toast('刪除失敗',true); busy(btn,false); }
+}
+
+/* ── ADMIN & 總表 ── */
+function initAdmin(){
+  // 行政端一進來確保清除舊條件
+  COL_FILTERS={};
+  renderGrid(); renderALog();
+}
+
+// 💡 新增：漏斗篩選與快速標記 (Emoji) 狀態變數
+let COL_FILTERS = {}; 
+let ACTIVE_CF_COL = null;
+let ACTIVE_INPUT = null;
+
+// 記錄當前焦點，讓快速標記知道要插在哪一格
+document.addEventListener('focusin', e => {
+  if(e.target && e.target.classList.contains('cel')) ACTIVE_INPUT = e.target;
+});
+
+// 💡 快速標記 ( Emoji 色彩 ) 函式
+function insertMarker(emoji) {
+  if (!ACTIVE_INPUT) { toast('請先點選下方要標記的儲存格', true); return; }
+  let val = ACTIVE_INPUT.value || '';
+  if (val.includes(emoji)) {
+    ACTIVE_INPUT.value = val.replace(emoji, '').trim();
+  } else {
+    ACTIVE_INPUT.value = emoji + ' ' + val;
+  }
+  cellEdit(ACTIVE_INPUT);
+  renderGrid(); // 觸發重繪，讓背景顏色立即生效
+}
+
+// 💡 漏斗篩選：打開彈窗
+function openColFilter(colKey, event) {
+  event.stopPropagation();
+  ACTIVE_CF_COL = colKey;
+  
+  const pop = document.getElementById('colFilterPop');
+  const btn = event.currentTarget.getBoundingClientRect();
+  pop.style.left = (btn.left + window.scrollX) + 'px';
+  pop.style.top = (btn.bottom + window.scrollY + 6) + 'px';
+  document.getElementById('cfSearch').value = '';
+  
+  if (!COL_FILTERS[colKey]) COL_FILTERS[colKey] = new Set();
+  
+  pop.classList.add('on');
+  renderColFilterList();
+  setTimeout(()=>document.getElementById('cfSearch').focus(), 50);
+}
+
+// 💡 漏斗篩選：渲染選項列表
+function renderColFilterList() {
+  if (!ACTIVE_CF_COL) return;
+  const q = document.getElementById('cfSearch').value.trim().toLowerCase();
+  
+  // 找出該欄位所有不重複的值 (抓取完整原始資料 DB.records)
+  const uniqueValues = new Set();
+  DB.records.forEach(r => {
+    let v = r[ACTIVE_CF_COL] || '';
+    uniqueValues.add(String(v).trim());
+  });
+  
+  let list = [...uniqueValues].sort((a,b)=>a.localeCompare(b,'zh-TW'));
+  if(q) list = list.filter(v => v.toLowerCase().includes(q));
+  
+  const checkedSet = COL_FILTERS[ACTIVE_CF_COL];
+  
+  document.getElementById('cfList').innerHTML = list.map(v => {
+    const isChecked = checkedSet.has(v) ? 'checked' : '';
+    const display = v === '' ? '(空白)' : esc(v);
+    return `<label class="cf-lbl"><input type="checkbox" value="${jse(v)}" ${isChecked} onchange="toggleCfVal(this)"> ${display}</label>`;
+  }).join('');
+}
+
+function toggleCfVal(checkbox) {
+  const v = checkbox.value;
+  if (checkbox.checked) COL_FILTERS[ACTIVE_CF_COL].add(v);
+  else COL_FILTERS[ACTIVE_CF_COL].delete(v);
+}
+
+function applyColFilter() {
+  document.getElementById('colFilterPop').classList.remove('on');
+  ACTIVE_CF_COL = null;
+  renderGrid();
+}
+
+function clearColFilter() {
+  if (ACTIVE_CF_COL) COL_FILTERS[ACTIVE_CF_COL].clear();
+  document.getElementById('colFilterPop').classList.remove('on');
+  ACTIVE_CF_COL = null;
+  renderGrid();
+}
+
+// 點擊外面關閉漏斗彈窗
+document.addEventListener('click', e => {
+  const pop = document.getElementById('colFilterPop');
+  if(pop && pop.classList.contains('on') && !pop.contains(e.target)) {
+    pop.classList.remove('on'); ACTIVE_CF_COL = null;
+    renderGrid();
+  }
+});
+
+// 覆寫原本清空條件的函式，一併清空漏斗
+function resetFilters(){ 
+  AEmpty.clear(); 
+  COL_FILTERS = {}; 
+  renderGrid(); 
+}
+
+function gridRows(){
+  let rows=DB.records.slice();
+  
+  // 原有的 AEmpty 邏輯
+  if(AEmpty.size)rows=rows.filter(x=>[...AEmpty].some(k=>!x[k]));
+  
+  // 套用表頭的漏斗篩選
+  Object.keys(COL_FILTERS).forEach(col => {
+    if (COL_FILTERS[col].size > 0) {
+      rows = rows.filter(x => {
+        const val = String(x[col] || '').trim();
+        return COL_FILTERS[col].has(val);
+      });
+    }
+  });
+  
+  return rows;
+}
+
+function renderGridHead(stats){
+  document.getElementById('gridCol').innerHTML=COLS.map(c=>`<col style="width:${colW(GRID_COL_W,c)}px">`).join('');
+  document.getElementById('gridHead').innerHTML=COLS.map(c=>{
+    let badge='';
+    if(stats){
+      if(c.k==='batch')badge=`<span class="hbadge">${stats.batch}</span>`;
+      else if(c.k==='shipDate')badge=`<span class="hbadge">${stats.ship}</span>`;
+      else if(c.k==='item')badge=`<span class="hbadge">${stats.item}</span>`;
+    }
+    
+    // 判斷此欄位目前有沒有啟用的篩選條件，若有就亮起漏斗圖示
+    const hasFilter = COL_FILTERS[c.k] && COL_FILTERS[c.k].size > 0;
+    const filterIcon = `<svg class="th-filter-icon ${hasFilter?'active':''}" onclick="openColFilter('${c.k}', event)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>`;
+    
+    return `<th class="${c.role==='a'?'g2':''}">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span>${c.n}${badge}</span>
+                ${filterIcon}
+              </div>
+              <span class="col-rs" data-col="${c.k}"></span>
+            </th>`;
+  }).join('');
+  attachColResize('gridHead','gridCol',GRID_COL_W);
+  setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
+}
+
+// ── 行政總表：分批非同步渲染 ──
+let _gridRenderTimer = null;
+function renderGrid(){
+  GRID=gridRows();
+  GRID.sort((a,b)=>(a.stockDate||'').localeCompare(b.stockDate||'')||(a.item||'').localeCompare(b.item||'')||(a.sales||'').localeCompare(b.sales||''));
+
+  const tbody = document.getElementById('gridBody');
+  tbody.innerHTML = ''; 
+  if(_gridRenderTimer) clearTimeout(_gridRenderTimer); 
+
+  document.getElementById('aCnt').textContent=GRID.length;
+  const ok=GRID.filter(x=>x.customer&&x.item&&x.stockDate).length;
+  document.getElementById('aOk').textContent=ok;document.getElementById('aNo').textContent=GRID.length-ok;
+  
+  const batchN=GRID.filter(x=>isFilled(effVal(x,'batch'))).length;
+  const shipN=GRID.filter(x=>isFilled(effVal(x,'shipDate'))).length;
+  renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
+  updEditBar();
+
+  let band=false, lastKey=null, i=0;
+  const CHUNK_SIZE = 80; 
+
+  function renderChunk() {
+    let html = '';
+    const end = Math.min(i + CHUNK_SIZE, GRID.length);
+    for (; i < end; i++) {
+      const x = GRID[i];
+      const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
+      if(key!==lastKey){band=!band;lastKey=key;}
+      
+      html += `<tr class="${band?'band':''}">`+COLS.map(c=>{
+        const ek=x.recordId+'::'+c.k, ed=EDITS[ek]!==undefined, v=ed?EDITS[ek]:(x[c.k]||'');
+        const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
+        
+        // 💡 判斷是否含有特定 Emoji，如果有就給予對應的 CSS 顏色 Class
+        let bgClass = '';
+        const vStr = String(v);
+        if (vStr.includes('🔴')) bgClass = 'mark-red';
+        else if (vStr.includes('🟡')) bgClass = 'mark-yellow';
+        else if (vStr.includes('🟢')) bgClass = 'mark-green';
+        else if (vStr.includes('❓')) bgClass = 'mark-blue';
+
+        return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''} ${bgClass}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
+      }).join('')+`</tr>`;
+    }
+    
+    tbody.insertAdjacentHTML('beforeend', html);
+    
+    if (i < GRID.length) {
+      _gridRenderTimer = setTimeout(renderChunk, 12); 
+    }
+  }
+  
+  if(GRID.length > 0) renderChunk();
+}
+
+function cellEdit(el){const rid=el.dataset.rid,col=el.dataset.col,ek=rid+'::'+col;
+  const rec=DB.records.find(x=>x.recordId===rid);
+  if(String(el.value||'')===String(rec[col]||'')){delete EDITS[ek];el.classList.remove('ed');}
+  else{EDITS[ek]=el.value;el.classList.add('ed');}
+  if(col==='batch'||col==='shipDate'){
+    const batchN=GRID.filter(x=>isFilled(effVal(x,'batch'))).length;
+    const shipN=GRID.filter(x=>isFilled(effVal(x,'shipDate'))).length;
+    renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
+  }
+  updEditBar();
+  
+  // 讓修改框當下立即反映 Emoji 上色
+  el.classList.remove('mark-red', 'mark-yellow', 'mark-green', 'mark-blue');
+  const vStr = String(el.value);
+  if (vStr.includes('🔴')) el.classList.add('mark-red');
+  else if (vStr.includes('🟡')) el.classList.add('mark-yellow');
+  else if (vStr.includes('🟢')) el.classList.add('mark-green');
+  else if (vStr.includes('❓')) el.classList.add('mark-blue');
+}
+
+function cellPaste(e,el){const txt=(e.clipboardData||window.clipboardData).getData('text');
+  if(!txt||(!txt.includes('\t')&&!txt.includes('\n')))return;
+  e.preventDefault();
+  const rows=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(r=>r.split('\t'));
+  const ri=GRID.findIndex(x=>x.recordId===el.dataset.rid),ci=COLS.findIndex(c=>c.k===el.dataset.col);
+  let n=0;
+  rows.forEach((cells,dr)=>{const rec=GRID[ri+dr];if(!rec)return;
+    cells.forEach((v,dc)=>{const col=COLS[ci+dc];if(!col)return;
+      const ek=rec.recordId+'::'+col.k,vv=v.trim();
+      if(String(rec[col.k]||'')===vv)delete EDITS[ek];else{EDITS[ek]=vv;n++;}});});
+  renderGrid();toast(`已貼上 ${n} 格資料，請確認後送出`);}
+function updEditBar(){const n=Object.keys(EDITS).length;
+  document.getElementById('aEditN').textContent=n;
+  document.getElementById('aEdit').style.display=n?'inline':'none';
+  document.getElementById('btnSubmitGrid').disabled=!n;}
+function revertGrid(){if(!Object.keys(EDITS).length){toast('目前沒有未送出的變更');return;}
+  const n=Object.keys(EDITS).length;EDITS={};renderGrid();toast(`已還原 ${n} 格變更`);}
+function buildDiffs(){const by={};
+  Object.keys(EDITS).forEach(ek=>{const i=ek.indexOf('::'),rid=ek.slice(0,i),col=ek.slice(i+2);
+    const rec=DB.records.find(x=>x.recordId===rid);if(!rec)return;
+    (by[rid]=by[rid]||{rec,list:[]}).list.push({key:col,label:LBL[col],before:rec[col]||'',after:EDITS[ek]||''});});
+  return by;}
+function openDiff(){const by=buildDiffs(),ks=Object.keys(by);if(!ks.length)return;
+  let cells=0;ks.forEach(k=>cells+=by[k].list.length);
+  document.getElementById('dfCount').textContent=`${ks.length} 筆資料 · ${cells} 個欄位`;
+  document.getElementById('dfBody').innerHTML=
+    `<div style="font-size:12px;color:var(--tx-2);margin-bottom:14px;line-height:1.75">以下變更將寫入試算表，請確認無誤後送出。</div>`+
+    ks.map(rid=>{const{rec,list}=by[rid];
+      return `<div class="df"><div class="df-h"><span>${esc(rec.customer||'（未填客戶）')} ${esc(rec.item||'（未填品項）')}</span><span class="m">${esc(rec.sales||'—')} · ${esc(rid)}</span></div>
+      ${list.map(d=>`<div class="df-r"><span class="df-k">${esc(d.label)}</span>
+        <span class="df-v"><span class="dl">${esc(d.before||'（空白）')}</span> <span style="color:var(--tx-3)">→</span> <span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('')}</div>`;}).join('');
+  document.getElementById('dfMv').classList.add('on');}
+function closeDiff(){document.getElementById('dfMv').classList.remove('on');}
+async function commitGrid(btn){
+  if(btn&&btn.disabled)return;
+  const by=buildDiffs(),ks=Object.keys(by);
+  const updates=ks.map(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);return{recordId:rid,changes:ch};});
+  busy(btn,true,'送出中…');
+  const res=await api('batchUpdate',{updates,actor:CUR});
+  if(res.status==='success'){
+    ks.forEach(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);const rec=DB.records.find(r=>r.recordId===rid);if(rec)Object.assign(rec,ch);});
+    EDITS={};closeDiff();renderGrid();
+    toast(`已更新 ${ks.length} 筆資料`);
+    busy(btn,false); loadAdminData(); 
   }else{
-    addLog({act:'刪除紀錄',ok:false,rid:EDID,err:res.message||'未知錯誤'});renderLogs();toast('刪除失敗',true);
-    busy(btn,false);
+    ks.forEach(rid=>addLog({act:'修改紀錄',ok:false,rid,diffs:by[rid].list,err:res.message||'未知錯誤',src:'行政端總表'}));
+    closeDiff();renderALog();toast('送出失敗',true); busy(btn,false);
   }}
 
-/* ── ADMIN ── */
-function initAdmin(){renderAChips();renderGrid();renderALog();}
+async function adminCreate(btn){
+  if(btn&&btn.disabled)return;
+  const item=PKV['ac-item'],sales=PKV['ac-sales']||'';
+  if(!item){toast('請選擇品項',true);return;}
+  busy(btn,true,'建立中…');
+  const res=await api('adminQuickCreate',{item,qty:AQ,sales,invoiceDate:val('ac-id'),invoiceNo:val('ac-in'),erp:val('ac-erp'),loanReturn:val('ac-lr'),loanOut:val('ac-lo')});
+  if(res.status==='success'){
+    ['ac-id','ac-in','ac-erp','ac-lr','ac-lo'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+    clearPk('ac-item');clearPk('ac-sales');AQ=1;aq(0);
+    toast(`已建立 ${res.createdCount} 筆`); busy(btn,false); loadAdminData(); 
+  }else{ toast('建立失敗',true); busy(btn,false); }
+}
 
 /* ══════════════ MANAGER (主管儀表板) ══════════════ */
 let MGR_STOCK_ALL=[];
@@ -991,7 +1160,7 @@ async function selectMgrPerson(salesName){
   const head=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
     <div class="mgr-detail-stats"><span>本月備貨 <b>${rows.length}</b></span><span>已出貨 <b style="color:var(--ok)">${cShip}</b></span><span>庫存中 <b>${cHold}</b></span></div></div>`;
   if(!items.length){
-    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
+    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定期初庫存</div></div>`;
     return;
   }
   const allItems=ITEM_CATALOG.map(name=>{
@@ -999,317 +1168,43 @@ async function selectMgrPerson(salesName){
     return found||{item:name,opening:null,shipped:0,remaining:null,isSet:false,suggestedOpening:null};
   }).filter(it=>it.isSet||it.shipped>0);
   if(!allItems.length){
-    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 本月沒有任何庫存異動</div><div class="emp-s">尚未設定期初庫存，也沒有備貨登記紀錄</div></div>`;
+    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 本月沒有庫存異動</div></div>`;
     return;
   }
   const chartHtml=buildStockChartSVG(allItems);
   const unsetList=allItems.filter(it=>!it.isSet&&it.shipped>0);
-  const unsetHtml=unsetList.length?`<div class="cmp-unset-list">
-    <div class="cmp-unset-title">尚未設定期初庫存，僅顯示本月已出貨數：</div>
-    ${unsetList.map(it=>`<span class="cmp-unset-tag">${esc(it.item)} <b>${it.shipped}</b></span>`).join('')}
-  </div>`:'';
-  const body=`<div class="chart-scroll">${chartHtml}</div>
-    ${unsetHtml}
-    <div class="sr-key"><span><i style="background:#3E7CC4"></i>目前剩餘庫存</span>
-    <span><i style="background:#9C2F2A"></i>本月已出貨（已建立備貨登記）</span></div>`;
-  area.innerHTML=head+body;
+  const unsetHtml=unsetList.length?`<div class="cmp-unset-list"><div class="cmp-unset-title">未設期初，僅顯示已出貨：</div>${unsetList.map(it=>`<span class="cmp-unset-tag">${esc(it.item)} <b>${it.shipped}</b></span>`).join('')}</div>`:'';
+  area.innerHTML=head+`<div class="chart-scroll">${chartHtml}</div>${unsetHtml}<div class="sr-key"><span><i style="background:#3E7CC4"></i>剩餘</span><span><i style="background:#9C2F2A"></i>已出貨</span></div>`;
 }
-function niceCeil_(v){
-  if(v<=5)return 5;
-  const mag=Math.pow(10,Math.floor(Math.log10(v)));
-  const norm=v/mag;
-  const nice=norm<=1?1:norm<=2?2:norm<=5?5:10;
-  return nice*mag;
-}
+function niceCeil_(v){ if(v<=5)return 5; const mag=Math.pow(10,Math.floor(Math.log10(v))),norm=v/mag; return (norm<=1?1:norm<=2?2:norm<=5?5:10)*mag; }
 function buildStockChartSVG(allItems){
-  const W=Math.max(560,allItems.length*76+70), H=300;
-  const padL=42,padT=18,padB=76,chartH=H-padT-padB,chartR=W-16;
-  const maxVal=Math.max(1,...allItems.map(it=>it.isSet?Math.max(it.opening,it.shipped):it.shipped));
-  const niceMax=niceCeil_(maxVal);
-  const chartW=chartR-padL, gap=chartW/allItems.length, barW=Math.min(44,gap*0.52);
-  const yBase=padT+chartH;
-  let grid='',ylab='';
-  for(let i=0;i<=4;i++){
-    const val=Math.round(niceMax*i/4);
-    const y=yBase-(val/niceMax*chartH);
+  const W=Math.max(560,allItems.length*76+70), H=300, padL=42,padT=18,padB=76,chartH=H-padT-padB,chartR=W-16;
+  const maxVal=Math.max(1,...allItems.map(it=>it.isSet?Math.max(it.opening,it.shipped):it.shipped)), niceMax=niceCeil_(maxVal);
+  const chartW=chartR-padL, gap=chartW/allItems.length, barW=Math.min(44,gap*0.52), yBase=padT+chartH;
+  let grid='',ylab='', bars='',xlab='';
+  for(let i=0;i<=4;i++){ const val=Math.round(niceMax*i/4), y=yBase-(val/niceMax*chartH);
     grid+=`<line x1="${padL}" y1="${y}" x2="${chartR}" y2="${y}" stroke="#E3E6EA" stroke-width="1"/>`;
-    ylab+=`<text x="${padL-8}" y="${y+3.5}" text-anchor="end" font-size="9.5" fill="#939DA9" font-family="'IBM Plex Mono',monospace">${val}</text>`;
-  }
-  let bars='',xlab='';
+    ylab+=`<text x="${padL-8}" y="${y+3.5}" text-anchor="end" font-size="9.5" fill="#939DA9" font-family="'IBM Plex Mono',monospace">${val}</text>`; }
   allItems.forEach((it,i)=>{
-    const cx=padL+gap*i+gap/2, x=cx-barW/2;
-    const used=it.shipped, remain=it.isSet?it.remaining:0;
-    const usedH=Math.round(used/niceMax*chartH), remH=Math.round(remain/niceMax*chartH);
-    const total=it.isSet?Math.max(it.opening,used):used;
+    const cx=padL+gap*i+gap/2, x=cx-barW/2, used=it.shipped, remain=it.isSet?it.remaining:0;
+    const usedH=Math.round(used/niceMax*chartH), remH=Math.round(remain/niceMax*chartH), total=it.isSet?Math.max(it.opening,used):used;
     if(remH>0)bars+=`<rect x="${x}" y="${yBase-remH}" width="${barW}" height="${remH}" fill="#3E7CC4"/>`;
     if(usedH>0)bars+=`<rect x="${x}" y="${yBase-remH-usedH}" width="${barW}" height="${usedH}" fill="#9C2F2A"/>`;
     if(total>0)bars+=`<text x="${cx}" y="${yBase-remH-usedH-6}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#101720" font-family="'IBM Plex Mono',monospace">${total}</text>`;
-    const label=it.item.length>11?it.item.slice(0,10)+'…':it.item;
-    xlab+=`<text x="${cx}" y="${yBase+14}" text-anchor="end" font-size="9.5" fill="#5E6A78" font-family="'Noto Sans TC',sans-serif" transform="rotate(-38 ${cx} ${yBase+14})">${esc(label)}</text>`;
+    xlab+=`<text x="${cx}" y="${yBase+14}" text-anchor="end" font-size="9.5" fill="#5E6A78" font-family="'Noto Sans TC',sans-serif" transform="rotate(-38 ${cx} ${yBase+14})">${esc(it.item.length>11?it.item.slice(0,10)+'…':it.item)}</text>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="庫存直條圖">
-    ${grid}${ylab}
-    <line x1="${padL}" y1="${yBase}" x2="${chartR}" y2="${yBase}" stroke="#101720" stroke-width="1.2"/>
-    ${bars}${xlab}
-  </svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${grid}${ylab}<line x1="${padL}" y1="${yBase}" x2="${chartR}" y2="${yBase}" stroke="#101720" stroke-width="1.2"/>${bars}${xlab}</svg>`;
 }
 function renderManagerDashboard(){
   document.getElementById('mgrYM').textContent=CURRENT_YM;
-  const prevYM=monthsBack(CURRENT_YM,2)[0];
-  const rows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
-  const prevRows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(prevYM));
-  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
-  const cPend=DB.records.filter(x=>!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn)).length;
-  const pShip=prevRows.filter(x=>stOf(x)==='sh').length, pHold=prevRows.filter(x=>stOf(x)==='hd').length;
-  document.getElementById('m1').textContent=rows.length;
-  document.getElementById('m2').textContent=cShip;
-  document.getElementById('m3').textContent=cHold;
-  document.getElementById('m4').textContent=cPend;
-  pctDelta('m1d',rows.length,prevRows.length);
-  pctDelta('m2d',cShip,pShip);
-  pctDelta('m3d',cHold,pHold);
-  document.getElementById('m4d').textContent=cPend?'需要追蹤':'目前無積壓';
-  document.getElementById('m4d').className='dlt'+(cPend?' down':' up');
-
-  const months=monthsBack(CURRENT_YM,6);
-  const counts=months.map(ym=>DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(ym)).length);
-  const mx=Math.max(...counts,1);
-  document.getElementById('mgrChart').innerHTML=counts.map((n,i)=>
-    `<div class="ch-c"><div class="ch-b ${i===counts.length-1?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
-  document.getElementById('mgrChartX').innerHTML=months.map(ym=>`<span>${+ym.slice(5)}月</span>`).join('');
-
-  const fam={};
-  rows.forEach(x=>{if(!x.item)return;const f=familyOf(x.item);
-    fam[f.key]=fam[f.key]||{name:f.name,color:f.color,total:0,ship:0};
-    fam[f.key].total++; if(stOf(x)==='sh')fam[f.key].ship++;});
-  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
-  const famMax=famList.length?Math.max(...famList.map(f=>f.total)):1;
-  document.getElementById('mgrFamily').innerHTML=famList.length?famList.map(f=>`
-    <div class="fam-block" style="border-left-color:${f.color}">
-      <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
-        <span class="fam-total">已出貨 <b class="mn" style="color:${f.color};font-size:13px">${f.ship}</b> ／ 本月共 <b class="mn">${f.total}</b> 筆</span></div>
-      <div class="stk"><div class="a" style="width:${Math.round(f.total/famMax*100)}%;background:${f.color}"></div><div class="b"></div></div>
-    </div>`).join('') : `<div class="emp-s">本月尚無資料</div>`;
-
-  const bySales={};
-  ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
-  rows.forEach(x=>{if(!x.sales)return;if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0};
-    bySales[x.sales].stock++; if(stOf(x)==='sh')bySales[x.sales].ship++; else bySales[x.sales].hold++;});
-  DB.records.forEach(x=>{if(!x.sales||x.customer||!(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn))return;
-    if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].pend++;});
-  const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0}));
-  rankArr.sort((a,b)=>b.stock-a.stock);
-  document.getElementById('mgrRankBody').innerHTML=rankArr.map(r=>`
-    <tr class="rank-clickable" onclick="selectMgrPerson('${jse(r.name)}')"><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
-    <td class="pad mn" style="color:var(--ok)">${r.ship}</td><td class="pad mn">${r.hold}</td>
-    <td class="pad mn" style="color:${r.pend>0?'var(--bad)':'var(--tx-3)'}">${r.pend}</td>
-    <td class="pad mn">${r.stock?r.rate+'%':'—'}</td></tr>`).join('');
-
+  const prevYM=monthsBack(CURRENT_YM,2)[0], rows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(CURRENT_YM)), prevRows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(prevYM));
+  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length, cPend=DB.records.filter(x=>!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn)).length;
+  document.getElementById('m1').textContent=rows.length; document.getElementById('m2').textContent=cShip; document.getElementById('m3').textContent=cHold; document.getElementById('m4').textContent=cPend;
+  const months=monthsBack(CURRENT_YM,6), counts=months.map(ym=>DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(ym)).length), mx=Math.max(...counts,1);
+  const bySales={}; ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
+  rows.forEach(x=>{if(!x.sales)return;if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].stock++; if(stOf(x)==='sh')bySales[x.sales].ship++; else bySales[x.sales].hold++;});
+  DB.records.forEach(x=>{if(!x.sales||x.customer||!(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn))return; if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].pend++;});
+  const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0})).sort((a,b)=>b.stock-a.stock);
   const reportedSet=new Set(MGR_STOCK_ALL.filter(r=>r.yearMonth===CURRENT_YM).map(r=>r.sales));
-  const totalN=ROSTERS.sales.length, reportedN=reportedSet.size;
-  document.getElementById('mgrStockProgN').textContent=reportedN+' / '+totalN+' 人已回報本月期初庫存';
-  document.getElementById('mgrStockProgBar').style.width=Math.round(reportedN/totalN*100)+'%';
-  renderNameGrid();
-  if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } 
+  renderNameGrid(); if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } 
 }
-function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
-function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
-function atab(n,b){document.querySelectorAll('#adminApp .pg').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('#adminApp .nav-b').forEach(x=>x.classList.remove('on'));
-  document.getElementById('apg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});
-  if(n==='alog')ensureAdminLogsLoaded();}
-function renderGridHead(stats){
-  document.getElementById('gridCol').innerHTML=COLS.map(c=>`<col style="width:${colW(GRID_COL_W,c)}px">`).join('');
-  document.getElementById('gridHead').innerHTML=COLS.map(c=>{
-    let badge='';
-    if(stats){
-      if(c.k==='batch')badge=`<span class="hbadge">${stats.batch}</span>`;
-      else if(c.k==='shipDate')badge=`<span class="hbadge">${stats.ship}</span>`;
-      else if(c.k==='item')badge=`<span class="hbadge">${stats.item}</span>`;
-    }
-    return `<th class="${c.role==='a'?'g2':''}">${c.n}${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
-  }).join('');
-  attachColResize('gridHead','gridCol',GRID_COL_W);
-  setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
-}
-function renderAChips(){
-  const sc={};DB.records.forEach(x=>{if(x.sales)sc[x.sales]=(sc[x.sales]||0)+1});
-  document.getElementById('aSalesChips').innerHTML=
-    `<button class="chip ${ASales===''?'on':''}" onclick="ASales='';renderAChips();renderGrid()">全部</button>`+
-    SALES_NAMES.filter(s=>sc[s]).map(s=>`<button class="chip ${ASales===s?'on':''}" onclick="ASales='${jse(s)}';renderAChips();renderGrid()">${esc(s)}<span class="n">${sc[s]}</span></button>`).join('');
-  const ic={};DB.records.forEach(x=>{if(x.item)ic[x.item]=(ic[x.item]||0)+1});
-  document.getElementById('aItemChips').innerHTML=
-    `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGrid()">全部</button>`+
-    ITEM_CATALOG.filter(i=>ic[i]).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGrid()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
-  document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');}
-let INLINE_KIND=null;
-function toggleInlineFilter(e,kind){
-  e.stopPropagation();
-  const pop=document.getElementById('inlinePop');
-  if(INLINE_KIND===kind && pop.classList.contains('on')){pop.classList.remove('on');INLINE_KIND=null;return;}
-  INLINE_KIND=kind;
-  const btn=e.currentTarget.getBoundingClientRect();
-  pop.style.left=(btn.left+window.scrollX)+'px';
-  pop.style.top=(btn.bottom+window.scrollY+4)+'px';
-  document.getElementById('inlinePopSearch').value='';
-  pop.classList.add('on');
-  renderInlineFilter();
-  setTimeout(()=>document.getElementById('inlinePopSearch').focus(),50);
-}
-function renderInlineFilter(){
-  const q=document.getElementById('inlinePopSearch').value.trim();
-  const src=INLINE_KIND==='sales'?SALES_NAMES:ITEM_CATALOG;
-  const cur=INLINE_KIND==='sales'?ASales:AItem;
-  const list=q?src.filter(v=>v.includes(q)):src;
-  document.getElementById('inlinePopList').innerHTML=
-    `<div class="it ${cur===''?'on':''}" onclick="pickInlineFilter('')">全部</div>`+
-    list.map(v=>`<div class="it ${cur===v?'on':''}" onclick="pickInlineFilter('${jse(v)}')">${esc(v)}</div>`).join('');
-}
-function pickInlineFilter(v){
-  if(INLINE_KIND==='sales')ASales=v; else AItem=v;
-  document.getElementById('inlinePop').classList.remove('on');INLINE_KIND=null;
-  renderAChips();renderGrid();
-}
-document.addEventListener('click',e=>{
-  const pop=document.getElementById('inlinePop');
-  if(pop&&pop.classList.contains('on')&&!pop.contains(e.target)){pop.classList.remove('on');INLINE_KIND=null;}
-});
-function clearAdminFilter(which){
-  if(which==='sales')ASales=''; else AItem='';
-  renderAChips();renderGrid();
-}
-function tglEmpty(k){AEmpty.has(k)?AEmpty.delete(k):AEmpty.add(k);renderAChips();renderGrid();}
-function resetFilters(){ASales='';AItem='';AEmpty.clear();renderAChips();renderGrid();}
-function gridRows(){let rows=DB.records.slice();
-  if(ASales)rows=rows.filter(x=>x.sales===ASales);
-  if(AItem)rows=rows.filter(x=>x.item===AItem);
-  if(AEmpty.size)rows=rows.filter(x=>[...AEmpty].some(k=>!x[k]));
-  return rows;}
-
-// ── 行政總表：分批非同步渲染 ──
-let _gridRenderTimer = null;
-function renderGrid(){
-  GRID=gridRows();
-  GRID.sort((a,b)=>(a.stockDate||'').localeCompare(b.stockDate||'')||(a.item||'').localeCompare(b.item||'')||(a.sales||'').localeCompare(b.sales||''));
-
-  const tbody = document.getElementById('gridBody');
-  tbody.innerHTML = ''; 
-  if(_gridRenderTimer) clearTimeout(_gridRenderTimer); 
-
-  document.getElementById('aCnt').textContent=GRID.length;
-  const ok=GRID.filter(x=>x.customer&&x.item&&x.stockDate).length;
-  document.getElementById('aOk').textContent=ok;document.getElementById('aNo').textContent=GRID.length-ok;
-  
-  const batchN=GRID.filter(x=>isFilled(effVal(x,'batch'))).length;
-  const shipN=GRID.filter(x=>isFilled(effVal(x,'shipDate'))).length;
-  renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
-  updEditBar();
-
-  let band=false, lastKey=null, i=0;
-  const CHUNK_SIZE = 80; 
-
-  function renderChunk() {
-    let html = '';
-    const end = Math.min(i + CHUNK_SIZE, GRID.length);
-    for (; i < end; i++) {
-      const x = GRID[i];
-      const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
-      if(key!==lastKey){band=!band;lastKey=key;}
-      html += `<tr class="${band?'band':''}">`+COLS.map(c=>{
-        const ek=x.recordId+'::'+c.k, ed=EDITS[ek]!==undefined, v=ed?EDITS[ek]:(x[c.k]||'');
-        const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
-        return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
-      }).join('')+`</tr>`;
-    }
-    
-    tbody.insertAdjacentHTML('beforeend', html);
-    
-    if (i < GRID.length) {
-      _gridRenderTimer = setTimeout(renderChunk, 12); 
-    }
-  }
-  
-  if(GRID.length > 0) renderChunk();
-}
-
-function cellEdit(el){const rid=el.dataset.rid,col=el.dataset.col,ek=rid+'::'+col;
-  const rec=DB.records.find(x=>x.recordId===rid);
-  if(String(el.value||'')===String(rec[col]||'')){delete EDITS[ek];el.classList.remove('ed');}
-  else{EDITS[ek]=el.value;el.classList.add('ed');}
-  if(col==='batch'||col==='shipDate'){
-    const batchN=GRID.filter(x=>isFilled(effVal(x,'batch'))).length;
-    const shipN=GRID.filter(x=>isFilled(effVal(x,'shipDate'))).length;
-    renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
-  }
-  updEditBar();}
-function cellPaste(e,el){const txt=(e.clipboardData||window.clipboardData).getData('text');
-  if(!txt||(!txt.includes('\t')&&!txt.includes('\n')))return;
-  e.preventDefault();
-  const rows=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(r=>r.split('\t'));
-  const ri=GRID.findIndex(x=>x.recordId===el.dataset.rid),ci=COLS.findIndex(c=>c.k===el.dataset.col);
-  let n=0;
-  rows.forEach((cells,dr)=>{const rec=GRID[ri+dr];if(!rec)return;
-    cells.forEach((v,dc)=>{const col=COLS[ci+dc];if(!col)return;
-      const ek=rec.recordId+'::'+col.k,vv=v.trim();
-      if(String(rec[col.k]||'')===vv)delete EDITS[ek];else{EDITS[ek]=vv;n++;}});});
-  renderGrid();toast(`已貼上 ${n} 格資料，請確認後送出`);}
-function updEditBar(){const n=Object.keys(EDITS).length;
-  document.getElementById('aEditN').textContent=n;
-  document.getElementById('aEdit').style.display=n?'inline':'none';
-  document.getElementById('btnSubmitGrid').disabled=!n;}
-function revertGrid(){if(!Object.keys(EDITS).length){toast('目前沒有未送出的變更');return;}
-  const n=Object.keys(EDITS).length;EDITS={};renderGrid();toast(`已還原 ${n} 格變更`);}
-function buildDiffs(){const by={};
-  Object.keys(EDITS).forEach(ek=>{const i=ek.indexOf('::'),rid=ek.slice(0,i),col=ek.slice(i+2);
-    const rec=DB.records.find(x=>x.recordId===rid);if(!rec)return;
-    (by[rid]=by[rid]||{rec,list:[]}).list.push({key:col,label:LBL[col],before:rec[col]||'',after:EDITS[ek]||''});});
-  return by;}
-function openDiff(){const by=buildDiffs(),ks=Object.keys(by);if(!ks.length)return;
-  let cells=0;ks.forEach(k=>cells+=by[k].list.length);
-  document.getElementById('dfCount').textContent=`${ks.length} 筆資料 · ${cells} 個欄位`;
-  document.getElementById('dfBody').innerHTML=
-    `<div style="font-size:12px;color:var(--tx-2);margin-bottom:14px;line-height:1.75">以下變更將寫入試算表，請確認「舊值 → 新值」無誤後送出。送出結果（成功或失敗）都會完整記錄於操作紀錄。</div>`+
-    ks.map(rid=>{const{rec,list}=by[rid];
-      return `<div class="df"><div class="df-h"><span>${esc(rec.customer||'（未填客戶）')} ${esc(rec.item||'（未填品項）')}</span><span class="m">${esc(rec.sales||'—')} · ${esc(rid)}</span></div>
-      ${list.map(d=>`<div class="df-r"><span class="df-k">${esc(d.label)}</span>
-        <span class="df-v"><span class="dl">${esc(d.before||'（空白）')}</span> <span style="color:var(--tx-3)">→</span> <span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('')}</div>`;}).join('');
-  document.getElementById('dfMv').classList.add('on');}
-function closeDiff(){document.getElementById('dfMv').classList.remove('on');}
-async function commitGrid(btn){
-  if(btn&&btn.disabled)return;
-  const by=buildDiffs(),ks=Object.keys(by);
-  const updates=ks.map(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);return{recordId:rid,changes:ch};});
-  busy(btn,true,'送出中…');
-  const res=await api('batchUpdate',{updates,actor:CUR});
-  if(res.status==='success'){
-    ks.forEach(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);const rec=DB.records.find(r=>r.recordId===rid);if(rec)Object.assign(rec,ch);});
-    EDITS={};closeDiff();renderGrid();
-    toast(`已更新 ${ks.length} 筆資料，操作已記錄`);
-    busy(btn,false);
-    loadAdminData(); 
-  }else{
-    ks.forEach(rid=>addLog({act:'修改紀錄',ok:false,rid,diffs:by[rid].list,err:res.message||'未知錯誤',src:'行政端總表'}));
-    closeDiff();renderALog();toast('送出失敗：'+(res.message||'未知錯誤'),true);
-    busy(btn,false);
-  }}
-async function adminCreate(btn){
-  if(btn&&btn.disabled)return;
-  const item=PKV['ac-item'],sales=PKV['ac-sales']||'';
-  if(!item){addLog({act:'快速建立',ok:false,desc:'嘗試快速建立備貨資料',err:'未選擇品項',src:'行政端網頁'});
-    renderALog();toast('請選擇品項',true);return;}
-  busy(btn,true,'建立中…');
-  const res=await api('adminQuickCreate',{item,qty:AQ,sales,invoiceDate:val('ac-id'),invoiceNo:val('ac-in'),erp:val('ac-erp'),loanReturn:val('ac-lr'),loanOut:val('ac-lo')});
-  const who=sales?`業務「${sales}」`:'（尚未指定業務）';
-  if(res.status==='success'){
-    ['ac-id','ac-in','ac-erp','ac-lr','ac-lo'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
-    clearPk('ac-item');clearPk('ac-sales');AQ=1;aq(0);
-    toast(`已建立 ${res.createdCount} 筆${sales?'，業務「'+sales+'」下次登入／重新整理會看到補齊提醒':'，可於總表指定業務'}`);
-    busy(btn,false);
-    loadAdminData(); 
-  }else{
-    addLog({act:'快速建立',ok:false,desc:`嘗試為${who}建立 ${AQ} 筆「${item}」`,err:res.message||'未知錯誤',src:'行政端網頁'});
-    renderALog();toast('建立失敗',true);
-    busy(btn,false);
-  }}
-function setLogF(f){LOGF=f;document.getElementById('lgAll').classList.toggle('on',f==='all');
-  document.getElementById('lgFail').classList.toggle('on',f==='fail');renderALog();}
