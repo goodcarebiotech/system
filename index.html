@@ -20,25 +20,12 @@
     <div class="lg-t">業務備貨管理系統</div>
     <div class="lg-s">STOCK MANAGEMENT</div>
     <div class="lg-divider" style="margin-top:26px"></div>
-
     <div id="googleStep">
       <button class="btn-google" id="googleBtn" onclick="googleSignIn(this)">
-        <svg width="17" height="17" viewBox="0 0 18 18" style="flex:none">
-          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.79 2.73v2.27h2.9c1.7-1.56 2.69-3.87 2.69-6.64z"/>
-          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.27c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.34C2.44 15.98 5.48 18 9 18z"/>
-          <path fill="#FBBC05" d="M3.95 10.69A5.4 5.4 0 013.68 9c0-.59.1-1.16.27-1.69V4.97H.96A9 9 0 000 9c0 1.45.35 2.83.96 4.03l2.99-2.34z"/>
-          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.97l2.99 2.34C4.66 5.17 6.65 3.58 9 3.58z"/>
-        </svg>
         <span id="googleBtnText">使用 Google 帳號登入</span>
       </button>
-      <div class="lg-f">僅限公司核准的 Google 帳號可以登入<br>帳號權限由系統自動判斷，不用手動選擇身份</div>
-      <div id="inAppWarn" style="display:none;margin-top:16px;padding:14px;background:var(--warn-tint);border:1px solid #E5D2A8;font-size:11.5px;color:#6E4A05;line-height:1.8">
-        偵測到您正在 LINE 或其他 App 的內建瀏覽器中開啟。<br>
-        Google 基於安全政策不允許在此環境登入，請點右上角選單選擇「以其他瀏覽器開啟」，<br>
-        或複製網址後改用 Safari／Chrome 開啟。
-      </div>
+      <div class="lg-f">僅限公司核准的 Google 帳號可以登入<br>帳號權限由系統自動判斷</div>
     </div>
-
     <div id="roleChooser" style="display:none">
       <div class="lg-f" style="margin-top:0;margin-bottom:18px">您的帳號有多重身份，請選擇要進入的畫面：</div>
       <div id="roleChooserOptions" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -137,24 +124,9 @@
   </section>
 
   <section class="pg" id="pg-stats">
-    <!-- 品項庫存明細 -->
-    <div class="pn elevated">
-      <div class="pn-h"><span class="pn-t">品項庫存明細</span><span class="pn-n">本月備貨數量，依品牌分類</span></div>
-      <div class="pn-b" id="ibStat"></div>
-    </div>
-    <!-- 本月庫存追蹤 -->
-    <div class="pn">
-      <div class="pn-h"><span class="pn-t">本月庫存追蹤</span><span class="pn-n" id="stockYM"></span></div>
-      <div class="pn-b">
-        <div style="font-size:11px;color:var(--tx-3);line-height:1.75;margin-bottom:16px">
-          期初庫存是您每月自行設定的實際樣品數量；系統會自動扣掉本月已出貨（已開發票）的筆數，算出「本月剩餘」，
-          提醒您目前手上應該還有多少樣品可以清點、拍照確認。尚未設定的品項請點選下方按鈕新增。
-        </div>
-        <div id="stockRows"></div>
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
-          <button class="btn-g" onclick="openAddStockItem()">＋ 新增／設定品項期初庫存</button>
-        </div>
-      </div>
+    <div class="pn elevated"><div class="pn-h"><span class="pn-t">品項庫存明細</span></div><div class="pn-b" id="ibStat"></div></div>
+    <div class="pn"><div class="pn-h"><span class="pn-t">本月庫存追蹤</span><span class="pn-n" id="stockYM"></span></div>
+      <div class="pn-b"><div id="stockRows"></div><div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)"><button class="btn-g" onclick="openAddStockItem()">＋ 新增／設定期初庫存</button></div></div>
     </div>
     <div class="st">
       <div class="st-u"><div class="v" id="t1">0</div><div class="k">當月備貨</div><div class="dlt" id="t1d"></div></div>
@@ -163,40 +135,24 @@
       <div class="st-u w"><div class="v" id="t4">0</div><div class="k">待補齊</div><div class="dlt" id="t4d"></div></div>
     </div>
     <div class="two">
-      <div class="pn"><div class="pn-h"><span class="pn-t">近六個月備貨量</span></div><div class="pn-b">
-        <div class="ch" id="chW"></div>
-        <div class="ch-x"><span>3月</span><span>4月</span><span>5月</span><span>6月</span><span>7月</span><span>8月</span></div>
-      </div></div>
-      <div class="pn"><div class="pn-h"><span class="pn-t">客戶排行榜</span><span class="pn-n">本月備貨筆數</span></div><div class="pn-b" id="topCust"></div></div>
+      <div class="pn"><div class="pn-h"><span class="pn-t">近六個月備貨量</span></div><div class="pn-b"><div class="ch" id="chW"></div><div class="ch-x"></div></div></div>
+      <div class="pn"><div class="pn-h"><span class="pn-t">客戶排行榜</span></div><div class="pn-b" id="topCust"></div></div>
     </div>
-    <div class="pn" style="margin-top:18px">
-      <div class="pn-h"><span class="pn-t">出貨效率</span><span class="pn-n">備貨到送貨天數</span></div><div class="pn-b">
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line)">
-          <span class="sf" style="font-size:26px;font-weight:500;color:var(--ink)" id="fulfillAvg">—</span>
-          <span style="font-size:11px;color:var(--tx-3)">天 平均（<span id="fulfillN">0</span> 筆已有送貨日期）</span>
-        </div>
-        <div id="fulfillBars"></div>
-      </div>
-    </div>
+    <div class="pn" style="margin-top:18px"><div class="pn-h"><span class="pn-t">出貨效率</span></div><div class="pn-b"><div id="fulfillAvg" style="font-size:26px;font-weight:500"></div><div id="fulfillBars"></div></div></div>
   </section>
 
   <section class="pg" id="pg-pend">
-    <div class="pn" style="margin-bottom:14px"><div class="pn-b" style="padding:14px 16px">
-      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.75;font-weight:300">行政人員已建立資料，但尚未有完整的備貨明細。請點選補齊客戶名稱、科別等資料。</div></div></div>
+    <div class="pn" style="margin-bottom:14px"><div class="pn-b" style="padding:14px 16px">行政人員已建立資料，請點選補齊客戶名稱等明細。</div></div>
     <div id="pendList"></div>
   </section>
 
   <section class="pg" id="pg-logs">
     <div class="pn" style="background:transparent; border:none; box-shadow:none; padding:0;">
       <div class="search-bar">
-        <div style="flex:1; min-width:200px;">
-          <input type="text" id="salesLogKw" placeholder="🔍 搜尋個人歷程 (品項、單號、動作...)" style="width:100%" autocomplete="off" oninput="debounceSalesLogSearch()">
-        </div>
+        <div style="flex:1; min-width:200px;"><input type="text" id="salesLogKw" placeholder="🔍 搜尋個人歷程" style="width:100%" oninput="debounceSalesLogSearch()"></div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <input type="date" id="salesLogFrom" onchange="applySalesLogSearch()">
-          <span style="font-size:11px;color:var(--tx-3);font-weight:500;">至</span>
-          <input type="date" id="salesLogTo" onchange="applySalesLogSearch()">
-          <button class="btn-log-export" onclick="exportLogs('sales')">匯出紀錄</button>
+          <input type="date" id="salesLogFrom" onchange="applySalesLogSearch()"> <span style="font-size:11px">至</span> <input type="date" id="salesLogTo" onchange="applySalesLogSearch()">
+          <button class="btn-log-export" onclick="exportLogs('sales')">匯出</button>
           <button class="btn-log-refresh" onclick="ensureSalesLogsLoaded(true)">↻ 更新</button>
         </div>
       </div>
@@ -209,10 +165,7 @@
 <div class="wrap wide" id="adminApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf">政</div><div style="min-width:0"><div class="bar-n">行政管理</div><div class="bar-d">ADMINISTRATION</div></div></div>
-    <div style="display:flex;gap:14px;align-items:center">
-      <div id="adminSwitchRole" style="display:none;gap:6px"></div>
-      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot2"></div>
-    </div>
+    <div style="display:flex;gap:14px;align-items:center"><div id="adminSwitchRole" style="display:none;gap:6px"></div><div id="modeBadgeSlot2"></div></div>
   </div></div>
 
   <nav class="nav"><div class="nav-in">
@@ -223,64 +176,57 @@
 
   <section class="pg on" id="apg-grid">
     <div class="pn elevated" style="margin-bottom:0">
-      <div class="pn-h">
+      
+      <!-- 總表頂部工具列 -->
+      <div class="pn-h" style="padding-bottom:12px; border-bottom:none;">
         <span class="pn-t">備貨總表</span>
+        
+        <!-- 💡 新增：快速標記工具列 (Emoji 色彩系統) -->
+        <div style="display:flex; gap:6px; align-items:center; background:var(--sub); padding:4px 8px; border-radius:6px; border:1px solid var(--line-2);">
+          <span style="font-size:11.5px; color:var(--tx-3); margin-right:4px;">點擊儲存格後快速上色：</span>
+          <button class="btn-mark" onclick="insertMarker('🔴')" title="急件/異常">🔴急</button>
+          <button class="btn-mark" onclick="insertMarker('🟡')" title="待確認">🟡待</button>
+          <button class="btn-mark" onclick="insertMarker('🟢')" title="已完成">🟢完成</button>
+          <button class="btn-mark" onclick="insertMarker('❓')" title="疑問">❓疑問</button>
+        </div>
+
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto">
           <button class="btn-g" onclick="resetFilters()">清除篩選</button>
           <button class="btn-g" onclick="revertGrid()">還原變更</button>
           <button class="btn-d" id="btnSubmitGrid" onclick="openDiff()" disabled>送出更新</button>
         </div>
       </div>
-      <div class="cf">
-        <div class="cf-h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0114 0v1"/></svg>業務</div>
-        <div class="cf-r" id="aSalesChips"></div>
-      </div>
-      <div class="cf">
-        <div class="cf-h"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>品項</div>
-        <div class="cf-r" id="aItemChips"></div>
-      </div>
-      <div class="cf"><div class="cf-h">僅顯示空值欄位</div><div class="cf-r" id="aEmptyChips"></div></div>
+      
+      <div class="cf" style="padding-top:0;"><div class="cf-h">僅顯示空值欄位</div><div class="cf-r" id="aEmptyChips"></div></div>
+      
       <div class="tsc">
         <table class="dt grid" id="gridTableEl"><colgroup id="gridCol"></colgroup><thead><tr id="gridHead"></tr></thead><tbody id="gridBody"></tbody></table>
       </div>
+      
       <div class="tf">
         <span>顯示 <b id="aCnt">0</b> 筆</span>
         <span>完整 <b id="aOk">0</b> 筆</span>
         <span>待補 <b id="aNo">0</b> 筆</span>
         <span class="edn" id="aEdit" style="display:none">已修改 <b id="aEditN">0</b> 格，尚未送出</span>
-        <span style="margin-left:auto;color:var(--tx-3);font-size:10.5px;flex:none">可直接編輯儲存格，或從 Excel 複製後貼上（支援多格）</span>
+        <span style="margin-left:auto;color:var(--tx-3);font-size:10.5px;flex:none">可直接編輯儲存格，或從 Excel 複製後貼上</span>
       </div>
     </div>
   </section>
 
   <section class="pg" id="apg-new">
-    <div class="pn" style="max-width:640px;margin-left:auto;margin-right:auto">
-      <div class="pn-h"><span class="pn-t">快速建立備貨資料</span><span class="pn-n">建立後業務端會收到補齊提醒</span></div>
+    <div class="pn" style="max-width:640px;margin:0 auto">
+      <div class="pn-h"><span class="pn-t">快速建立備貨資料</span></div>
       <div class="pn-b">
         <div class="grp">
-          <div class="grp-h"><span class="grp-n">01</span><span class="grp-t">品項與數量</span><span class="grp-l"></span></div>
           <div class="fg"><label class="fl">品項<span class="rq">＊</span></label>
-            <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-ac-item" onclick="openPk('ac-item')"><span class="v ph">請選擇品項</span><span class="c">▾</span></button></div></div>
-          <div class="fg"><label class="fl">建立筆數</label>
-            <div class="stp"><button type="button" onclick="aq(-1)">－</button><span class="v" id="aqV">1</span><button type="button" onclick="aq(1)">＋</button></div></div>
+            <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-ac-item" onclick="openPk('ac-item')"><span class="v ph">請選擇</span><span class="c">▾</span></button></div></div>
+          <div class="fg"><label class="fl">筆數</label><div class="stp"><button type="button" onclick="aq(-1)">－</button><span class="v" id="aqV">1</span><button type="button" onclick="aq(1)">＋</button></div></div>
         </div>
         <div class="grp">
-          <div class="grp-h"><span class="grp-n">02</span><span class="grp-t">行政資訊（可留白）</span><span class="grp-l"></span></div>
-          <div class="fr">
-            <div class="fg"><label class="fl">發票日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="ac-id" oninput="mk(this)"></div></div>
-            <div class="fg"><label class="fl">發票號碼</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-in" oninput="mk(this)"></div></div>
-          </div>
-          <div class="fr">
-            <div class="fg"><label class="fl">ERP銷帳</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-erp" oninput="mk(this)"></div></div>
-            <div class="fg"><label class="fl">借出還回單</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-lr" oninput="mk(this)"></div></div>
-          </div>
-          <div class="fg"><label class="fl">借出單</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="ac-lo" oninput="mk(this)"></div></div>
+          <div class="fr"><div class="fg"><label class="fl">發票日期</label><div class="fw"><span class="fs"></span><input type="date" class="fb tx" id="ac-id" oninput="mk(this)"></div></div><div class="fg"><label class="fl">發票號碼</label><div class="fw"><span class="fs"></span><input type="text" class="fb tx" id="ac-in" oninput="mk(this)"></div></div></div>
+          <div class="fr"><div class="fg"><label class="fl">ERP銷帳</label><div class="fw"><span class="fs"></span><input type="text" class="fb tx" id="ac-erp" oninput="mk(this)"></div></div><div class="fg"><label class="fl">借出還回單</label><div class="fw"><span class="fs"></span><input type="text" class="fb tx" id="ac-lr" oninput="mk(this)"></div></div></div>
         </div>
-        <div class="grp">
-          <div class="grp-h"><span class="grp-n">03</span><span class="grp-t">指定業務（選填）</span><span class="grp-l"></span></div>
-          <div class="fg" style="margin-bottom:0"><label class="fl">業務</label>
-            <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-ac-sales" onclick="openPk('ac-sales')"><span class="v ph">不指定，稍後再分配</span><span class="c">▾</span></button></div></div>
-        </div>
+        <div class="grp"><div class="fg"><label class="fl">指定業務</label><div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-ac-sales" onclick="openPk('ac-sales')"><span class="v ph">不指定</span><span class="c">▾</span></button></div></div></div>
       </div>
       <div style="padding:0 18px 18px"><button class="btn-p" onclick="adminCreate(this)">建立資料</button></div>
     </div>
@@ -289,16 +235,10 @@
   <section class="pg" id="apg-alog">
     <div class="pn" style="background:transparent; border:none; box-shadow:none; padding:0;">
       <div class="search-bar">
-        <div style="flex:1.5; min-width:200px;">
-          <input type="text" id="logKw" placeholder="🔍 搜尋系統歷程 (人員、動作、品項...)" style="width:100%" autocomplete="off" oninput="debounceLogSearch()">
-        </div>
-        <div style="flex:1; min-width:120px;">
-          <select id="logActor" onchange="applyLogSearch()" style="width:100%"><option value="">全部人員</option></select>
-        </div>
+        <div style="flex:1.5; min-width:200px;"><input type="text" id="logKw" placeholder="🔍 搜尋系統歷程" style="width:100%" oninput="debounceLogSearch()"></div>
+        <div style="flex:1; min-width:120px;"><select id="logActor" onchange="applyLogSearch()" style="width:100%"><option value="">全部人員</option></select></div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <input type="date" id="logFrom" onchange="applyLogSearch()">
-          <span style="font-size:11px;color:var(--tx-3);font-weight:500;">至</span>
-          <input type="date" id="logTo" onchange="applyLogSearch()">
+          <input type="date" id="logFrom" onchange="applyLogSearch()"> <span style="font-size:11px">至</span> <input type="date" id="logTo" onchange="applyLogSearch()">
           <button class="btn-log-export" onclick="exportLogs('admin')">匯出</button>
           <button class="btn-log-refresh" onclick="ensureAdminLogsLoaded(true)">↻ 更新</button>
         </div>
@@ -316,161 +256,51 @@
 <div class="wrap wide" id="managerApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf">主</div><div style="min-width:0"><div class="bar-n" id="mgrName">主管</div><div class="bar-d">MANAGEMENT OVERVIEW</div></div></div>
-    <div style="display:flex;gap:14px;align-items:center">
-      <div id="mgrSwitchRole" style="display:none;gap:6px"></div>
-      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot3"></div>
-    </div>
+    <div style="display:flex;gap:14px;align-items:center"><div id="mgrSwitchRole" style="display:none;gap:6px"></div><div id="modeBadgeSlot3"></div></div>
   </div></div>
-
   <section class="pg on" id="pg-manager" style="max-width:1600px;margin:0 auto">
-    <div class="pn" style="margin-bottom:16px"><div class="pn-b" style="padding:14px 18px">
-      <div style="font-size:11.5px;color:var(--tx-2)">檢視期間：<b class="mn" id="mgrYM" style="color:var(--ink)"></b>（與上月比較）</div>
-    </div></div>
-
     <div class="st">
-      <div class="st-u"><div class="v" id="m1">0</div><div class="k">全公司本月備貨</div><div class="dlt" id="m1d"></div></div>
-      <div class="st-u g"><div class="v" id="m2">0</div><div class="k">已出貨</div><div class="dlt" id="m2d"></div></div>
-      <div class="st-u a"><div class="v" id="m3">0</div><div class="k">庫存中</div><div class="dlt" id="m3d"></div></div>
-      <div class="st-u w"><div class="v" id="m4">0</div><div class="k">全公司待補齊</div><div class="dlt" id="m4d"></div></div>
+      <div class="st-u"><div class="v" id="m1">0</div><div class="k">全公司本月備貨</div></div>
+      <div class="st-u g"><div class="v" id="m2">0</div><div class="k">已出貨</div></div>
+      <div class="st-u a"><div class="v" id="m3">0</div><div class="k">庫存中</div></div>
+      <div class="st-u w"><div class="v" id="m4">0</div><div class="k">全公司待補齊</div></div>
     </div>
-
     <div class="pn elevated">
-      <div class="pn-h"><span class="pn-t">業務庫存明細報表</span><span class="pn-n" id="mgrStockProgN"></span></div>
-      <div class="pn-b" style="padding-bottom:16px">
-        <div class="stk" style="height:6px;margin-bottom:16px"><div class="a" id="mgrStockProgBar" style="width:0%;background:var(--nav)"></div><div class="b"></div></div>
-        <div style="font-size:11px;color:var(--tx-3);margin-bottom:16px">點選任一位業務，查看他本月各品項「期初／本月已用（紅色）／剩餘」的完整明細。灰點代表尚未設定本月期初庫存。</div>
-        <div id="mgrNameGrid" class="mgr-name-grid"></div>
-      </div>
+      <div class="pn-h"><span class="pn-t">業務庫存明細報表</span></div>
+      <div class="pn-b"><div id="mgrNameGrid" class="mgr-name-grid"></div></div>
       <div id="mgrDetailArea" class="mgr-detail"></div>
-    </div>
-
-    <div class="pn" style="margin-top:18px">
-      <div class="pn-h"><span class="pn-t">業務績效排行</span><span class="pn-n">依本月備貨筆數排序，點列可查看該人庫存明細</span></div>
-      <div class="tsc" style="max-height:52vh"><table class="dt"><thead><tr>
-        <th>業務</th><th>本月備貨</th><th>已出貨</th><th>庫存中</th><th>待補齊</th><th>出貨率</th>
-      </tr></thead><tbody id="mgrRankBody"></tbody></table></div>
-    </div>
-
-    <div class="two" style="margin-top:18px">
-      <div class="pn"><div class="pn-h"><span class="pn-t">近六個月全公司備貨量</span></div><div class="pn-b">
-        <div class="ch" id="mgrChart"></div>
-        <div class="ch-x" id="mgrChartX"></div>
-      </div></div>
-      <div class="pn"><div class="pn-h"><span class="pn-t">品牌家族本月出貨量</span></div><div class="pn-b" id="mgrFamily"></div></div>
     </div>
   </section>
 </div>
 
-<!-- ══ PICKER ══ -->
-<div class="pk" id="pkBg" onclick="if(event.target===this)closePk()">
-  <div class="pk-s">
-    <div class="pk-h">
-      <div class="pk-t"><span id="pkT">選擇項目</span><span class="pk-c" onclick="closePk()">✕ 關閉</span></div>
-      <div style="display:flex;gap:8px;align-items:stretch">
-        <input class="pk-i" id="pkS" autocomplete="off" placeholder="輸入搜尋，或直接輸入新名稱" oninput="renderPk()" onkeydown="if(event.key==='Enter')confirmCustomPk()" style="flex:1">
-        <button type="button" class="pk-ok" onclick="confirmCustomPk()">確認</button>
-      </div>
-    </div>
-    <div class="pk-l" id="pkL"></div>
+<!-- 💡 新增：表頭專用的漏斗篩選彈出視窗 -->
+<div class="cf-pop" id="colFilterPop">
+  <div style="padding:10px; border-bottom:1px solid var(--line);"><input type="text" id="cfSearch" placeholder="搜尋..." autocomplete="off" oninput="renderColFilterList()"></div>
+  <div class="cf-pop-list" id="cfList"></div>
+  <div class="cf-pop-foot">
+    <button class="cf-btn-ok" onclick="applyColFilter()">確定篩選</button>
+    <button class="cf-btn-clear" onclick="clearColFilter()">清除條件</button>
   </div>
 </div>
 
-<!-- ══ LOG 明細彈窗 ══ -->
-<div class="mv" id="logDetailMv">
-  <div class="mb">
-    <div class="mh">
-        <span class="mh-t" id="logDetailTitle">異動明細紀錄</span>
-        <button class="btn-g" style="padding:4px 10px; font-size:11px;" onclick="copyLogDetails()">複製內容</button>
-    </div>
-    <div class="mbd">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--tx-3);margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)" id="logDetailMeta"></div>
-      <div id="logDetailBody"></div>
-    </div>
-    <div class="ma"><button onclick="document.getElementById('logDetailMv').classList.remove('on')" style="flex:1">關閉視窗</button></div>
-  </div>
-</div>
+<!-- ══ PICKER / MODALS ══ -->
+<div class="pk" id="pkBg" onclick="if(event.target===this)closePk()"><div class="pk-s"><div class="pk-h"><div class="pk-t"><span id="pkT">選擇項目</span><span class="pk-c" onclick="closePk()">✕ 關閉</span></div><div style="display:flex;gap:8px;align-items:stretch"><input class="pk-i" id="pkS" placeholder="輸入搜尋..." oninput="renderPk()"><button type="button" class="pk-ok" onclick="confirmCustomPk()">確認</button></div></div><div class="pk-l" id="pkL"></div></div></div>
 
-<!-- ══ EDIT ══ -->
-<div class="mv" id="edMv">
-  <div class="mb">
-    <div class="mh"><span class="mh-t">編輯備貨紀錄</span><span class="mh-r" id="edRef"></span></div>
-    <div class="mbd">
-      <div class="fg"><label class="fl">客戶名稱</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-cu" oninput="mk(this)"></div></div>
-      <div class="fg"><label class="fl">品項</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-it" oninput="mk(this)"></div></div>
-      <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ca" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ty" oninput="mk(this)"></div></div>
-      </div>
-      <div class="fr">
-        <div class="fg"><label class="fl">備貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-sd" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ba" oninput="mk(this)"></div></div>
-      </div>
-      <div class="fr">
-        <div class="fg"><label class="fl">送貨日期<span class="rq">＊</span></label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-hd" oninput="mk(this)"></div>
-          <div class="qk"><button type="button" onclick="qd('e-hd',0)">今天</button><button type="button" onclick="qd('e-hd',1)">明天</button></div></div>
-        <div class="fg"><label class="fl">訂購單號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-on" oninput="mk(this)"></div></div>
-      </div>
-    </div>
-    <div class="ma"><button onclick="closeEd()">取消</button><button class="del" onclick="delRec(this)">刪除</button><button class="sv" onclick="saveEd(this)">儲存修改</button></div>
-  </div>
-</div>
+<div class="mv" id="logDetailMv"><div class="mb"><div class="mh"><span class="mh-t" id="logDetailTitle">異動明細</span><button class="btn-g" style="padding:4px 10px; font-size:11px;" onclick="copyLogDetails()">複製內容</button></div><div class="mbd"><div id="logDetailMeta"></div><div id="logDetailBody"></div></div><div class="ma"><button onclick="document.getElementById('logDetailMv').classList.remove('on')">關閉視窗</button></div></div></div>
 
-<!-- ══ GROUP BATCH EDIT ══ -->
-<div class="mv" id="gEdMv">
-  <div class="mb lg2">
-    <div class="mh"><span class="mh-t">批次編輯整組</span><span class="mh-r" id="gEdRef"></span></div>
-    <div class="mbd">
-      <div style="font-size:11px;font-weight:600;color:var(--ink);margin-bottom:9px;letter-spacing:.05em">組內目前完整資料（唯讀，供比對用）</div>
-      <div class="gprev-wrap"><table class="gprev" id="gEdPreview"></table></div>
-      <div id="gEdWarn"></div>
-      <div style="font-size:11px;color:var(--tx-3);margin:16px 0;line-height:1.7">以下留白的欄位不會被更動，僅套用您有填寫的欄位到組內全部 <span id="gEdCount">0</span> 筆紀錄。</div>
-      <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ca" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ty" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
-      </div>
-      <div class="fr">
-        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ba" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="g-hd" oninput="mk(this)"></div></div>
-      </div>
-    </div>
-    <div class="ma"><button onclick="closeGroupEdit()">取消</button><button class="sv" onclick="saveGroupEdit(this)">套用到整組</button></div>
-  </div>
-</div>
+<div class="mv" id="edMv"><div class="mb"><div class="mh"><span class="mh-t">編輯紀錄</span><span class="mh-r" id="edRef"></span></div><div class="mbd">
+  <div class="fr"><div class="fg"><label class="fl">客戶名稱</label><div class="fw"><input class="fb tx" id="e-cu" oninput="mk(this)"></div></div><div class="fg"><label class="fl">品項</label><div class="fw"><input class="fb tx" id="e-it" oninput="mk(this)"></div></div></div>
+  <div class="fr"><div class="fg"><label class="fl">備貨日期</label><div class="fw"><input type="date" class="fb tx" id="e-sd" oninput="mk(this)"></div></div><div class="fg"><label class="fl">送貨日期</label><div class="fw"><input type="date" class="fb tx" id="e-hd" oninput="mk(this)"></div></div></div>
+</div><div class="ma"><button onclick="closeEd()">取消</button><button class="del" onclick="delRec(this)">刪除</button><button class="sv" onclick="saveEd(this)">儲存</button></div></div></div>
 
-<!-- ══ STOCK EDIT ══ -->
-<div class="mv" id="stockMv">
-  <div class="mb">
-    <div class="mh"><span class="mh-t">設定期初庫存</span><span class="mh-r" id="stockRef"></span></div>
-    <div class="mbd">
-      <div class="fg"><label class="fl">品項</label><div style="font-size:14.5px;font-weight:600;color:var(--ink)" id="stockItemName">—</div></div>
-      <div class="fg" style="margin-bottom:8px"><label class="fl">期初庫存數量<span class="rq">＊</span></label>
-        <div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="number" min="0" autocomplete="off" id="stock-qty" oninput="mk(this)"></div></div>
-      <div id="stockSuggest" style="font-size:11px;color:var(--tx-3);margin-bottom:4px"></div>
-    </div>
-    <div class="ma"><button onclick="closeStockEdit()">取消</button><button class="sv" onclick="saveStockEdit(this)">儲存</button></div>
-  </div>
-</div>
+<div class="mv" id="gEdMv"><div class="mb lg2"><div class="mh"><span class="mh-t">批次編輯整組</span></div><div class="mbd"><table class="gprev" id="gEdPreview"></table><div id="gEdWarn"></div></div><div class="ma"><button onclick="closeGroupEdit()">取消</button><button class="sv" onclick="saveGroupEdit(this)">套用</button></div></div></div>
 
-<!-- ══ DIFF ══ -->
-<div class="mv" id="dfMv">
-  <div class="mb lg2">
-    <div class="mh"><span class="mh-t">送出前確認</span><span class="mh-r" id="dfCount"></span></div>
-    <div class="mbd" id="dfBody"></div>
-    <div class="ma"><button onclick="closeDiff()">返回修改</button><button class="sv" onclick="commitGrid(this)">確認送出</button></div>
-  </div>
-</div>
+<div class="mv" id="stockMv"><div class="mb"><div class="mh"><span class="mh-t">設定期初庫存</span></div><div class="mbd"><div class="fg"><label class="fl">數量</label><div class="fw"><input type="number" class="fb tx" id="stock-qty" oninput="mk(this)"></div></div><div id="stockSuggest"></div></div><div class="ma"><button onclick="closeStockEdit()">取消</button><button class="sv" onclick="saveStockEdit(this)">儲存</button></div></div></div>
 
-<div class="inline-pop" id="inlinePop">
-  <input type="text" id="inlinePopSearch" autocomplete="off" placeholder="輸入關鍵字篩選…" oninput="renderInlineFilter()">
-  <div class="lst" id="inlinePopList"></div>
-</div>
+<div class="mv" id="dfMv"><div class="mb lg2"><div class="mh"><span class="mh-t">送出前確認</span><span class="mh-r" id="dfCount"></span></div><div class="mbd" id="dfBody"></div><div class="ma"><button onclick="closeDiff()">返回修改</button><button class="sv" onclick="commitGrid(this)">確認送出</button></div></div></div>
+
 <div class="tst" id="tst"></div>
-<div id="loadOverlay" style="display:none;position:fixed;inset:0;background:rgba(16,23,32,.4);z-index:500;align-items:center;justify-content:center">
-  <div style="background:var(--paper);padding:20px 28px;box-shadow:0 20px 50px rgba(0,0,0,.3);font-size:12.5px;color:var(--tx-2);display:flex;align-items:center;gap:12px">
-    <div style="width:14px;height:14px;border:2px solid var(--line-2);border-top-color:var(--nav);border-radius:50%;animation:spin .7s linear infinite"></div>
-    <span id="loadOverlayText">讀取資料中…</span>
-  </div>
-</div>
+<div id="loadOverlay" style="display:none;position:fixed;inset:0;background:rgba(16,23,32,.4);z-index:500;align-items:center;justify-content:center"><div style="background:var(--paper);padding:20px 28px;border-radius:8px;display:flex;align-items:center;gap:12px"><div style="width:14px;height:14px;border:2px solid var(--line-2);border-top-color:var(--nav);border-radius:50%;animation:spin .7s linear infinite"></div><span id="loadOverlayText">讀取資料中…</span></div></div>
 
 <script src="app.js"></script>
 </body>
