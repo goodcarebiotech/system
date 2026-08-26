@@ -33,9 +33,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 ::-webkit-scrollbar-thumb:hover{background:var(--line-3)}
 
 /* ─── LOGIN ─── */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(155deg,var(--nav-2) 0%,var(--nav) 60%,var(--ink) 100%)}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--nav)}
 .login-card{width:100%;max-width:390px;background:var(--paper);padding:44px 38px 34px;animation:up .7s var(--e) both}
-@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes up{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 .lg-mark{width:40px;height:40px;background:var(--nav);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Noto Serif TC',serif;font-size:17px;font-weight:600;margin-bottom:26px}
 .lg-t{font-family:'Noto Serif TC',serif;font-size:20px;font-weight:600;letter-spacing:.09em;color:var(--ink)}
 .lg-s{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.3em;color:var(--tx-3);margin-top:9px}
@@ -127,9 +128,9 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .qk button{padding:5px 10px;background:var(--paper);border:1px solid var(--line-2);font-size:10.5px;color:var(--tx-2);cursor:pointer;transition:.18s var(--e)}
 .qk button:hover{border-color:var(--nav);color:var(--nav);background:var(--nav-tint)}
 
-.stp{display:inline-flex;align-items:center;border:1px solid var(--nav);background:#fff}
-.stp button{width:34px;height:34px;background:var(--nav);color:#fff;border:none;font-size:15px;cursor:pointer;line-height:1;flex:none}
-.stp button:hover{background:var(--ink)}
+.stp{display:inline-flex;align-items:center;border:1px solid var(--line-2);background:var(--paper)}
+.stp button{width:34px;height:34px;background:transparent;color:var(--tx-2);border:none;font-size:15px;cursor:pointer;line-height:1;flex:none;transition:.15s var(--e)}
+.stp button:hover{background:var(--sub);color:var(--ink)}
 .stp .v{width:46px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;border:none;background:transparent;padding:0;outline:none}
 .bbox{background:var(--paper);border:1px solid var(--line-2);padding:18px}
 .bbox-r{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
@@ -148,16 +149,19 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .dock{position:sticky;bottom:0;padding:14px 0 0;background:linear-gradient(180deg,rgba(242,243,245,0),var(--shell) 30%);z-index:40}
 .dock-row{display:flex;gap:8px;align-items:stretch}
 .dock-row .btn-p{flex:1}
-.stp-lg{flex:none}
-.stp-lg button{width:44px;height:100%}
-.stp-lg .v{width:40px;font-size:16px}
+.stp-lg{flex:none;border-color:var(--line-2);background:var(--paper)}
+.stp-lg button{width:46px;height:100%;font-size:17px;color:var(--tx-2)}
+.stp-lg button:first-child{border-right:1px solid var(--line)}
+.stp-lg button:last-child{border-left:1px solid var(--line)}
+.stp-lg .v{width:52px;font-size:17px;font-weight:600;color:var(--ink)}
 
 /* ─── STATS ─── */
 .st{display:flex;background:var(--paper);border:1px solid var(--line);margin-bottom:18px}
 .st-u{flex:1;padding:20px 8px 18px;text-align:center;border-right:1px solid var(--line);min-width:0;position:relative}
 .st-u:last-child{border-right:none}
 .st-u::before{content:'';position:absolute;top:-1px;left:0;right:0;height:2px;background:transparent}
-.st-u .v{font-family:'Noto Serif TC',serif;font-size:30px;font-weight:500;color:var(--ink);line-height:1;letter-spacing:-.01em}
+.st-u .v{font-family:'Noto Serif TC',serif;font-size:26px;font-weight:500;color:var(--ink);line-height:1;letter-spacing:-.01em}
+@media(max-width:420px){.st-u{padding:15px 4px 13px}.st-u .v{font-size:21px}.st-u .k{font-size:9.5px;letter-spacing:0}}
 .st-u .k{font-size:10.5px;color:var(--tx-3);margin-top:11px;white-space:nowrap;letter-spacing:.06em}
 .st-u.a::before{background:var(--nav)} .st-u.a .k{color:var(--nav-2)}
 .st-u.g::before{background:var(--ok)}
@@ -178,18 +182,26 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .fb-track span{display:block;height:100%;background:var(--nav-3)}
 .fb-row .mn{width:24px;text-align:right;flex:none;color:var(--tx-2)}
 .fam-page-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-@media(max-width:680px){.fam-page-grid{grid-template-columns:1fr}.fam-card-wide{grid-column:auto}}
+@media(max-width:680px){
+  .fam-page-grid{grid-template-columns:1fr;gap:12px}
+  .fam-card-wide{grid-column:auto}
+  /* 手機上規格改成兩欄網格往下排，不再硬擠成一橫列 */
+  .fam-spec-row{display:grid;grid-template-columns:1fr 1fr}
+  .fam-spec-cell{border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .fam-spec-cell:nth-child(2n){border-right:none}
+  .fam-card-total{font-size:38px;padding:8px 16px 18px}
+}
 .fam-card{background:var(--paper);border:1px solid var(--line);border-top:3px solid var(--line);min-width:0}
 .fam-card-wide{grid-column:1/-1}
-.fam-card-head{display:flex;align-items:center;gap:9px;padding:18px 20px 0}
+.fam-card-head{display:flex;align-items:center;justify-content:center;gap:9px;padding:18px 20px 0}
 .fam-swatch{width:8px;height:8px;flex:none}
 .fam-card-name{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--tx-2)}
-.fam-card-total{font-family:'Noto Serif TC',serif;font-weight:600;font-size:40px;line-height:1;padding:8px 20px 20px;letter-spacing:-.01em}
-.fam-spec-row{display:flex;border-top:1px solid var(--line)}
+.fam-card-total{font-family:'Noto Serif TC',serif;font-weight:700;font-size:46px;line-height:1;padding:10px 20px 22px;letter-spacing:-.02em;text-align:center}
+.fam-spec-row{display:flex;border-top:1px solid var(--line);background:var(--sub)}
 .fam-spec-cell{flex:1;min-width:0;text-align:center;padding:13px 4px 15px;border-right:1px solid var(--line)}
 .fam-spec-cell:last-child{border-right:none}
 .fam-spec-cell .fsn{font-size:10px;color:var(--tx-3);letter-spacing:.02em;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fam-spec-cell .fsv{font-family:'Noto Serif TC',serif;font-size:21px;font-weight:600;color:var(--ink);line-height:1}
+.fam-spec-cell .fsv{font-family:'Noto Serif TC',serif;font-size:23px;font-weight:700;color:var(--ink);line-height:1}
 /* 主管儀表板用的精簡版品牌列表（跟業務端的大卡片是不同使用情境，維持原本緊湊列表樣式）*/
 .fam-block{border-left:3px solid var(--line);padding:14px 0 16px 14px;margin-bottom:18px}
 .fam-block:last-child{margin-bottom:0}
@@ -211,6 +223,20 @@ button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit
 .sr-key{display:flex;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
 .sr-key span{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--tx-2)}
 .sr-key i{width:10px;height:10px;flex:none}
+.vb-wrap{overflow-x:auto;padding-bottom:4px}
+.vb-chart{display:flex;align-items:flex-end;gap:16px;min-width:max-content;padding:26px 2px 0}
+.vb-col{display:flex;flex-direction:column;align-items:center;width:74px;flex:none;position:relative}
+.vb-total{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:7px}
+.vb-total.zero{color:var(--line-3);font-weight:400}
+.vb-stack{width:34px;display:flex;flex-direction:column;justify-content:flex-end;border-bottom:1px solid var(--line-2)}
+.vb-used,.vb-rem{width:100%;display:flex;align-items:center;justify-content:center}
+.vb-used{background:var(--bad)}
+.vb-rem{background:var(--nav-3)}
+.vb-used span,.vb-rem span{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#fff;font-weight:600}
+.vb-label{font-size:10px;color:var(--tx-2);text-align:center;margin-top:9px;line-height:1.5;word-break:break-word}
+.vb-label.unset{color:var(--tx-3)}
+.vb-label i{font-style:normal;font-size:9px;color:var(--tx-3)}
+.vb-warn{position:absolute;top:-8px;font-size:9px;color:var(--bad);font-weight:600}
 .mgr-name-grid{display:flex;flex-wrap:wrap;gap:8px}
 .mgr-name-btn{display:flex;align-items:center;gap:7px;padding:8px 13px;background:var(--sub);border:1px solid var(--line-2);cursor:pointer;font-size:12px;color:var(--tx);transition:.16s var(--e)}
 .mgr-name-btn:hover{border-color:var(--nav);color:var(--nav)}
@@ -311,7 +337,7 @@ table.gprev tr:last-child td{border-bottom:none}
 .chip .n{font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:.6;margin-left:5px}
 
 /* ─── TABLE ─── */
-.tsc{overflow:auto;max-height:62vh;border-top:1px solid var(--line)}
+.tsc{overflow:auto;max-height:52vh;border-top:1px solid var(--line)}
 table.dt{border-collapse:separate;border-spacing:0;font-size:12px;width:100%}
 table.dt.grid{table-layout:fixed}
 table.dt th{position:sticky;top:0;text-align:left;padding:8px 9px;background:var(--nav);color:rgba(255,255,255,.95);font-weight:600;white-space:nowrap;font-size:11.5px;z-index:3;border-right:1px solid rgba(255,255,255,.1)}
@@ -328,6 +354,9 @@ table.dt td.pad{padding:9px 10px}
 .cel:focus{background:#fff;box-shadow:inset 0 0 0 2px var(--nav)}
 .cel.ed{background:var(--gold-tint);box-shadow:inset 3px 0 0 var(--gold)}
 .sm{display:inline-flex;align-items:center;gap:6px;font-size:11px;white-space:nowrap;padding:0 10px}
+.th-status{position:relative;padding-right:34px!important}
+.th-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:20px;height:20px;padding:0;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.th-toggle:hover{background:rgba(255,255,255,.32)}
 .sm::before{content:'';width:5px;height:5px;flex:none}
 .sm.g{color:var(--ok)} .sm.g::before{background:var(--ok)}
 .sm.h{color:var(--tx-2)} .sm.h::before{background:var(--line-3)}
@@ -600,7 +629,6 @@ table.dt td.pad{padding:9px 10px}
     <div class="pn">
       <div class="pn-h"><span class="pn-t">紀錄總覽</span>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="btn-g rec-full-btn" id="recFullBtn" onclick="toggleRecFull()">顯示完整欄位（發票～業務）</button>
           <div class="seg"><button id="vG" onclick="setView('group')">依日期分組</button><button class="on" id="vL" onclick="setView('list')">清單</button></div>
         </div></div>
       <div class="cf"><div class="cf-h">月份</div><div class="cf-r" id="mChips"></div></div>
@@ -922,22 +950,22 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMj
 const IS_LIVE = (!CFG.USE_MOCK && CFG.GAS_URL && CFG.GAS_URL.trim() !== '');
 
 const COLS=[
-  {k:'stockDate',n:'備貨日期',w:92,role:'s'},
-  {k:'batch',n:'批號',w:70,role:'s'},
-  {k:'shipDate',n:'送貨日期',w:92,role:'s'},
-  {k:'item',n:'品項',w:150,role:'s'},
-  {k:'customer',n:'客戶',w:84,role:'s'},
-  {k:'category',n:'科別',w:54,role:'s'},
-  {k:'type',n:'賣備樣',w:54,role:'s'},
-  {k:'orderNo',n:'訂購單號',w:78,role:'s'},
-  {k:'remark',n:'備註',w:230,role:'s'},
-  {k:'invoiceDate',n:'發票日期',w:92,role:'a'},
-  {k:'invoiceNo',n:'發票號碼',w:100,role:'a'},
-  {k:'erp',n:'ERP銷帳',w:160,role:'a'},
-  {k:'loanReturn',n:'借出還回單',w:130,role:'a'},
-  {k:'loanOut',n:'借出單',w:100,role:'a'},
-  {k:'note',n:'註記',w:120,role:'a'},
-  {k:'sales',n:'業務',w:64,role:'a'}
+  {k:'stockDate',n:'備貨日期',w:100,role:'s'},
+  {k:'batch',n:'批號',w:76,role:'s'},
+  {k:'shipDate',n:'送貨日期',w:100,role:'s'},
+  {k:'item',n:'品項',w:165,role:'s'},
+  {k:'customer',n:'客戶',w:88,role:'s'},
+  {k:'category',n:'科別',w:68,role:'s'},
+  {k:'type',n:'賣備樣',w:66,role:'s'},
+  {k:'orderNo',n:'訂購單號',w:82,role:'s'},
+  {k:'remark',n:'備註',w:200,role:'s'},
+  {k:'invoiceDate',n:'發票日期',w:100,role:'a'},
+  {k:'invoiceNo',n:'發票號碼',w:104,role:'a'},
+  {k:'erp',n:'ERP銷帳',w:118,role:'a'},
+  {k:'loanReturn',n:'借出還回單',w:118,role:'a'},
+  {k:'loanOut',n:'借出單',w:114,role:'a'},
+  {k:'note',n:'註記',w:80,role:'a'},
+  {k:'sales',n:'業務',w:70,role:'a'}
 ];
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
@@ -1319,8 +1347,9 @@ async function loadSalesData(silent){
     const res=await api('salesInit', {salesName:CUR, yearMonth:CURRENT_YM});
     if(res.status==='success'){
       DB.records = res.records||[];
-      DB.logs = res.logs||[];
+      DB.logs = res.logs||[];           // 後端已一併回傳，不需額外再打一次
       STOCK_LEVELS = res.stock&&res.stock.items||[];
+      SALES_LOGS_LOADED=false;   // 資料有變動，下次點開操作紀錄時重新抓最新的
     }else if(!silent) toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     initSales();
   }catch(err){
@@ -1423,9 +1452,18 @@ function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)ret
 
 /* ── SALES ── */
 function initSales(){renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();renderLogs();fillCount();}
+let SALES_LOGS_LOADED=false;
+async function ensureSalesLogsLoaded(){
+  if(SALES_LOGS_LOADED)return;
+  document.getElementById('logList').innerHTML=`<div class="emp-s">讀取操作紀錄中…</div>`;
+  const res=await api('getLogs',{salesName:CUR});
+  if(res.status==='success'){DB.logs=res.data;SALES_LOGS_LOADED=true;}
+  renderLogs();
+}
 function tab(n,b){document.querySelectorAll('#salesApp .pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('#salesApp .nav-b').forEach(x=>x.classList.remove('on'));
-  document.getElementById('pg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});}
+  document.getElementById('pg-'+n).classList.add('on');b.classList.add('on');window.scrollTo({top:0,behavior:'smooth'});
+  if(n==='logs')ensureSalesLogsLoaded();}
 function setView(v){VIEW=v;document.getElementById('vL').classList.toggle('on',v==='list');
   document.getElementById('vG').classList.toggle('on',v==='group');renderRec();}
 function renderMChips(){const ms=['2026-08','2026-07','2026-06'];
@@ -1478,14 +1516,13 @@ function attachColResize(rowId, colgroupId, store){
 }
 function renderRecHead(){
   document.getElementById('recCol').innerHTML=COLS.map(c=>
-    `<col style="width:${colW(REC_COL_W,c)}px" class="${c.role==='a'&&!RECFULL?'colhide':''}">`).join('')+'<col style="width:64px">';
+    `<col style="width:${colW(REC_COL_W,c)}px" class="${c.role==='a'&&!RECFULL?'colhide':''}">`).join('')+'<col style="width:112px">';
+  // 收合鈕放在最尾巴的「狀態」表頭裡，不另外佔一整欄——否則下方每一列都要跟著空一格，很奇怪
   document.getElementById('recHead').innerHTML=COLS.map(c=>
     `<th class="${c.role==='a'&&!RECFULL?'colhide':''}">${c.n}<span class="col-rs" data-col="${c.k}"></span></th>`).join('')
-    +'<th>狀態</th>';
+    +`<th class="th-status">狀態<button type="button" class="th-toggle" onclick="event.stopPropagation();toggleRecFull()" title="${RECFULL?'收合發票～業務欄位':'展開發票～業務欄位'}">${RECFULL?'－':'＋'}</button></th>`;
   attachColResize('recHead','recCol',REC_COL_W);
-  setExactTableWidth('recTableEl',COLS,REC_COL_W,RECFULL,64);
-  const btn=document.getElementById('recFullBtn');
-  if(btn)btn.textContent=RECFULL?'收合欄位（僅顯示備貨資訊）':'顯示完整欄位（發票～業務）';
+  setExactTableWidth('recTableEl',COLS,REC_COL_W,RECFULL,112);
 }
 // table-layout:fixed 若搭配 width:auto／max-content，瀏覽器仍會依內容微調各欄比例，
 // 導致「明明宣告一樣的寬度，實際畫出來卻不一樣大」——這就是欄寬設定看起來沒生效的真正原因。
@@ -1789,7 +1826,7 @@ async function saveEd(btn){
   const diffs=[];Object.keys(nv).forEach(k=>{if(String(x[k]||'')!==String(nv[k]||''))diffs.push({label:LBL[k],before:x[k],after:nv[k]});});
   if(!diffs.length){toast('沒有任何變更');closeEd();return;}
   busy(btn,true,'儲存中…');
-  const res=await api('updateRecord',{recordId:EDID,changes:nv,actor:CUR});
+  const res=await api('updateRecord',{recordId:EDID,changes:nv,actor:CUR,expectedUpdatedAt:x.updatedAt});
   if(res.status==='success'){
     Object.assign(x,nv); // 樂觀更新，畫面立即反映
     closeEd();
@@ -1797,6 +1834,11 @@ async function saveEd(btn){
     toast('已儲存修改，操作已記錄');
     busy(btn,false);
     if(ROLE==='admin')loadAdminData();else loadSalesData(); // 背景校正
+  }else if(res.status==='conflict'){
+    addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:'版本衝突：這筆資料已被他人修改'});
+    renderLogs();toast('這筆資料剛剛被其他人改過，已為您載入最新版本，請重新確認後再儲存',true);
+    busy(btn,false);closeEd();
+    if(ROLE==='admin')loadAdminData();else loadSalesData();
   }else{
     addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:res.message||'未知錯誤'});
     renderLogs();toast('儲存失敗：'+(res.message||'未知錯誤'),true);
@@ -1875,21 +1917,34 @@ async function selectMgrPerson(salesName){
     area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 尚未設定任何品項的期初庫存</div><div class="emp-s">也還沒有本月的備貨紀錄可供比對</div></div>`;
     return;
   }
-  const body=items.map(it=>{
-    if(!it.isSet){
-      return `<div class="sr-row"><div class="sr-top"><span class="sr-name">${esc(it.item)}</span><span class="sr-nums">本月已用 <b class="used">${it.shipped}</b> 件</span></div>
-        <div class="sr-unset">尚未設定期初庫存，無法計算剩餘量${it.suggestedOpening!==null?`（可參考上月剩餘 ${it.suggestedOpening} 件）`:''}</div></div>`;
-    }
-    const opening=it.opening, used=it.shipped, remain=it.remaining;
-    const over=used>opening;
-    const usedPct=opening>0?Math.min(100,Math.round(used/opening*100)):(used>0?100:0);
-    const remPct=100-usedPct;
-    return `<div class="sr-row"><div class="sr-top"><span class="sr-name">${esc(it.item)}</span>
-      <span class="sr-nums">期初 <b>${opening}</b> ／ 本月已用 <b class="used">${used}</b> ／ 剩餘 <b class="rem">${remain}</b></span></div>
-      <div class="sr-bar"><div class="rem-seg" style="width:${remPct}%"></div><div class="used-seg" style="width:${usedPct}%"></div></div>
-      ${over?`<div style="font-size:10.5px;color:var(--bad);margin-top:6px">⚠ 本月使用量已超出期初庫存 ${used-opening} 件，請確認數量是否正確</div>`:''}
+  // 直立堆疊長條圖：藍＝月初庫存中還沒動用的剩餘量，紅＝本月已出貨（業務已建立備貨登記）
+  // 兩段疊起來的總高度＝該品項月初的庫存量，一眼就能看出「原本有多少、這個月用掉多少、還剩多少」
+  const allItems=ITEM_CATALOG.map(name=>{
+    const found=items.find(x=>x.item===name);
+    return found||{item:name,opening:null,shipped:0,remaining:null,isSet:false,suggestedOpening:null};
+  });
+  const maxOpening=Math.max(1,...allItems.map(it=>it.isSet?Math.max(it.opening,it.shipped):it.shipped));
+  const bars=allItems.map(it=>{
+    const used=it.shipped;
+    const remain=it.isSet?it.remaining:0;
+    const total=it.isSet?Math.max(it.opening,used):used;   // 用量超出期初時，用實際用量當作柱高上限
+    const H=150;
+    const remH=Math.round(remain/maxOpening*H);
+    const usedH=Math.round(used/maxOpening*H);
+    const over=it.isSet&&used>it.opening;
+    return `<div class="vb-col" title="${esc(it.item)}｜期初 ${it.isSet?it.opening:'未設定'}／本月出貨 ${used}／剩餘 ${it.isSet?remain:'—'}">
+      <div class="vb-total ${total===0?'zero':''}">${total===0?'0':total}</div>
+      <div class="vb-stack" style="height:${H}px">
+        ${usedH>0?`<div class="vb-used" style="height:${usedH}px">${usedH>=16?`<span>${used}</span>`:''}</div>`:''}
+        ${remH>0?`<div class="vb-rem" style="height:${remH}px">${remH>=16?`<span>${remain}</span>`:''}</div>`:''}
+      </div>
+      <div class="vb-label ${it.isSet?'':'unset'}">${esc(it.item)}${it.isSet?'':'<br><i>未設期初</i>'}</div>
+      ${over?'<div class="vb-warn">超出</div>':''}
     </div>`;
-  }).join('')+`<div class="sr-key"><span><i style="background:var(--nav-3)"></i>剩餘庫存</span><span><i style="background:var(--bad)"></i>本月已用（已建立備貨登記）</span></div>`;
+  }).join('');
+  const body=`<div class="vb-wrap"><div class="vb-chart">${bars}</div></div>
+    <div class="sr-key"><span><i style="background:var(--nav-3)"></i>月初庫存剩餘（尚未動用）</span>
+    <span><i style="background:var(--bad)"></i>本月已出貨（已建立備貨登記）</span></div>`;
   area.innerHTML=head+body;
 }
 function renderManagerDashboard(){
