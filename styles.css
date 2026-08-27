@@ -317,6 +317,23 @@ table.dt th.g2{background:var(--nav);color:rgba(255,255,255,.62)}
 table.dt td{padding:0;border-bottom:1px solid var(--line);border-right:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--paper)}
 table.dt tbody tr.band td{background:#F8F9FA}
 table.dt tbody tr:hover td{background:var(--nav-tint)!important}
+/* 借出單分區：同一張借出單的 借出單／備貨日期／批號 底色一致，並用粗框線框住整組 */
+.cel.loan-c0{background:#FFF3D6}
+.cel.loan-c1{background:#DCEEFF}
+.cel.loan-c2{background:#E4F6E0}
+.cel.loan-c3{background:#FBE3E8}
+.cel.loan-c4{background:#EDE3FA}
+.cel.loan-c5{background:#DFF7F3}
+table.dt tbody tr.grp td:first-child{border-left:3px solid var(--tx-2)}
+table.dt tbody tr.grp td:last-child{border-right:3px solid var(--tx-2)}
+table.dt tbody tr.grp.grp-first td{border-top:3px solid var(--tx-2)}
+table.dt tbody tr.grp.grp-last td{border-bottom:3px solid var(--tx-2)}
+/* 表頭篩選（業務／品項可點擊表頭直接篩選） */
+table.dt th.th-f{cursor:pointer;user-select:none}
+table.dt th.th-f:hover{background:rgba(255,255,255,.14)}
+table.dt th.th-f-on{background:var(--nav-2)}
+.th-fico{font-size:9px;margin-left:4px;opacity:.65;display:inline-block}
+table.dt th.th-f-on .th-fico{opacity:1;color:#FFD980}
 /* 還原緊湊內容框 */
 table.dt td.pad{padding:9px 10px}
 /* 移除 transition 解決 16000 格輸入框同時渲染造成的瀏覽器卡死，並還原字體與內距 */
