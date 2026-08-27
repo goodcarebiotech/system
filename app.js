@@ -959,15 +959,28 @@ function initAdmin(){renderAChips();renderGrid();renderALog();}
 // prevEnding=null 代表上個月沒有月底庫存基準（尚未在庫存資料試算表填過起算基準）。
 let MGR_REPORT={yearMonth:'',prevYearMonth:'',items:[]};
 let MGR_LOADED=false; // 尚未載入完成時，各面板顯示「讀取中」而不是「本月尚無資料」，避免看起來像壞掉
-function monthLabel(ym){ return ym?(+ym.slice(5))+'月':''; }
-// 系統每月 1 號才會把「上個月」的月出貨／月底庫存結算寫入，所以庫存報表固定看「最近一次已
-// 結算完成的月份」（也就是上個月），而不是還在進行中的本月——這個月份跟頁面載入快慢無關，
-// 所以獨立算，不用等 MGR_REPORT 載入完成才能點人。
-function stockReportYM(){ return monthsBack(CURRENT_YM,2)[0]; }
+function monthLabel(ym){ return ym?ym.slice(0,4)+'年'+(+ym.slice(5))+'月':''; }
+function shiftYM(ym,delta){
+  let[y,m]=ym.split('-').map(Number); m+=delta;
+  while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
+  return y+'-'+String(m).padStart(2,'0');
+}
+// 主管報表看的月份：預設是「上個月」（系統每月 1 號才會把上個月的月出貨／月底庫存結算
+// 寫進「庫存資料」表），但可以用上一月／下一月按鈕自由往前後翻，單純讀表、不做任何即時試算——
+// 跟業務登入自己看「本月即時庫存」是兩種不同用途，故意分開。
+let MGR_STOCK_YM='';
+function changeMgrStockMonth(delta){
+  MGR_STOCK_YM=shiftYM(MGR_STOCK_YM,delta);
+  document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
+  MGR_LOADED=false;
+  loadManagerData();
+}
 // 一進主管畫面就先把整個畫面畫出來（姓名格子、面板骨架都不需要等資料），
 // 全公司彙總資料（近六個月備貨量、業務績效排行、庫存健康度…）在背景載入，不擋畫面、
 // 也不會自動幫你選人——業務庫存明細要點了姓名才會真的去抓那個人的資料（見 selectMgrPerson）。
 function initManagerScreen(){
+  MGR_STOCK_YM=shiftYM(CURRENT_YM,-1);
+  document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
   MGR_LOADED=false; MGR_SELECTED=null;
   renderManagerDashboard();
   document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會開始讀取該業務的庫存明細，不用等全公司資料load完</div></div>`;
@@ -975,10 +988,10 @@ function initManagerScreen(){
 }
 async function loadManagerData(){
   try{
-    const res=await api('managerInit', {yearMonth:stockReportYM()});
+    const res=await api('managerInit', {yearMonth:MGR_STOCK_YM});
     if(res.status==='success'){
       DB.records = res.records||[];
-      MGR_REPORT = res.report || {yearMonth:stockReportYM(),prevYearMonth:'',items:[]};
+      MGR_REPORT = res.report || {yearMonth:MGR_STOCK_YM,prevYearMonth:'',items:[]};
     }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
   }catch(err){
     toast('連線失敗：'+err.message, true);
@@ -1001,7 +1014,7 @@ function monthsBack(ym,n){
 }
 let MGR_SELECTED=null, MGR_SELECT_TOKEN=0;
 function renderNameGrid(){
-  // 灰點／亮點代表這位業務本月是否已經有系統結算完成或即時試算出來的庫存資料
+  // 灰點／亮點代表這位業務在目前檢視的月份是否已經有月結算資料（純讀表，不即時試算）
   const settledSet=new Set(MGR_REPORT.items.filter(it=>it.thisEnding!==null).map(it=>it.sales));
   document.getElementById('mgrNameGrid').innerHTML=ROSTERS.sales.map(p=>
     `<button type="button" class="mgr-name-btn ${MGR_SELECTED===p.name?'on':''}" onclick="selectMgrPerson('${jse(p.name)}')">
@@ -1009,25 +1022,31 @@ function renderNameGrid(){
     </button>`).join('');
 }
 // 依「數量」判斷這個品項目前該不該留意，邏輯跟報表其他地方保持一致，方便掃視。
+// thisEnding===null 分兩種情況：上月完全沒有基準（尚未設定基準），或者上月有基準、
+// 只是這個月「庫存資料」表裡還沒有月結算寫入的月底庫存列（尚未結算）——兩種原因不同，
+// 顯示的文字也要分開，不然容易誤會成同一種問題。
 function stockStatusOf(it){
-  if(it.thisEnding===null) return {label:'尚未設定基準',cls:'nobase'};
+  if(it.thisEnding===null){
+    return it.prevEnding===null ? {label:'尚未設定基準',cls:'nobase'} : {label:'尚未結算',cls:'nobase'};
+  }
   if(it.thisEnding<0) return {label:'資料異常',cls:'bad'};
   if((it.prevEnding||0)>0 && it.thisEnding===0 && (it.shipment||0)>0) return {label:'待補貨',cls:'bad'};
   if(it.thisEnding>0 && (it.shipment||0)===0 && (it.increase||0)===0) return {label:'無異動',cls:'muted'};
   return {label:'正常',cls:'ok'};
 }
 // 點選業務姓名：不依賴 loadManagerData 是否已經跑完，獨立打一個小範圍的 getStockReport
-// 請求（只查這一個人），點下去才開始讀，畫面反應快，也不會被全公司資料拖住。
+// 請求（只查這一個人、目前選定的月份），點下去才開始讀，畫面反應快，也不會被全公司資料拖住。
+// 不帶 live 參數＝後端純讀「庫存資料」表，不會去掃備貨紀錄表做即時試算。
 async function selectMgrPerson(salesName){
   MGR_SELECTED=salesName;
   renderNameGrid();
-  const token=++MGR_SELECT_TOKEN; // 快速連續點好幾個人時，只有最後一次點擊的結果會顯示
+  const token=++MGR_SELECT_TOKEN; // 快速連續點好幾個人（或切月份）時，只有最後一次的結果會顯示
   const area=document.getElementById('mgrDetailArea');
   area.scrollIntoView({behavior:'smooth',block:'nearest'});
   area.innerHTML=`<div class="emp-s">讀取 ${esc(salesName)} 的庫存資料中…</div>`;
-  const yearMonth=stockReportYM();
+  const yearMonth=MGR_STOCK_YM;
   const res=await api('getStockReport',{yearMonth,salesName});
-  if(token!==MGR_SELECT_TOKEN) return; // 使用者已經點了別人，這次結果作廢
+  if(token!==MGR_SELECT_TOKEN) return; // 使用者已經點了別人或切了月份，這次結果作廢
   if(res.status!=='success'){ area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`; return; }
   renderMgrDetail(salesName, res);
 }
@@ -1036,14 +1055,13 @@ function renderMgrDetail(salesName, res){
   const ml=monthLabel(res.yearMonth), pml=monthLabel(res.prevYearMonth);
   const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
   if(!items.length){
-    area.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 目前沒有庫存資料</div><div class="emp-s">尚未在「庫存資料」試算表建立任何品項的月底庫存基準</div></div>`;
+    area.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 在 ${ml} 沒有任何庫存資料</div><div class="emp-s">「庫存資料」試算表裡找不到這個人這個月份的任何一列</div></div>`;
     return;
   }
   const totalPrev=items.reduce((s,it)=>s+(it.prevEnding||0),0);
   const totalShip=items.reduce((s,it)=>s+(it.shipment||0),0);
   const totalIncr=items.reduce((s,it)=>s+(it.increase||0),0);
   const totalEnd=items.reduce((s,it)=>s+Math.max(0,it.thisEnding||0),0);
-  const anyEstimated=items.some(it=>it.estimated);
   const attention=items.filter(it=>['bad','nobase'].includes(stockStatusOf(it).cls)).length;
 
   const summary=`<div class="sf-summary">
@@ -1075,7 +1093,6 @@ function renderMgrDetail(salesName, res){
       ${attention?`<span class="stat-pill bad">${attention} 項需留意</span>`:`<span class="stat-pill ok">全部正常</span>`}
     </div>
     ${summary}
-    ${anyEstimated?`<div class="mgr-est-note">＊ ${ml}尚未跑月結算，以上為即時試算的參考值，將於下個月 1 號正式結算後鎖定為正式數字。</div>`:''}
     <div class="sr-key"><span><i style="background:var(--ok)"></i>${ml}月底庫存</span><span><i style="background:#D8DEE4"></i>${ml}出貨</span></div>
     ${rows}`;
 }
