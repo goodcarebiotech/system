@@ -121,7 +121,7 @@
     <div class="pn">
       <div class="pn-h"><span class="pn-t">紀錄總覽</span>
         <div class="seg"><button class="on" id="vG" onclick="setView('group')">依日期分組</button><button id="vL" onclick="setView('list')">清單</button></div></div>
-      <div class="cf"><div class="cf-r" id="mChips"></div></div>
+      <div class="cf"><div class="cf-r" id="mChips"></div><div class="af-chips" id="activeFilterChips"></div></div>
       <div class="cf"><div class="cf-h">品項</div><div class="cf-r" id="iChips"></div></div>
       <div id="recCards" style="padding:16px"></div>
       <div id="recTableWrap">
@@ -139,15 +139,12 @@
       <div class="pn-h"><span class="pn-t">品項庫存明細</span><span class="pn-n">本月備貨數量，依品牌分類</span></div>
       <div class="pn-b" id="ibStat"></div>
     </div>
-    <!-- 本月庫存追蹤 -->
+    <!-- 庫存消耗總覽：上月庫存－當月出貨＝當月剩餘，橫向長條圖呈現 -->
     <div class="pn">
-      <div class="pn-h"><span class="pn-t">本月庫存追蹤</span><span class="pn-n" id="stockYM"></span></div>
+      <div class="pn-h"><span class="pn-t">庫存消耗總覽</span><span class="pn-n" id="stockFlowFormula"></span></div>
       <div class="pn-b">
-        <div style="font-size:11px;color:var(--tx-3);line-height:1.75;margin-bottom:16px">
-          期初庫存是您每月自行設定的實際樣品數量；系統會自動扣掉本月已出貨（已開發票）的筆數，算出「本月剩餘」，
-          提醒您目前手上應該還有多少樣品可以清點、拍照確認。尚未設定的品項請點選下方按鈕新增。
-        </div>
-        <div id="stockRows"></div>
+        <div class="sf-summary" id="stockFlowSummary"></div>
+        <div id="stockFlowRows"></div>
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)">
           <button class="btn-g" onclick="openAddStockItem()">＋ 新增／設定品項期初庫存</button>
         </div>
@@ -237,6 +234,7 @@
         <div class="cf-r" id="aItemChips"></div>
       </div>
       <div class="cf"><div class="cf-h">僅顯示空值欄位</div><div class="cf-r" id="aEmptyChips"></div></div>
+      <div class="af-chips" id="adminActiveFilterChips" style="padding:0 0 4px"></div>
       <div class="tsc">
         <table class="dt grid" id="gridTableEl"><colgroup id="gridCol"></colgroup><thead><tr id="gridHead"></tr></thead><tbody id="gridBody"></tbody></table>
       </div>
@@ -346,6 +344,22 @@
       <div class="tsc" style="max-height:52vh"><table class="dt"><thead><tr>
         <th>業務</th><th>本月備貨</th><th>已出貨</th><th>庫存中</th><th>待補齊</th><th>出貨率</th>
       </tr></thead><tbody id="mgrRankBody"></tbody></table></div>
+    </div>
+
+    <div class="pn" style="margin-top:18px">
+      <div class="pn-h"><span class="pn-t">業務庫存健康度</span><span class="pn-n" id="mgrStockFormula"></span></div>
+      <div class="pn-b">
+        <div class="sf-summary" id="mgrStockSummary"></div>
+        <div id="mgrStockRanking"></div>
+      </div>
+    </div>
+
+    <div class="pn" style="margin-top:18px">
+      <div class="pn-h"><span class="pn-t">品項庫存留存排行</span><span class="pn-n">依業務＋品項，目前剩餘庫存最多</span></div>
+      <div class="pn-b">
+        <div id="mgrTopHolders"></div>
+        <div style="text-align:center;margin-top:14px" id="mgrTopHoldersMore"></div>
+      </div>
     </div>
 
     <div class="two" style="margin-top:18px">
