@@ -263,6 +263,14 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .wf-remain{background:var(--ok)}
 .wf-remain.low{background:var(--bad)}
 .wf-used{background:#D8DEE4}
+
+/* 庫存狀態標籤：跟主管報表、業務端「品項庫存明細」共用同一套視覺語言 */
+.stat-pill{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:999px;font-size:10.5px;font-weight:600;letter-spacing:.02em;margin-left:8px;vertical-align:1px}
+.stat-pill.ok{background:var(--ok-tint);color:var(--ok)}
+.stat-pill.bad{background:var(--bad-tint);color:var(--bad)}
+.stat-pill.nobase{background:var(--warn-tint);color:var(--warn)}
+.stat-pill.muted{background:var(--sub);color:var(--tx-3)}
+.mgr-est-note{font-size:11px;color:var(--warn);background:var(--warn-tint);padding:9px 12px;border-radius:6px;margin:14px 0;line-height:1.6}
 .wf-unset-title{font-size:11px;color:var(--tx-3);margin:18px 0 8px;font-weight:600;letter-spacing:.02em}
 @media(max-width:420px){
   .stk-row{gap:6px}
