@@ -1127,7 +1127,13 @@ function renderGridHead(stats){
       else if(c.k==='shipDate')badge=`<span class="hbadge">${stats.ship}</span>`;
       else if(c.k==='item')badge=`<span class="hbadge">${stats.item}</span>`;
     }
-    return `<th class="${c.role==='a'?'g2':''}">${c.n}${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
+    // 表頭篩選：業務／品項兩欄可點擊表頭直接篩選（沿用既有的 inlinePop 彈出選單）
+    const filterable=(c.k==='sales'||c.k==='item');
+    const active=(c.k==='sales'&&ASales)||(c.k==='item'&&AItem);
+    const thCls=[c.role==='a'?'g2':'', filterable?'th-f':'', active?'th-f-on':''].filter(Boolean).join(' ');
+    const clickAttr=filterable?` onclick="toggleInlineFilter(event,'${c.k}')"`:'';
+    const ficon=filterable?`<span class="th-fico">▾</span>`:'';
+    return `<th class="${thCls}"${clickAttr}>${c.n}${ficon}${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
   }).join('');
   attachColResize('gridHead','gridCol',GRID_COL_W);
   setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
@@ -1145,6 +1151,7 @@ function renderAChips(){
 let INLINE_KIND=null;
 function toggleInlineFilter(e,kind){
   e.stopPropagation();
+  if(e.target && e.target.classList && e.target.classList.contains('col-rs'))return; // 避免拖曳欄寬的把手誤觸篩選
   const pop=document.getElementById('inlinePop');
   if(INLINE_KIND===kind && pop.classList.contains('on')){pop.classList.remove('on');INLINE_KIND=null;return;}
   INLINE_KIND=kind;
@@ -1187,10 +1194,27 @@ function gridRows(){let rows=DB.records.slice();
   return rows;}
 
 // ── 行政總表：分批非同步渲染 ──
+// 借出單分區：同一張「借出單」的資料排在一起、底色一致、外框加粗，方便行政一眼看出同一單有哪些筆。
+// 曾評估過用「空白列」隔開每一組（一組一塊、中間留白再換下一組），但那樣每組都要多插入一列 DOM，
+// 大表（上千格輸入框）本來就已經用分批 setTimeout 渲染來避免瀏覽器卡死，再多插入列會增加渲染節點數、
+// 對效能是扣分，所以放棄空白列做法，改用「底色＋外框」：純粹在既有的逐列迴圈裡多判斷幾個字串、
+// 多加幾個 class，不新增任何 DOM 節點，效能幾乎零增加。
+const LOAN_GROUP_COLS = ['stockDate','batch','loanOut']; // 借出單／備貨日期／批號
+const LOAN_COLOR_N = 6; // 底色循環使用幾種顏色
 let _gridRenderTimer = null;
 function renderGrid(){
   GRID=gridRows();
-  GRID.sort((a,b)=>(a.stockDate||'').localeCompare(b.stockDate||'')||(a.item||'').localeCompare(b.item||'')||(a.sales||'').localeCompare(b.sales||''));
+  // 有填「借出單」的資料，依借出單分組排在一起（組內再依備貨日期/品項/業務排序）；
+  // 沒有借出單的資料維持原本排序邏輯，統一排在最後。
+  GRID.sort((a,b)=>{
+    const la=effVal(a,'loanOut')||'', lb=effVal(b,'loanOut')||'';
+    if(la!==lb){
+      if(!la)return 1;
+      if(!lb)return -1;
+      return la.localeCompare(lb);
+    }
+    return (a.stockDate||'').localeCompare(b.stockDate||'')||(a.item||'').localeCompare(b.item||'')||(a.sales||'').localeCompare(b.sales||'');
+  });
 
   const tbody = document.getElementById('gridBody');
   tbody.innerHTML = ''; 
@@ -1205,7 +1229,7 @@ function renderGrid(){
   renderGridHead({batch:batchN,ship:shipN,item:batchN-shipN});
   updEditBar();
 
-  let band=false, lastKey=null, i=0;
+  let band=false, lastKey=null, i=0, loanColorIdx=-1;
   const CHUNK_SIZE = 80; 
 
   function renderChunk() {
@@ -1213,12 +1237,25 @@ function renderGrid(){
     const end = Math.min(i + CHUNK_SIZE, GRID.length);
     for (; i < end; i++) {
       const x = GRID[i];
-      const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
-      if(key!==lastKey){band=!band;lastKey=key;}
-      html += `<tr class="${band?'band':''}">`+COLS.map(c=>{
+      const loanVal = effVal(x,'loanOut');
+      const grouped = isFilled(loanVal);
+      let trCls='';
+      if(grouped){
+        const prevVal = i>0 ? effVal(GRID[i-1],'loanOut') : null;
+        const nextVal = i<GRID.length-1 ? effVal(GRID[i+1],'loanOut') : null;
+        const isFirst = prevVal!==loanVal, isLast = nextVal!==loanVal;
+        if(isFirst) loanColorIdx=(loanColorIdx+1)%LOAN_COLOR_N;
+        trCls='grp'+(isFirst?' grp-first':'')+(isLast?' grp-last':'');
+      }else{
+        const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
+        if(key!==lastKey){band=!band;lastKey=key;}
+        trCls=band?'band':'';
+      }
+      html += `<tr class="${trCls}">`+COLS.map(c=>{
         const ek=x.recordId+'::'+c.k, ed=EDITS[ek]!==undefined, v=ed?EDITS[ek]:(x[c.k]||'');
         const isDateCol=(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate');
-        return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
+        const loanBg=(grouped && LOAN_GROUP_COLS.includes(c.k))?(' loan-c'+loanColorIdx):'';
+        return `<td><input class="cel ${ed?'ed':''} ${isDateCol?'mn':''}${loanBg}" data-rid="${x.recordId}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="" value="${esc(v)}" oninput="cellEdit(this)" onpaste="cellPaste(event,this)"></td>`;
       }).join('')+`</tr>`;
     }
     
