@@ -1146,23 +1146,26 @@ function renderManagerDashboard(){
 function computePersonStockHealth(){
   const map={};
   MGR_REPORT.items.forEach(it=>{
-    if(!map[it.sales]) map[it.sales]={sales:it.sales,opening:0,shipped:0,remaining:0};
+    if(!map[it.sales]) map[it.sales]={sales:it.sales,opening:0,shipped:0,increase:0,remaining:0};
     const m=map[it.sales];
     if(it.prevEnding!==null) m.opening+=it.prevEnding;
     m.shipped+=it.shipment||0;
+    m.increase+=it.increase||0;
     if(it.thisEnding!==null) m.remaining+=Math.max(0,it.thisEnding);
   });
   return Object.values(map).map(m=>({...m,turnover:m.opening>0?Math.round(m.shipped/m.opening*100):null}));
 }
 function renderMgrStockHealth(){
   const health=computePersonStockHealth().sort((a,b)=>(a.turnover===null?999:a.turnover)-(b.turnover===null?999:b.turnover));
-  let totalOpening=0,totalShipped=0,totalRemaining=0;
-  health.forEach(h=>{totalOpening+=h.opening;totalShipped+=h.shipped;totalRemaining+=h.remaining;});
+  let totalOpening=0,totalShipped=0,totalIncrease=0,totalRemaining=0;
+  health.forEach(h=>{totalOpening+=h.opening;totalShipped+=h.shipped;totalIncrease+=h.increase;totalRemaining+=h.remaining;});
   document.getElementById('mgrStockFormula').textContent=`${monthLabel(MGR_REPORT.yearMonth)}全公司庫存健康度`;
   document.getElementById('mgrStockSummary').innerHTML=
     `<div class="sf-num"><div class="v">${totalOpening}</div><div class="k">上月總庫存</div></div>`+
     `<div class="sf-arrow">－</div>`+
     `<div class="sf-num"><div class="v" style="color:var(--bad)">${totalShipped}</div><div class="k">本月總出貨</div></div>`+
+    `<div class="sf-arrow">＋</div>`+
+    `<div class="sf-num"><div class="v" style="color:var(--nav-3)">${totalIncrease}</div><div class="k">本月庫存增加</div></div>`+
     `<div class="sf-arrow">＝</div>`+
     `<div class="sf-num"><div class="v" style="color:var(--ok)">${totalRemaining}</div><div class="k">本月月底庫存</div></div>`;
   const el=document.getElementById('mgrStockRanking');
@@ -1172,7 +1175,7 @@ function renderMgrStockHealth(){
       const low=h.turnover!==null&&h.turnover<20;
       const base=Math.max(h.opening,h.shipped,1);
       return `<div class="wf-row" style="cursor:pointer" onclick="selectMgrPerson('${jse(h.sales)}')">
-        <div class="wf-top"><span class="wf-name">${esc(h.sales)}</span><span class="wf-nums">${h.opening} － ${h.shipped} ＝ ${h.remaining}　週轉率 <b class="${low?'low':''}">${h.turnover===null?'—':h.turnover+'%'}</b></span></div>
+        <div class="wf-top"><span class="wf-name">${esc(h.sales)}</span><span class="wf-nums">${h.opening} － ${h.shipped} ＋ ${h.increase} ＝ ${h.remaining}　週轉率 <b class="${low?'low':''}">${h.turnover===null?'—':h.turnover+'%'}</b></span></div>
         <div class="wf-bar"><div class="wf-seg wf-remain ${low?'low':''}" style="width:${Math.round(h.remaining/base*100)}%"></div><div class="wf-seg wf-used" style="width:${Math.round(h.shipped/base*100)}%"></div></div>
       </div>`;
     }).join('');
