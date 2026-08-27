@@ -16,11 +16,20 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  setPersistence(auth, browserLocalPersistence).catch(()=>{}); // 常駐登入，關掉分頁下次回來不用重登
 
   window.__fb = {
     auth, provider: new GoogleAuthProvider(),
     signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
   };
-  window.__fb.redirectResultPromise = getRedirectResult(auth);
+  // 手機版走的是 signInWithRedirect，流程是：按登入 → 整頁導去 Google → 登入完再整頁導回來，
+  // 導回來後這支檔案會「重新」從頭載入一次，這時候一定要先確定 browserLocalPersistence
+  // 設定完成，才能呼叫 getRedirectResult() 去讀「剛剛登入的結果」。
+  // 原本 setPersistence(...) 沒有 await，跟 getRedirectResult(auth) 是同時（race）執行，
+  // 手機瀏覽器讀取 IndexedDB／localStorage 通常比電腦慢，很容易發生
+  // getRedirectResult() 搶先跑完、卻還讀不到登入結果的情況——使用者看起來就是
+  // 「登入完又跳回登入畫面，怎麼按都登不進去」，這正是手機版完全登入不了的根因。
+  // 修法很單純：等 setPersistence 完成後，再呼叫 getRedirectResult()。
+  window.__fb.redirectResultPromise = setPersistence(auth, browserLocalPersistence)
+    .catch(()=>{})
+    .then(()=>getRedirectResult(auth));
   window.dispatchEvent(new Event('firebase-ready'));
