@@ -383,19 +383,60 @@ function tab(n,b){document.querySelectorAll('#salesApp .pg').forEach(p=>p.classL
 function setView(v){VIEW=v;document.getElementById('vL').classList.toggle('on',v==='list');
   document.getElementById('vG').classList.toggle('on',v==='group');renderRec();}
 function renderMChips(){
+  const ymSlot=document.getElementById('ymSlot');
+  if(ymSlot){
+    ymSlot.innerHTML=`<div class="ym-wrap"><button type="button" class="ym-btn" tabindex="-1">${FM.slice(0,4)}年${+FM.slice(5)}月<span class="ym-ico">▾</span></button>
+      <input type="month" id="ymPicker" value="${FM}" class="ym-native-overlay" onchange="pickYm(this.value)"></div>`;
+  }
   document.getElementById('mChips').innerHTML=
-    `<button type="button" class="ym-btn" onclick="openYmPicker()">${FM.slice(0,4)}年${+FM.slice(5)}月<span class="ym-ico">▾</span></button>`+
-    `<input type="month" id="ymPicker" value="${FM}" class="ym-native" onchange="pickYm(this.value)">`+
     `<button type="button" class="chip wo ${FShip==='hd'?'on':''}" onclick="toggleShipFilter('hd')">未送貨</button>`+
-    `<button type="button" class="chip wo ${FShip==='sh'?'on':''}" onclick="toggleShipFilter('sh')">已送貨</button>`;
+    `<button type="button" class="chip wo ${FShip==='sh'?'on':''}" onclick="toggleShipFilter('sh')">已送貨</button>`+
+    `<button type="button" class="filter-ico-btn" onclick="openFieldPicker(event)" title="篩選欄位">${filterIconSvg()}篩選</button>`;
 }
-function openYmPicker(){const el=document.getElementById('ymPicker');if(el.showPicker){try{el.showPicker();return;}catch(e){}}el.focus();el.click();}
+function filterIconSvg(){return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="4 4 20 4 14 13 14 19 10 21 10 13 4 4"></polygon></svg>`;}
 function pickYm(v){if(!v)return;FM=v;renderMChips();renderRec();}
 function toggleShipFilter(v){FShip=(FShip===v)?'':v;renderMChips();renderRec();}
+// 手機版沒有表頭可以點，改用一個篩選按鈕：先選要篩選哪個欄位，再進到跟電腦版表頭一樣的勾選清單
+const MOBILE_FILTER_FIELDS=[['stockDate','備貨日期'],['item','品項'],['batch','批號'],['shipDate','送貨日期'],['customer','客戶'],['category','科別'],['type','賣/備/樣'],['orderNo','訂購單號']];
+function openFieldPicker(e){
+  e.stopPropagation();
+  const pop=document.getElementById('inlinePop');
+  HF_KIND=null;HF_CTX='rec';
+  const btn=e.currentTarget.getBoundingClientRect();
+  const left=Math.min(btn.left+window.scrollX,window.scrollX+window.innerWidth-270-8);
+  pop.style.left=Math.max(8,left)+'px';
+  pop.style.top=(btn.bottom+window.scrollY+4)+'px';
+  document.getElementById('inlinePopSearch').style.display='none';
+  pop.classList.add('on');
+  renderFieldPickerPop();
+}
+function renderFieldPickerPop(){
+  document.getElementById('inlinePopList').innerHTML=MOBILE_FILTER_FIELDS.map(([k,n])=>
+    `<div class="hf-field-it" onclick="pickMobileFilterField('${k}')">${n}${hfActive(RF,k)?'<span class="hf-field-dot"></span>':''}</div>`).join('');
+}
+function pickMobileFilterField(col){
+  HF_KIND=col;HF_CTX='rec';
+  document.getElementById('inlinePopSearch').style.display='';
+  document.getElementById('inlinePopSearch').value='';
+  renderHeaderFilterPop(true);
+  setTimeout(()=>document.getElementById('inlinePopSearch').focus(),50);
+}
 function renderIChips(){const cnt={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>cnt[x.item]=(cnt[x.item]||0)+1);
   document.getElementById('iChips').innerHTML=`<button class="chip ${FI===''?'on':''}" onclick="FI='';renderIChips();renderRec()">全部</button>`+
     Object.keys(cnt).map(i=>`<button class="chip ${FI===i?'on':''}" onclick="FI='${jse(i)}';renderIChips();renderRec()">${esc(i)}<span class="n">${cnt[i]}</span></button>`).join('');}
-function myRecs(){return DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)&&(!FI||x.item===FI)&&(!FShip||shipStatus(x)===FShip));}
+function myRecs(){
+  let rows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)&&(!FI||x.item===FI)&&(!FShip||shipStatus(x)===FShip));
+  Object.keys(RF).forEach(col=>{
+    const ex=RF[col];
+    if(!ex||!ex.size)return;
+    rows=rows.filter(x=>{
+      const raw=x[col];
+      const v=(raw!==undefined&&raw!==null&&String(raw).trim()!=='')?String(raw):'';
+      return !ex.has(v);
+    });
+  });
+  return rows;
+}
 function stOf(x){return (x.invoiceDate||x.invoiceNo)?'sh':'hd';}
 // 「我的紀錄」頁面專用的送貨狀態判斷：送貨日期／客戶兩欄都有填才算已送貨，
 // 跟 stOf()（發票是否登打，給行政／主管報表用）是不同的概念，先不動 stOf() 影響其他頁面。
@@ -456,8 +497,11 @@ function attachColResize(rowId, colgroupId, store){
 function renderRecHead(){
   document.getElementById('recCol').innerHTML=COLS.map(c=>
     `<col style="width:${colW(REC_COL_W,c)}px" class="${c.role==='a'&&!RECFULL?'colhide':''}">`).join('')+'<col style="width:112px">';
-  document.getElementById('recHead').innerHTML=COLS.map(c=>
-    `<th class="${c.role==='a'&&!RECFULL?'colhide':''}">${c.n}<span class="col-rs" data-col="${c.k}"></span></th>`).join('')
+  document.getElementById('recHead').innerHTML=COLS.map(c=>{
+    const active=hfActive(RF,c.k);
+    const thCls=[c.role==='a'&&!RECFULL?'colhide':'','th-f',active?'th-f-on':''].filter(Boolean).join(' ');
+    return `<th class="${thCls}" onclick="toggleHeaderFilter(event,'${c.k}','rec')">${c.n}<span class="th-fico">▾</span><span class="col-rs" data-col="${c.k}"></span></th>`;
+  }).join('')
     +`<th class="th-status">狀態<button type="button" class="th-toggle" onclick="event.stopPropagation();toggleRecFull()" title="${RECFULL?'收合發票～業務欄位':'展開發票～業務欄位'}">${RECFULL?'－':'＋'}</button></th>`;
   attachColResize('recHead','recCol',REC_COL_W);
   setExactTableWidth('recTableEl',COLS,REC_COL_W,RECFULL,112);
@@ -476,6 +520,7 @@ function recRowHtml(x){
 }
 function renderRec(){
   const rows=myRecs(),el=document.getElementById('recCards'),showItem=!FI;
+  rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||'')); // 依備貨日期新到舊排序
   if(!rows.length)el.innerHTML=`<div class="emp"><div class="emp-i">＋</div><div class="emp-t">本月尚無備貨紀錄</div><div class="emp-s">前往「備貨登記」新增第一筆</div></div>`;
   else if(VIEW==='list'){
     el.innerHTML=dateSections(rows).map(sec=>`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`+
@@ -492,9 +537,12 @@ function renderRec(){
       const cards=Object.values(g).map(its=>{const i=GROUPS.push(its)-1,f=its[0],fam=familyOf(f.item);
         return `<div class="rc" onclick="tg(${i})"><div class="rc-s" style="background:${fam.color}"></div><div class="rc-b">
         <div class="rc-t"><span class="rc-c">${esc(f.customer||'（未填）')}<span class="rc-cat">${esc(f.category||'—')}</span><span class="rc-q">×${its.length}</span></span><span class="bg ${shipStatus(f)}">${shipStatus(f)==='sh'?'已送貨':'未送貨'}</span></div>
-        <div class="rc-m">${showItem?`<span style="color:${fam.color};font-weight:500">${esc(f.item||'（未填）')}</span>`:''}<span class="rc-batch" onclick="event.stopPropagation();openGroupEdit(${i})">批次編輯 ›</span></div>
+        <div class="rc-m">${showItem?`<span style="color:${fam.color};font-weight:500">${esc(f.item||'（未填）')}</span>`:''}</div>
         <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')} ${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span><span>編輯 ›</span></div>`).join('')}</div>
-        </div><div class="rc-a">▾</div></div>`;
+        </div><div class="rc-a rc-a-split">
+          <div class="rc-a-top" onclick="event.stopPropagation();openGroupEdit(${i})" title="批次編輯">✎</div>
+          <div class="rc-a-bot" onclick="event.stopPropagation();tg(${i})" title="展開／收合">▾</div>
+        </div></div>`;
       }).join('');
       return `<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`+cards;
     }).join('');
@@ -1171,9 +1219,9 @@ function renderGridHead(stats){
     }
     // 表頭篩選：每一欄都能點表頭篩選（像 Excel 的自動篩選），有篩選中的欄位只用小箭頭變色標示，
     // 不整格反白，看起來才不會很突兀。
-    const active=hfActive(c.k);
+    const active=hfActive(HF,c.k);
     const thCls=[c.role==='a'?'g2':'', 'th-f', active?'th-f-on':''].filter(Boolean).join(' ');
-    return `<th class="${thCls}" onclick="toggleHeaderFilter(event,'${c.k}')">${c.n}<span class="th-fico">▾</span>${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
+    return `<th class="${thCls}" onclick="toggleHeaderFilter(event,'${c.k}','admin')">${c.n}<span class="th-fico">▾</span>${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
   }).join('');
   attachColResize('gridHead','gridCol',GRID_COL_W);
   setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
@@ -1190,12 +1238,17 @@ function renderAChips(){
   document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');}
 
 // ── 表頭篩選（Excel 自動篩選風格）：每一欄都能點表頭，勾選要顯示的值 ──
-// HF[欄位]＝「要排除、不顯示」的值集合；沒有這個 key 或集合是空的＝該欄沒有篩選（全部顯示）
-let HF={};
-function hfActive(col){return !!(HF[col] && HF[col].size);}
+// 行政總表跟業務「我的紀錄」共用同一套彈窗機制，用 HF_CTX 分辨目前是哪一邊：
+// HF＝行政總表的篩選狀態，RF＝業務我的紀錄的篩選狀態。[欄位]＝「要排除、不顯示」的值集合，
+// 沒有這個 key 或集合是空的＝該欄沒有篩選（全部顯示）
+let HF={},RF={};
+function hfActive(state,col){return !!(state[col] && state[col].size);}
+function hfState(){return HF_CTX==='rec'?RF:HF;}
+function hfRows(){return HF_CTX==='rec'?DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)):DB.records;}
+function hfApplyRender(){ if(HF_CTX==='rec'){renderRecHead();renderRec();}else{renderGrid();} }
 function hfColValues(col){
   const counts=new Map();
-  DB.records.forEach(x=>{
+  hfRows().forEach(x=>{
     const raw=x[col];
     const v=(raw!==undefined&&raw!==null&&String(raw).trim()!=='')?String(raw):'';
     counts.set(v,(counts.get(v)||0)+1);
@@ -1204,37 +1257,47 @@ function hfColValues(col){
   arr.sort((a,b)=>{ if(a[0]==='')return 1; if(b[0]==='')return -1; return b[1]-a[1]; });
   return arr;
 }
-let HF_KIND=null;
-function toggleHeaderFilter(e,col){
+let HF_KIND=null,HF_CTX=null,HF_FROM_PICKER=false;
+function toggleHeaderFilter(e,col,ctx){
+  ctx=ctx||'admin';
   e.stopPropagation();
   if(e.target && e.target.classList && e.target.classList.contains('col-rs'))return; // 避免拖曳欄寬的把手誤觸篩選
   const pop=document.getElementById('inlinePop');
-  if(HF_KIND===col && pop.classList.contains('on')){pop.classList.remove('on');HF_KIND=null;return;}
-  HF_KIND=col;
+  if(HF_KIND===col && HF_CTX===ctx && pop.classList.contains('on')){pop.classList.remove('on');HF_KIND=null;HF_CTX=null;return;}
+  HF_KIND=col;HF_CTX=ctx;HF_FROM_PICKER=false;
   const btn=e.currentTarget.getBoundingClientRect();
   pop.style.left=(btn.left+window.scrollX)+'px';
   pop.style.top=(btn.bottom+window.scrollY+4)+'px';
+  document.getElementById('inlinePopSearch').style.display='';
   document.getElementById('inlinePopSearch').value='';
   pop.classList.add('on');
   renderHeaderFilterPop();
   setTimeout(()=>document.getElementById('inlinePopSearch').focus(),50);
 }
 function closeHeaderFilter(){
-  document.getElementById('inlinePop').classList.remove('on'); HF_KIND=null;
+  document.getElementById('inlinePop').classList.remove('on'); HF_KIND=null;HF_CTX=null;HF_FROM_PICKER=false;
 }
-function renderHeaderFilterPop(){
+function renderHeaderFilterPop(fromPicker){
+  if(fromPicker!==undefined)HF_FROM_PICKER=!!fromPicker;
   const col=HF_KIND; if(!col)return;
+  const state=hfState();
   const q=document.getElementById('inlinePopSearch').value.trim();
   const all=hfColValues(col);
   const list=q?all.filter(([v])=>(v===''?'（空白）':v).includes(q)):all;
-  const ex=HF[col]||new Set();
-  document.getElementById('inlinePopList').innerHTML=
-    `<div class="hf-act"><button type="button" onclick="hfSelectAll('${col}')">全選</button></div>`+
+  const ex=state[col]||new Set();
+  const back=HF_FROM_PICKER?`<div class="hf-back" onclick="backToFieldPicker()">‹ 返回欄位選擇</div>`:'';
+  document.getElementById('inlinePopList').innerHTML=back+
+    `<div class="hf-act"><button type="button" onclick="hfSelectAll()">全選</button></div>`+
     (list.length? list.map(([v,n])=>{
       const checked=!ex.has(v);
       const label=v===''?'（空白）':esc(v);
-      return `<div class="hf-it"><label><input type="checkbox" ${checked?'checked':''} onchange="hfToggleVal('${col}','${jse(v)}',this.checked)"><span class="hf-lb">${label}</span></label><span class="n">${n}</span><span class="hf-only" onclick="hfIsolate('${col}','${jse(v)}')">只顯示</span></div>`;
+      return `<div class="hf-it"><label><input type="checkbox" ${checked?'checked':''} onchange="hfToggleVal('${jse(v)}',this.checked)"><span class="hf-lb">${label}</span></label><span class="n">${n}</span><span class="hf-only" onclick="hfIsolate('${jse(v)}')">只顯示</span></div>`;
     }).join('') : `<div class="hf-empty">沒有符合的值</div>`);
+}
+function backToFieldPicker(){
+  document.getElementById('inlinePopSearch').style.display='none';
+  HF_KIND=null;HF_FROM_PICKER=false;
+  renderFieldPickerPop();
 }
 // 輸入框：即時篩選清單，按 Enter 直接套用「只顯示符合搜尋的值」，Esc 關閉
 function hfSearchKey(e){
@@ -1243,33 +1306,36 @@ function hfSearchKey(e){
 }
 function hfApplySearch(){
   const col=HF_KIND; if(!col)return;
+  const state=hfState();
   const q=document.getElementById('inlinePopSearch').value.trim();
-  if(!q){ delete HF[col]; renderGrid(); closeHeaderFilter(); return; }
+  if(!q){ delete state[col]; hfApplyRender(); closeHeaderFilter(); return; }
   const all=hfColValues(col).map(([v])=>v);
   const matched=all.filter(v=>(v===''?'（空白）':v).includes(q));
   if(!matched.length)return; // 沒有符合的值就不動作，讓使用者可以繼續修改關鍵字
   const matchedSet=new Set(matched);
-  HF[col]=new Set(all.filter(v=>!matchedSet.has(v)));
-  renderGrid();
+  state[col]=new Set(all.filter(v=>!matchedSet.has(v)));
+  hfApplyRender();
   closeHeaderFilter();
 }
 // 單一值一鍵「只顯示這個」，不用先全部取消再手動勾選
-function hfIsolate(col,v){
+function hfIsolate(v){
+  const col=HF_KIND,state=hfState();
   const all=hfColValues(col).map(([vv])=>vv);
-  HF[col]=new Set(all.filter(x=>x!==v));
-  renderGrid();
+  state[col]=new Set(all.filter(x=>x!==v));
+  hfApplyRender();
   closeHeaderFilter();
 }
-function hfToggleVal(col,v,checked){
-  if(!HF[col])HF[col]=new Set();
-  if(checked)HF[col].delete(v); else HF[col].add(v);
-  if(HF[col].size===0)delete HF[col];
-  renderGrid(); // renderGrid() 內部會一併重畫表頭，更新篩選中的提示
+function hfToggleVal(v,checked){
+  const col=HF_KIND,state=hfState();
+  if(!state[col])state[col]=new Set();
+  if(checked)state[col].delete(v); else state[col].add(v);
+  if(state[col].size===0)delete state[col];
+  hfApplyRender(); // 內部會一併重畫表頭，更新篩選中的提示
 }
-function hfSelectAll(col){ delete HF[col]; renderGrid(); renderHeaderFilterPop(); }
+function hfSelectAll(){ const col=HF_KIND; delete hfState()[col]; hfApplyRender(); renderHeaderFilterPop(); }
 document.addEventListener('click',e=>{
   const pop=document.getElementById('inlinePop');
-  if(pop&&pop.classList.contains('on')&&!pop.contains(e.target)){pop.classList.remove('on');HF_KIND=null;}
+  if(pop&&pop.classList.contains('on')&&!pop.contains(e.target)){pop.classList.remove('on');HF_KIND=null;HF_CTX=null;HF_FROM_PICKER=false;}
 });
 function clearAdminFilter(which){
   if(which==='sales')ASales=''; else AItem='';
