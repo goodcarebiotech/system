@@ -3,7 +3,7 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMj
 
 /* 完美對齊您最新更新的精確寬度 */
 const COLS=[
-  {k:'stockDate',n:'備貨日期',w:85,role:'s'},
+  {k:'stockDate',n:'備貨日期',w:95,role:'s'},
   {k:'batch',n:'批號',w:85,role:'s'},
   {k:'shipDate',n:'送貨日期',w:105,role:'s'},
   {k:'item',n:'品項',w:158,role:'s'},
@@ -34,6 +34,12 @@ const PRODUCT_FAMILIES=[
   {key:'orelief',name:'歐儷芙',color:'#1A8A8A',g1:'#7FD9D9',g2:'#22A6A6',items:['歐儷芙舒口噴劑']}
 ];
 function familyOf(item){ return PRODUCT_FAMILIES.find(f=>f.items.includes(item)) || {key:'other',name:'其他',color:'var(--tx-3)',g1:'#ccc',g2:'#999',items:[]}; }
+// 業務庫存統計卡片用的短名稱：NEW EPI 系列不用顯示 ml／級數，
+// 「速原2.5ml-2級」顯示成「速原2.5」、「樂業10ml」顯示成「樂業10」就好。
+// 只有符合「數字+ml（可選-數字級）結尾」的品項名稱才會被縮短，其他系列的品項名稱不受影響。
+function shortItemName(item){
+  return String(item||'').replace(/(\d+(?:\.\d+)?)ml(?:-\d+級)?$/,'$1');
+}
 
 async function api(a,p){
   try{
@@ -555,7 +561,7 @@ function renderStats(){
   document.getElementById('ibStat').innerHTML=`<div class="fam-page-grid">`+famList.map((f,i)=>{
     let famTotal=0;Object.values(f.items).forEach(v=>{famTotal+=v.sh+v.hd;});
     const specCells=Object.entries(f.items).map(([n,vv])=>
-      `<div class="fam-spec-cell"><div class="fsn">${esc(n)}</div><div class="fsv">${vv.sh+vv.hd}</div></div>`).join('');
+      `<div class="fam-spec-cell"><div class="fsn">${esc(shortItemName(n))}</div><div class="fsv">${vv.sh+vv.hd}</div></div>`).join('');
     return `<div class="fam-card ${i===0?'fam-card-wide':''}" style="border-top-color:${f.color}">
       <div class="fam-card-head"><span class="fam-swatch" style="background:${f.color}"></span><span class="fam-card-name">${esc(f.name)}</span></div>
       <div class="fam-card-total" style="color:${f.color}">${famTotal}</div>
@@ -1233,11 +1239,12 @@ function gridRows(){let rows=DB.records.slice();
   return rows;}
 
 // ── 行政總表：分批非同步渲染 ──
-// 借出單分區：同一張「借出單」的資料排在一起、底色一致、外框加粗，方便行政一眼看出同一單有哪些筆。
-// 曾評估過用「空白列」隔開每一組（一組一塊、中間留白再換下一組），但那樣每組都要多插入一列 DOM，
-// 大表（上千格輸入框）本來就已經用分批 setTimeout 渲染來避免瀏覽器卡死，再多插入列會增加渲染節點數、
-// 對效能是扣分，所以放棄空白列做法，改用「底色＋外框」：純粹在既有的逐列迴圈裡多判斷幾個字串、
-// 多加幾個 class，不新增任何 DOM 節點，效能幾乎零增加。
+// 借出單分區：同一張「借出單」的資料排在一起、底色一致、外框標示，方便行政一眼看出同一單有哪些筆。
+// 這裡直接在既有的逐列渲染迴圈裡判斷分組起訖並加上 class（loan-group / loan-group-start / loan-group-end），
+// 不用額外寫一支「渲染完再重新掃一次 DOM、比對每一列 textContent」的函式：
+// 因為分組所需的資料（借出單欄位值）本來就在 GRID 陣列裡，渲染當下就能順便判斷，
+// 不必事後再去讀 DOM（讀 DOM／比對 textContent 屬於「強制回流」的操作，資料量大時比較傷效能）。
+// 效果一樣，只是換一個更省力的做法達成。
 const LOAN_GROUP_COLS = ['stockDate','batch','loanOut']; // 借出單／備貨日期／批號
 const LOAN_COLOR_N = 6; // 底色循環使用幾種顏色
 let _gridRenderTimer = null;
@@ -1284,7 +1291,7 @@ function renderGrid(){
         const nextVal = i<GRID.length-1 ? effVal(GRID[i+1],'loanOut') : null;
         const isFirst = prevVal!==loanVal, isLast = nextVal!==loanVal;
         if(isFirst) loanColorIdx=(loanColorIdx+1)%LOAN_COLOR_N;
-        trCls='loan-grp'+(isFirst?' loan-grp-first':'')+(isLast?' loan-grp-last':'');
+        trCls='loan-group'+(isFirst?' loan-group-start':'')+(isLast?' loan-group-end':'');
       }else{
         const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
         if(key!==lastKey){band=!band;lastKey=key;}
