@@ -366,7 +366,7 @@ function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)ret
 /* ── SALES ── */
 function initSales(){
   qd('f-sd', 0);
-  renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();renderLogs();fillCount();
+  renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderStockFlow();renderPend();renderLogs();fillCount();
 }
 let SALES_LOGS_LOADED=false;
 async function ensureSalesLogsLoaded(){
@@ -383,13 +383,17 @@ function tab(n,b){document.querySelectorAll('#salesApp .pg').forEach(p=>p.classL
 function setView(v){VIEW=v;document.getElementById('vL').classList.toggle('on',v==='list');
   document.getElementById('vG').classList.toggle('on',v==='group');renderRec();}
 function renderMChips(){
+  const activeCols=COLS.filter(c=>hfActive(RF,c.k));
   document.getElementById('mChips').innerHTML=
     `<div class="ym-wrap"><button type="button" class="ym-btn" tabindex="-1">${FM.slice(0,4)}年${+FM.slice(5)}月<span class="ym-ico">▾</span></button>
       <input type="month" id="ymPicker" value="${FM}" class="ym-native-overlay" onchange="pickYm(this.value)"></div>`+
     `<button type="button" class="chip wo ${FShip==='hd'?'on':''}" onclick="toggleShipFilter('hd')">未送貨</button>`+
     `<button type="button" class="chip wo ${FShip==='sh'?'on':''}" onclick="toggleShipFilter('sh')">已送貨</button>`+
-    `<button type="button" class="filter-ico-btn" onclick="openFilterModal('rec')" title="篩選">${filterIconSvg()}篩選</button>`;
+    `<button type="button" class="filter-ico-btn ${activeCols.length?'on':''}" onclick="openFilterModal('rec')" title="篩選">${filterIconSvg()}篩選${activeCols.length?' ('+activeCols.length+')':''}</button>`;
+  document.getElementById('activeFilterChips').innerHTML=activeCols.map(c=>
+    `<span class="af-chip" onclick="openFilterModal('rec','${c.k}')">${c.n}<span class="af-x" onclick="event.stopPropagation();quickClearFilter('${c.k}')">✕</span></span>`).join('');
 }
+function quickClearFilter(col){ delete RF[col]; renderMChips(); renderRecHead(); renderRec(); }
 function filterIconSvg(){return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="4 4 20 4 14 13 14 19 10 21 10 13 4 4"></polygon></svg>`;}
 function pickYm(v){if(!v)return;FM=v;renderMChips();renderRec();}
 function toggleShipFilter(v){FShip=(FShip===v)?'':v;renderMChips();renderRec();}
@@ -633,28 +637,42 @@ function renderStats(){
     ].map(([lbl,n])=>`<div class="fb-row"><span>${lbl}</span><div class="fb-track"><span style="width:${Math.round(n/tt*100)}%"></span></div><span class="mn">${n}</span></div>`).join('');
   }else{el1.textContent='—';elN.textContent='0';document.getElementById('fulfillBars').innerHTML=`<div class="emp-s">尚無已送貨的紀錄可供計算</div>`;}
 }
-function renderStockRows(){
-  const el=document.getElementById('stockRows');
-  document.getElementById('stockYM').textContent=CURRENT_YM.slice(0,4)+'年'+(+CURRENT_YM.slice(5))+'月';
+function renderStockFlow(){
+  const prevYMv=monthsBack(CURRENT_YM,2)[0];
+  const pLabel=(+prevYMv.slice(5))+'月', cLabel=(+CURRENT_YM.slice(5))+'月';
+  document.getElementById('stockFlowFormula').textContent=`${pLabel}庫存 － ${cLabel}出貨 ＝ ${cLabel}庫存`;
+  let totalOpening=0,totalShipped=0,totalRemaining=0;
+  STOCK_LEVELS.forEach(it=>{ totalShipped+=it.shipped||0; if(it.isSet){ totalOpening+=it.opening||0; totalRemaining+=Math.max(0,it.remaining||0); } });
+  document.getElementById('stockFlowSummary').innerHTML=
+    `<div class="sf-num"><div class="v">${totalOpening}</div><div class="k">${pLabel}庫存</div></div>`+
+    `<div class="sf-arrow">－</div>`+
+    `<div class="sf-num"><div class="v" style="color:var(--bad)">${totalShipped}</div><div class="k">${cLabel}出貨</div></div>`+
+    `<div class="sf-arrow">＝</div>`+
+    `<div class="sf-num"><div class="v" style="color:var(--ok)">${totalRemaining}</div><div class="k">${cLabel}庫存</div></div>`;
+
+  const rowsEl=document.getElementById('stockFlowRows');
   if(!STOCK_LEVELS.length){
-    el.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">尚未設定任何品項的期初庫存</div><div class="emp-s">點選下方按鈕新增第一個品項</div></div>`;
+    rowsEl.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">尚未設定任何品項的期初庫存</div><div class="emp-s">點選下方按鈕新增第一個品項</div></div>`;
     return;
   }
-  el.innerHTML=STOCK_LEVELS.slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW')).map(it=>{
-    if(!it.isSet){
-      const sug=it.suggestedOpening!==null?`（上月剩餘 <b>${it.suggestedOpening}</b> 可帶入）`:'';
-      return `<div class="stk-row"><div class="stk-unset">${esc(it.item)} — 本月尚未設定期初庫存 ${sug}</div>
-        <span class="stk-edit" onclick="openStockEditFor('${jse(it.item)}')">設定 ›</span></div>`;
-    }
-    const low=it.remaining!==null&&it.remaining<=2;
-    return `<div class="stk-row">
-      <div class="stk-name">${esc(it.item)}</div>
-      <div class="stk-mini"><div class="v mn">${it.opening}</div><div class="k">期初</div></div>
-      <div class="stk-mini"><div class="v mn">－${it.shipped}</div><div class="k">本月已出貨</div></div>
-      <div class="stk-remain"><div class="v ${low?'low':''}">${it.remaining}</div><div class="k">本月剩餘</div></div>
-      <span class="stk-edit" onclick="openStockEditFor('${jse(it.item)}')">編輯 ›</span>
+  const setItems=STOCK_LEVELS.filter(it=>it.isSet).sort((a,b)=>(b.remaining||0)-(a.remaining||0));
+  const unsetItems=STOCK_LEVELS.filter(it=>!it.isSet);
+  const bars=setItems.map(it=>{
+    const total=Math.max(it.opening,it.shipped,1);
+    const remain=Math.max(0,it.remaining);
+    const remainPct=Math.round(remain/total*100);
+    const shipPct=Math.min(100-remainPct,Math.round(it.shipped/total*100));
+    const low=remain<=Math.max(2,Math.round(it.opening*0.15));
+    return `<div class="wf-row" onclick="openStockEditFor('${jse(it.item)}')">
+      <div class="wf-top"><span class="wf-name">${esc(it.item)}</span><span class="wf-nums">${it.opening} － ${it.shipped} ＝ <b class="${low?'low':''}">${remain}</b></span></div>
+      <div class="wf-bar"><div class="wf-seg wf-remain ${low?'low':''}" style="width:${remainPct}%"></div><div class="wf-seg wf-used" style="width:${shipPct}%"></div></div>
     </div>`;
   }).join('');
+  const unsetHtml=unsetItems.length?`<div class="wf-unset-title">尚未設定期初庫存</div>`+unsetItems.map(it=>{
+    const sug=it.suggestedOpening!==null?`（上月剩餘 ${it.suggestedOpening} 可帶入）`:'';
+    return `<div class="stk-row"><div class="stk-unset">${esc(it.item)}${it.shipped?`　本月已出貨 ${it.shipped}`:''}${sug?'　'+sug:''}</div><span class="stk-edit" onclick="openStockEditFor('${jse(it.item)}')">設定 ›</span></div>`;
+  }).join(''):'';
+  rowsEl.innerHTML=bars+unsetHtml;
 }
 function openAddStockItem(){openPk('stock-item');}
 function openStockEditFor(item){
@@ -685,7 +703,7 @@ async function saveStockEdit(btn){
     busy(btn,false);
     const [sRes] = await Promise.all([ api('getStockLevels',{salesName:CUR,yearMonth:CURRENT_YM}), refreshLogs() ]);
     if(sRes.status==='success')STOCK_LEVELS=sRes.items||[];
-    renderStockRows();renderLogs();
+    renderStockFlow();renderLogs();
   }else{ toast('儲存失敗：'+(res.message||'未知錯誤'),true); busy(btn,false); }
 }
 function renderPend(){const rows=pendRecs(),n=rows.length;
@@ -894,7 +912,7 @@ async function submitReg(btn){
     ['f-batch','f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
     ['customer','item','category','type'].forEach(clearPk);BQ=1;bq(0);
     (res.ids||[]).forEach(id=>DB.records.push({recordId:id,...item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:CUR,updatedAt:new Date().toISOString()}));
-    renderMChips();renderIChips();renderRec();renderStats();renderStockRows();renderPend();
+    renderMChips();renderIChips();renderRec();renderStats();renderStockFlow();renderPend();
     tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
     busy(btn,false);
     loadSalesData(); 
@@ -1172,8 +1190,70 @@ function renderManagerDashboard(){
   document.getElementById('mgrStockProgN').textContent=reportedN+' / '+totalN+' 人已回報本月期初庫存';
   document.getElementById('mgrStockProgBar').style.width=Math.round(reportedN/totalN*100)+'%';
   renderNameGrid();
+  renderMgrStockHealth();
+  renderMgrTopHolders();
   if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } 
 }
+// ── 業務庫存健康度：每個業務的 期初－出貨＝剩餘，依週轉率排序，
+// 週轉率越低代表這個月實際出貨占身上庫存的比例越小，可能備貨過量 ──
+function computePersonStockHealth(ym){
+  const openingMap={};
+  MGR_STOCK_ALL.filter(r=>r.yearMonth===ym).forEach(r=>{ openingMap[r.sales]=(openingMap[r.sales]||0)+Number(r.qty||0); });
+  const shippedMap={};
+  DB.records.forEach(r=>{ if(!r.sales||!r.stockDate||r.stockDate.indexOf(ym)!==0)return; shippedMap[r.sales]=(shippedMap[r.sales]||0)+1; });
+  const names=new Set([...Object.keys(openingMap),...Object.keys(shippedMap)]);
+  return [...names].map(name=>{
+    const opening=openingMap[name]||0, shipped=shippedMap[name]||0, remaining=Math.max(0,opening-shipped);
+    return {sales:name,opening,shipped,remaining,turnover:opening>0?Math.round(shipped/opening*100):null};
+  });
+}
+function renderMgrStockHealth(){
+  const health=computePersonStockHealth(CURRENT_YM).sort((a,b)=>(a.turnover===null?999:a.turnover)-(b.turnover===null?999:b.turnover));
+  let totalOpening=0,totalShipped=0,totalRemaining=0;
+  health.forEach(h=>{totalOpening+=h.opening;totalShipped+=h.shipped;totalRemaining+=h.remaining;});
+  document.getElementById('mgrStockFormula').textContent=`${+CURRENT_YM.slice(5)}月全公司庫存健康度`;
+  document.getElementById('mgrStockSummary').innerHTML=
+    `<div class="sf-num"><div class="v">${totalOpening}</div><div class="k">總期初庫存</div></div>`+
+    `<div class="sf-arrow">－</div>`+
+    `<div class="sf-num"><div class="v" style="color:var(--bad)">${totalShipped}</div><div class="k">本月總出貨</div></div>`+
+    `<div class="sf-arrow">＝</div>`+
+    `<div class="sf-num"><div class="v" style="color:var(--ok)">${totalRemaining}</div><div class="k">目前總庫存</div></div>`;
+  const el=document.getElementById('mgrStockRanking');
+  if(!health.length){ el.innerHTML=`<div class="emp-s">本月尚無業務設定期初庫存</div>`; return; }
+  el.innerHTML=`<div style="font-size:11px;color:var(--tx-3);margin-bottom:14px;line-height:1.7">依「週轉率」由低到高排序——週轉率越低，代表業務身上的庫存這個月實際出貨的比例越小，可能備貨過量，值得了解原因。</div>`+
+    health.map(h=>{
+      const low=h.turnover!==null&&h.turnover<20;
+      const base=Math.max(h.opening,h.shipped,1);
+      return `<div class="wf-row" style="cursor:pointer" onclick="selectMgrPerson('${jse(h.sales)}')">
+        <div class="wf-top"><span class="wf-name">${esc(h.sales)}</span><span class="wf-nums">${h.opening} － ${h.shipped} ＝ ${h.remaining}　週轉率 <b class="${low?'low':''}">${h.turnover===null?'—':h.turnover+'%'}</b></span></div>
+        <div class="wf-bar"><div class="wf-seg wf-remain ${low?'low':''}" style="width:${Math.round(h.remaining/base*100)}%"></div><div class="wf-seg wf-used" style="width:${Math.round(h.shipped/base*100)}%"></div></div>
+      </div>`;
+    }).join('');
+}
+// ── 品項庫存留存排行：依「業務＋品項」目前剩餘庫存排名，看誰身上囤了最多哪個品項 ──
+function topStockHolders(ym){
+  const usedMap={};
+  DB.records.forEach(r=>{ if(!r.sales||!r.item||!r.stockDate||r.stockDate.indexOf(ym)!==0)return; const k=r.sales+'||'+r.item; usedMap[k]=(usedMap[k]||0)+1; });
+  const list=MGR_STOCK_ALL.filter(r=>r.yearMonth===ym).map(r=>{
+    const key=r.sales+'||'+r.item;
+    return {sales:r.sales,item:r.item,opening:Number(r.qty||0),remaining:Math.max(0,Number(r.qty||0)-(usedMap[key]||0))};
+  }).filter(x=>x.remaining>0);
+  list.sort((a,b)=>b.remaining-a.remaining);
+  return list;
+}
+let MGR_TOP_EXPANDED=false;
+function renderMgrTopHolders(){
+  const list=topStockHolders(CURRENT_YM);
+  const show=MGR_TOP_EXPANDED?list:list.slice(0,5);
+  const vmax=list.length?list[0].remaining:1;
+  document.getElementById('mgrTopHolders').innerHTML=show.length?show.map((x,i)=>
+    `<div class="rank-row"><span class="rank-n mn">${String(i+1).padStart(2,'0')}</span><span class="rank-name">${esc(x.sales)} · ${esc(x.item)}</span>
+     <div class="rank-bar"><span style="width:${Math.round(x.remaining/vmax*100)}%"></span></div><span class="rank-v mn">${x.remaining}</span></div>`
+  ).join(''):`<div class="emp-s">目前沒有任何剩餘庫存資料</div>`;
+  document.getElementById('mgrTopHoldersMore').innerHTML=list.length>5?
+    `<button class="btn-g" onclick="toggleMgrTopExpand()">${MGR_TOP_EXPANDED?'收合':'查看完整排名（共 '+list.length+' 筆）'}</button>`:'';
+}
+function toggleMgrTopExpand(){MGR_TOP_EXPANDED=!MGR_TOP_EXPANDED;renderMgrTopHolders();}
 function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
 function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
 function atab(n,b){document.querySelectorAll('#adminApp .pg').forEach(p=>p.classList.remove('on'));
@@ -1207,7 +1287,12 @@ function renderAChips(){
   document.getElementById('aItemChips').innerHTML=
     `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGrid()">全部</button>`+
     ITEM_CATALOG.filter(i=>ic[i]).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGrid()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
-  document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');}
+  document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');
+  const activeCols=COLS.filter(c=>hfActive(HF,c.k));
+  document.getElementById('adminActiveFilterChips').innerHTML=activeCols.map(c=>
+    `<span class="af-chip" onclick="openFilterModal('admin','${c.k}')">${c.n}<span class="af-x" onclick="event.stopPropagation();quickClearAdminFilter('${c.k}')">✕</span></span>`).join('');
+}
+function quickClearAdminFilter(col){ delete HF[col]; renderAChips(); renderGrid(); }
 
 // ── 表頭篩選（Excel 自動篩選風格）：每一欄都能點表頭，勾選要顯示的值 ──
 // 行政總表跟業務「我的紀錄」共用同一套彈窗機制，用 HF_CTX 分辨目前是哪一邊：
@@ -1283,7 +1368,7 @@ function applyFilterModal(){
   const state=filterStateFor(FCTX);
   Object.keys(state).forEach(k=>delete state[k]);
   Object.keys(FSTAGE).forEach(k=>{ if(FSTAGE[k]&&FSTAGE[k].size) state[k]=new Set(FSTAGE[k]); });
-  if(FCTX==='admin'){ renderGrid(); } else { renderRecHead(); renderRec(); }
+  if(FCTX==='admin'){ renderAChips();renderGrid(); } else { renderMChips();renderRecHead(); renderRec(); }
   closeFilterModal();
 }
 function clearAdminFilter(which){
