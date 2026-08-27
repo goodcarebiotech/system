@@ -23,7 +23,7 @@ const COLS=[
 const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼'},{k:'erp',n:'ERP銷帳'},{k:'loanReturn',n:'借出還回單'},{k:'loanOut',n:'借出單'}];
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
 
-let DB={records:[],logs:[]};
+let DB={records:[],logs:[],stock:{items:[]}};
 let ITEM_CATALOG=['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml','薇基因(盒裝)','妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)','歐儷芙舒口噴劑'];
 let SALES_NAMES=['王大明','李小美','陳建志'];
 
@@ -194,7 +194,7 @@ function proceedLogin(role){
     document.getElementById('managerApp').style.display='block';
     document.getElementById('mgrName').textContent=CUR;
     setupRoleSwitcher('mgrSwitchRole');
-    loadManagerData();
+    initManagerScreen();
   }else{
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
@@ -229,6 +229,7 @@ async function loadSalesData(silent){
     if(res.status==='success'){
       DB.records = res.records||[];
       DB.logs = res.logs||[];
+      DB.stock = res.stock||{items:[]};
       SALES_LOGS_LOADED=false;
     }else if(!silent) toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
     initSales();
@@ -589,22 +590,25 @@ function renderStats(){
   const v=[39,52,33,62,47,rows.length||1],mx=Math.max(...v);
   document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===5?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
 
+  // 品項庫存明細：改成真正的「目前庫存」，不是本月備貨紀錄的筆數。
+  // 資料來自登入時 salesInit 已經一次帶回的 DB.stock（見 gas.js getStockReport_），
+  // 本月如果還沒跑月結算，後端會用「上月月底庫存－即時出貨＋本月庫存增加」即時試算一個
+  // 目前參考值（estimated:true），所以這裡看到的永遠是最新狀態，不用等到月底才有數字。
+  const stockByItem={};
+  ((DB.stock&&DB.stock.items)||[]).forEach(it=>{ stockByItem[it.item]=it; });
   const fam={};
   PRODUCT_FAMILIES.forEach(f=>{
     fam[f.key]={name:f.name,color:f.color,items:{}};
-    f.items.forEach(itemName=>{fam[f.key].items[itemName]={sh:0,hd:0};});
-  });
-  DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>{
-    const f=familyOf(x.item);
-    if(!fam[f.key])return;
-    if(!fam[f.key].items[x.item])fam[f.key].items[x.item]={sh:0,hd:0};
-    fam[f.key].items[x.item][stOf(x)]++;
+    f.items.forEach(itemName=>{fam[f.key].items[itemName]=stockByItem[itemName]||null;});
   });
   const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]);
   document.getElementById('ibStat').innerHTML=`<div class="fam-page-grid">`+famList.map((f,i)=>{
-    let famTotal=0;Object.values(f.items).forEach(v=>{famTotal+=v.sh+v.hd;});
-    const specCells=Object.entries(f.items).map(([n,vv])=>
-      `<div class="fam-spec-cell"><div class="fsn">${esc(shortItemName(n))}</div><div class="fsv">${vv.sh+vv.hd}</div></div>`).join('');
+    const entries=Object.entries(f.items);
+    let famTotal=0;entries.forEach(([,it])=>{ if(it&&it.thisEnding!==null)famTotal+=Math.max(0,it.thisEnding); });
+    const specCells=entries.map(([n,it])=>{
+      const val=(it&&it.thisEnding!==null)?Math.max(0,it.thisEnding):null;
+      return `<div class="fam-spec-cell"><div class="fsn">${esc(shortItemName(n))}</div><div class="fsv">${val===null?'—':val}</div></div>`;
+    }).join('');
     return `<div class="fam-card ${i===0?'fam-card-wide':''}" style="border-top-color:${f.color}">
       <div class="fam-card-head"><span class="fam-swatch" style="background:${f.color}"></span><span class="fam-card-name">${esc(f.name)}</span></div>
       <div class="fam-card-total" style="color:${f.color}">${famTotal}</div>
@@ -954,26 +958,39 @@ function initAdmin(){renderAChips();renderGrid();renderALog();}
 // 三個欄位都可能是 null：settled=false 代表這個月系統還沒結算（要等下個月 1 號），
 // prevEnding=null 代表上個月沒有月底庫存基準（尚未在庫存資料試算表填過起算基準）。
 let MGR_REPORT={yearMonth:'',prevYearMonth:'',items:[]};
+let MGR_LOADED=false; // 尚未載入完成時，各面板顯示「讀取中」而不是「本月尚無資料」，避免看起來像壞掉
 function monthLabel(ym){ return ym?(+ym.slice(5))+'月':''; }
+// 系統每月 1 號才會把「上個月」的月出貨／月底庫存結算寫入，所以庫存報表固定看「最近一次已
+// 結算完成的月份」（也就是上個月），而不是還在進行中的本月——這個月份跟頁面載入快慢無關，
+// 所以獨立算，不用等 MGR_REPORT 載入完成才能點人。
+function stockReportYM(){ return monthsBack(CURRENT_YM,2)[0]; }
+// 一進主管畫面就先把整個畫面畫出來（姓名格子、面板骨架都不需要等資料），
+// 全公司彙總資料（近六個月備貨量、業務績效排行、庫存健康度…）在背景載入，不擋畫面、
+// 也不會自動幫你選人——業務庫存明細要點了姓名才會真的去抓那個人的資料（見 selectMgrPerson）。
+function initManagerScreen(){
+  MGR_LOADED=false; MGR_SELECTED=null;
+  renderManagerDashboard();
+  document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會開始讀取該業務的庫存明細，不用等全公司資料load完</div></div>`;
+  loadManagerData();
+}
 async function loadManagerData(){
-  showLoad('讀取全公司資料中…');
   try{
-    // 系統每月 1 號才會把「上個月」的月出貨／月底庫存結算寫入，所以庫存報表預設顯示
-    // 最近一次已結算完成的月份（也就是上個月），而不是還在進行中的本月。
-    const stockYM=monthsBack(CURRENT_YM,2)[0];
-    const res=await api('managerInit', {yearMonth:stockYM});
+    const res=await api('managerInit', {yearMonth:stockReportYM()});
     if(res.status==='success'){
       DB.records = res.records||[];
-      MGR_REPORT = res.report || {yearMonth:stockYM,prevYearMonth:'',items:[]};
+      MGR_REPORT = res.report || {yearMonth:stockReportYM(),prevYearMonth:'',items:[]};
     }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
-    renderManagerDashboard();
   }catch(err){
     toast('連線失敗：'+err.message, true);
+  }finally{
+    MGR_LOADED=true;
     renderManagerDashboard();
-  }finally{ hideLoad(); }
+    if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
+  }
 }
 async function refreshManager(){
   const btn=document.getElementById('mgrRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  MGR_LOADED=false;
   await loadManagerData();
   btn.textContent=old;toast('已更新為最新資料');
 }
@@ -982,83 +999,85 @@ function monthsBack(ym,n){
   for(let i=n-1;i>=0;i--){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}arr.push(yy+'-'+String(mm).padStart(2,'0'));}
   return arr;
 }
-let MGR_SELECTED=null;
+let MGR_SELECTED=null, MGR_SELECT_TOKEN=0;
 function renderNameGrid(){
-  // 灰點／亮點代表這位業務本月是否已經有系統結算完成的月底庫存資料（不再是「手動回報」的概念）
+  // 灰點／亮點代表這位業務本月是否已經有系統結算完成或即時試算出來的庫存資料
   const settledSet=new Set(MGR_REPORT.items.filter(it=>it.thisEnding!==null).map(it=>it.sales));
   document.getElementById('mgrNameGrid').innerHTML=ROSTERS.sales.map(p=>
     `<button type="button" class="mgr-name-btn ${MGR_SELECTED===p.name?'on':''}" onclick="selectMgrPerson('${jse(p.name)}')">
       <span class="rpt-dot ${settledSet.has(p.name)?'reported':''}"></span>${esc(p.name)}
     </button>`).join('');
 }
-// 點選業務姓名：資料已經在 loadManagerData 時一次載入（MGR_REPORT），這裡純粹是前端篩選、
-// 不需要再打一次 API，切換业务不會有讀取延遲。
-function selectMgrPerson(salesName){
+// 依「數量」判斷這個品項目前該不該留意，邏輯跟報表其他地方保持一致，方便掃視。
+function stockStatusOf(it){
+  if(it.thisEnding===null) return {label:'尚未設定基準',cls:'nobase'};
+  if(it.thisEnding<0) return {label:'資料異常',cls:'bad'};
+  if((it.prevEnding||0)>0 && it.thisEnding===0 && (it.shipment||0)>0) return {label:'待補貨',cls:'bad'};
+  if(it.thisEnding>0 && (it.shipment||0)===0 && (it.increase||0)===0) return {label:'無異動',cls:'muted'};
+  return {label:'正常',cls:'ok'};
+}
+// 點選業務姓名：不依賴 loadManagerData 是否已經跑完，獨立打一個小範圍的 getStockReport
+// 請求（只查這一個人），點下去才開始讀，畫面反應快，也不會被全公司資料拖住。
+async function selectMgrPerson(salesName){
   MGR_SELECTED=salesName;
   renderNameGrid();
+  const token=++MGR_SELECT_TOKEN; // 快速連續點好幾個人時，只有最後一次點擊的結果會顯示
   const area=document.getElementById('mgrDetailArea');
   area.scrollIntoView({behavior:'smooth',block:'nearest'});
-  const ml=monthLabel(MGR_REPORT.yearMonth);
-  const items=MGR_REPORT.items.filter(it=>it.sales===salesName).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
-  const totalShip=items.reduce((s,it)=>s+(it.shipment||0),0);
-  const totalEnd=items.reduce((s,it)=>s+Math.max(0,it.thisEnding||0),0);
-  const head=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
-    <div class="mgr-detail-stats"><span>${ml}出貨 <b style="color:var(--bad)">${totalShip}</b></span><span>${ml}月底庫存 <b style="color:var(--ok)">${totalEnd}</b></span></div></div>`;
+  area.innerHTML=`<div class="emp-s">讀取 ${esc(salesName)} 的庫存資料中…</div>`;
+  const yearMonth=stockReportYM();
+  const res=await api('getStockReport',{yearMonth,salesName});
+  if(token!==MGR_SELECT_TOKEN) return; // 使用者已經點了別人，這次結果作廢
+  if(res.status!=='success'){ area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`; return; }
+  renderMgrDetail(salesName, res);
+}
+function renderMgrDetail(salesName, res){
+  const area=document.getElementById('mgrDetailArea');
+  const ml=monthLabel(res.yearMonth), pml=monthLabel(res.prevYearMonth);
+  const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
   if(!items.length){
-    area.innerHTML=head+`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 目前沒有庫存資料</div><div class="emp-s">尚未在「庫存資料」試算表建立任何品項的月底庫存基準</div></div>`;
+    area.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 目前沒有庫存資料</div><div class="emp-s">尚未在「庫存資料」試算表建立任何品項的月底庫存基準</div></div>`;
     return;
   }
-  const settled=items.filter(it=>it.thisEnding!==null);
-  const unsettled=items.filter(it=>it.thisEnding===null);
-  const chartHtml=settled.length?buildStockChartSVG(settled):'';
-  const unsetHtml=unsettled.length?`<div class="wf-unset-title">尚未結算（缺上月月底庫存基準，或本月尚未跑月結算）</div>`+unsettled.map(it=>
-    `<div class="stk-row"><div class="stk-unset">${esc(it.item)}${it.increase?`　本月已登記庫存增加 ${it.increase}`:''}</div></div>`
-  ).join(''):'';
-  const body=`${chartHtml?`<div class="chart-scroll">${chartHtml}</div>`:''}
-    ${unsetHtml}
-    ${settled.length?`<div class="sr-key"><span><i style="background:#3E7CC4"></i>${ml}月底庫存</span>
-    <span><i style="background:#9C2F2A"></i>${ml}出貨</span></div>`:''}`;
-  area.innerHTML=head+body;
-}
-function niceCeil_(v){
-  if(v<=5)return 5;
-  const mag=Math.pow(10,Math.floor(Math.log10(v)));
-  const norm=v/mag;
-  const nice=norm<=1?1:norm<=2?2:norm<=5?5:10;
-  return nice*mag;
-}
-// allItems: [{item, prevEnding, increase, shipment, thisEnding}]（呼叫端已篩選成 thisEnding!==null 的品項）
-function buildStockChartSVG(allItems){
-  const W=Math.max(560,allItems.length*76+70), H=300;
-  const padL=42,padT=18,padB=76,chartH=H-padT-padB,chartR=W-16;
-  const maxVal=Math.max(1,...allItems.map(it=>Math.max(it.prevEnding||0,Math.max(0,it.thisEnding||0)+(it.shipment||0))));
-  const niceMax=niceCeil_(maxVal);
-  const chartW=chartR-padL, gap=chartW/allItems.length, barW=Math.min(44,gap*0.52);
-  const yBase=padT+chartH;
-  let grid='',ylab='';
-  for(let i=0;i<=4;i++){
-    const val=Math.round(niceMax*i/4);
-    const y=yBase-(val/niceMax*chartH);
-    grid+=`<line x1="${padL}" y1="${y}" x2="${chartR}" y2="${y}" stroke="#E3E6EA" stroke-width="1"/>`;
-    ylab+=`<text x="${padL-8}" y="${y+3.5}" text-anchor="end" font-size="9.5" fill="#939DA9" font-family="'IBM Plex Mono',monospace">${val}</text>`;
-  }
-  let bars='',xlab='';
-  allItems.forEach((it,i)=>{
-    const cx=padL+gap*i+gap/2, x=cx-barW/2;
-    const used=it.shipment||0, remain=Math.max(0,it.thisEnding||0);
-    const usedH=Math.round(used/niceMax*chartH), remH=Math.round(remain/niceMax*chartH);
-    const total=remain+used;
-    if(remH>0)bars+=`<rect x="${x}" y="${yBase-remH}" width="${barW}" height="${remH}" fill="#3E7CC4"/>`;
-    if(usedH>0)bars+=`<rect x="${x}" y="${yBase-remH-usedH}" width="${barW}" height="${usedH}" fill="#9C2F2A"/>`;
-    if(total>0)bars+=`<text x="${cx}" y="${yBase-remH-usedH-6}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#101720" font-family="'IBM Plex Mono',monospace">${total}</text>`;
-    const label=it.item.length>11?it.item.slice(0,10)+'…':it.item;
-    xlab+=`<text x="${cx}" y="${yBase+14}" text-anchor="end" font-size="9.5" fill="#5E6A78" font-family="'Noto Sans TC',sans-serif" transform="rotate(-38 ${cx} ${yBase+14})">${esc(label)}</text>`;
-  });
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="庫存直條圖">
-    ${grid}${ylab}
-    <line x1="${padL}" y1="${yBase}" x2="${chartR}" y2="${yBase}" stroke="#101720" stroke-width="1.2"/>
-    ${bars}${xlab}
-  </svg>`;
+  const totalPrev=items.reduce((s,it)=>s+(it.prevEnding||0),0);
+  const totalShip=items.reduce((s,it)=>s+(it.shipment||0),0);
+  const totalIncr=items.reduce((s,it)=>s+(it.increase||0),0);
+  const totalEnd=items.reduce((s,it)=>s+Math.max(0,it.thisEnding||0),0);
+  const anyEstimated=items.some(it=>it.estimated);
+  const attention=items.filter(it=>['bad','nobase'].includes(stockStatusOf(it).cls)).length;
+
+  const summary=`<div class="sf-summary">
+    <div class="sf-num"><div class="v">${totalPrev}</div><div class="k">${pml}月底庫存</div></div>
+    <div class="sf-arrow">－</div>
+    <div class="sf-num"><div class="v" style="color:var(--bad)">${totalShip}</div><div class="k">${ml}出貨</div></div>
+    <div class="sf-arrow">＋</div>
+    <div class="sf-num"><div class="v" style="color:var(--nav-3)">${totalIncr}</div><div class="k">${ml}庫存增加</div></div>
+    <div class="sf-arrow">＝</div>
+    <div class="sf-num"><div class="v" style="color:var(--ok)">${totalEnd}</div><div class="k">${ml}月底庫存</div></div>
+  </div>`;
+
+  const rows=items.map(it=>{
+    const status=stockStatusOf(it);
+    const ending=Math.max(0,it.thisEnding||0);
+    const base=Math.max(it.prevEnding||0,ending+(it.shipment||0),1);
+    const endPct=Math.round(ending/base*100);
+    const shipPct=Math.round((it.shipment||0)/base*100);
+    const low=status.cls==='bad';
+    return `<div class="wf-row">
+      <div class="wf-top"><span class="wf-name">${esc(it.item)}</span>
+        <span class="wf-nums">${it.prevEnding===null?'—':it.prevEnding} － ${it.shipment===null?'—':it.shipment} ＋ ${it.increase} ＝ <b class="${low?'low':''}">${it.thisEnding===null?'—':ending}</b>
+        <span class="stat-pill ${status.cls}">${status.label}</span></span></div>
+      <div class="wf-bar"><div class="wf-seg wf-remain ${low?'low':''}" style="width:${it.thisEnding===null?0:endPct}%"></div><div class="wf-seg wf-used" style="width:${it.thisEnding===null?0:shipPct}%"></div></div>
+    </div>`;
+  }).join('');
+
+  area.innerHTML=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
+      ${attention?`<span class="stat-pill bad">${attention} 項需留意</span>`:`<span class="stat-pill ok">全部正常</span>`}
+    </div>
+    ${summary}
+    ${anyEstimated?`<div class="mgr-est-note">＊ ${ml}尚未跑月結算，以上為即時試算的參考值，將於下個月 1 號正式結算後鎖定為正式數字。</div>`:''}
+    <div class="sr-key"><span><i style="background:var(--ok)"></i>${ml}月底庫存</span><span><i style="background:#D8DEE4"></i>${ml}出貨</span></div>
+    ${rows}`;
 }
 function renderManagerDashboard(){
   document.getElementById('mgrYM').textContent=CURRENT_YM;
@@ -1096,7 +1115,7 @@ function renderManagerDashboard(){
       <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
         <span class="fam-total">已出貨 <b class="mn" style="color:${f.color};font-size:13px">${f.ship}</b> ／ 本月共 <b class="mn">${f.total}</b> 筆</span></div>
       <div class="stk"><div class="a" style="width:${Math.round(f.total/famMax*100)}%;background:${f.color}"></div><div class="b"></div></div>
-    </div>`).join('') : `<div class="emp-s">本月尚無資料</div>`;
+    </div>`).join('') : `<div class="emp-s">${MGR_LOADED?'本月尚無資料':'讀取中…'}</div>`;
 
   const bySales={};
   ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
@@ -1114,15 +1133,16 @@ function renderManagerDashboard(){
 
   const settledSet=new Set(MGR_REPORT.items.filter(it=>it.thisEnding!==null).map(it=>it.sales));
   const totalN=ROSTERS.sales.length, settledN=settledSet.size;
-  document.getElementById('mgrStockProgN').textContent=monthLabel(MGR_REPORT.yearMonth)+'份　'+settledN+' / '+totalN+' 人已有結算資料';
-  document.getElementById('mgrStockProgBar').style.width=(totalN?Math.round(settledN/totalN*100):0)+'%';
+  document.getElementById('mgrStockProgN').textContent=MGR_LOADED
+    ?(monthLabel(MGR_REPORT.yearMonth)+'份　'+settledN+' / '+totalN+' 人已有庫存資料')
+    :'背景讀取全公司彙總資料中…';
+  document.getElementById('mgrStockProgBar').style.width=(MGR_LOADED&&totalN?Math.round(settledN/totalN*100):0)+'%';
   renderNameGrid();
   renderMgrStockHealth();
   renderMgrTopHolders();
-  if(!MGR_SELECTED && ROSTERS.sales.length){ selectMgrPerson(ROSTERS.sales[0].name); } 
 }
-// ── 業務庫存健康度：每個業務的 上月月底庫存－本月出貨＝本月月底庫存，依週轉率排序，
-// 週轉率越低代表這個月實際出貨占身上庫存的比例越小，可能備貨過量 ──
+// ── 業務庫存健康度：每個業務的 上月月底庫存－本月出貨＋本月庫存增加＝本月月底庫存，
+// 依週轉率排序，週轉率越低代表這個月實際出貨占身上庫存的比例越小，可能備貨過量 ──
 function computePersonStockHealth(){
   const map={};
   MGR_REPORT.items.forEach(it=>{
@@ -1143,10 +1163,10 @@ function renderMgrStockHealth(){
     `<div class="sf-num"><div class="v">${totalOpening}</div><div class="k">上月總庫存</div></div>`+
     `<div class="sf-arrow">－</div>`+
     `<div class="sf-num"><div class="v" style="color:var(--bad)">${totalShipped}</div><div class="k">本月總出貨</div></div>`+
-    `<div class="sf-arrow">＋</div>`+
+    `<div class="sf-arrow">＝</div>`+
     `<div class="sf-num"><div class="v" style="color:var(--ok)">${totalRemaining}</div><div class="k">本月月底庫存</div></div>`;
   const el=document.getElementById('mgrStockRanking');
-  if(!health.length){ el.innerHTML=`<div class="emp-s">本月尚無庫存資料</div>`; return; }
+  if(!health.length){ el.innerHTML=`<div class="emp-s">${MGR_LOADED?'本月尚無庫存資料':'讀取中…'}</div>`; return; }
   el.innerHTML=`<div style="font-size:11px;color:var(--tx-3);margin-bottom:14px;line-height:1.7">依「週轉率」由低到高排序——週轉率越低，代表業務身上的庫存這個月實際出貨的比例越小，可能備貨過量，值得了解原因。</div>`+
     health.map(h=>{
       const low=h.turnover!==null&&h.turnover<20;
@@ -1171,7 +1191,7 @@ function renderMgrTopHolders(){
   document.getElementById('mgrTopHolders').innerHTML=show.length?show.map((x,i)=>
     `<div class="rank-row"><span class="rank-n mn">${String(i+1).padStart(2,'0')}</span><span class="rank-name">${esc(x.sales)} · ${esc(x.item)}</span>
      <div class="rank-bar"><span style="width:${Math.round(x.remaining/vmax*100)}%"></span></div><span class="rank-v mn">${x.remaining}</span></div>`
-  ).join(''):`<div class="emp-s">目前沒有任何月底庫存資料</div>`;
+  ).join(''):`<div class="emp-s">${MGR_LOADED?'目前沒有任何月底庫存資料':'讀取中…'}</div>`;
   document.getElementById('mgrTopHoldersMore').innerHTML=list.length>5?
     `<button class="btn-g" onclick="toggleMgrTopExpand()">${MGR_TOP_EXPANDED?'收合':'查看完整排名（共 '+list.length+' 筆）'}</button>`:'';
 }
