@@ -50,9 +50,9 @@
 <div class="wrap" id="salesApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf" id="avT">王</div><div style="min-width:0"><div class="bar-n" id="nmT">王大明</div><div class="bar-d">2026.08.07 THU</div></div></div>
-    <div style="display:flex;gap:14px;align-items:center">
-      <div id="salesSwitchRole" style="display:none;gap:6px"></div>
-      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot1"></div>
+    <div class="bar-right">
+      <div id="salesSwitchRole" class="role-sw" style="display:none"></div>
+      <div class="bar-right-badges" id="modeBadgeSlot1"></div>
     </div>
   </div></div>
 
@@ -61,7 +61,6 @@
     <button class="nav-b" onclick="tab('rec',this)">我的紀錄</button>
     <button class="nav-b" onclick="tab('stats',this)">庫存統計</button>
     <button class="nav-b" onclick="tab('pend',this)">待補齊<span class="nav-dot" id="pDot"></span></button>
-    <button class="nav-b" onclick="tab('logs',this)">操作紀錄</button>
   </div></nav>
 
   <section class="pg on" id="pg-reg">
@@ -122,7 +121,7 @@
     <div class="pn">
       <div class="pn-h"><span class="pn-t">紀錄總覽</span>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <div class="seg"><button id="vG" onclick="setView('group')">依日期分組</button><button class="on" id="vL" onclick="setView('list')">清單</button></div>
+          <div class="seg"><button class="on" id="vG" onclick="setView('group')">依日期分組</button><button id="vL" onclick="setView('list')">清單</button></div>
         </div></div>
       <div class="cf"><div class="cf-h">月份</div><div class="cf-r" id="mChips"></div></div>
       <div class="cf"><div class="cf-h">品項</div><div class="cf-r" id="iChips"></div></div>
@@ -209,9 +208,9 @@
 <div class="wrap wide" id="adminApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf">政</div><div style="min-width:0"><div class="bar-n">行政管理</div><div class="bar-d">ADMINISTRATION</div></div></div>
-    <div style="display:flex;gap:14px;align-items:center">
-      <div id="adminSwitchRole" style="display:none;gap:6px"></div>
-      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot2"></div>
+    <div class="bar-right">
+      <div id="adminSwitchRole" class="role-sw" style="display:none"></div>
+      <div class="bar-right-badges" id="modeBadgeSlot2"></div>
     </div>
   </div></div>
 
@@ -316,9 +315,9 @@
 <div class="wrap wide" id="managerApp" style="display:none">
   <div class="bar"><div class="bar-in">
     <div class="bar-id"><div class="av sf">主</div><div style="min-width:0"><div class="bar-n" id="mgrName">主管</div><div class="bar-d">MANAGEMENT OVERVIEW</div></div></div>
-    <div style="display:flex;gap:14px;align-items:center">
-      <div id="mgrSwitchRole" style="display:none;gap:6px"></div>
-      <div style="display:flex;gap:8px;align-items:center" id="modeBadgeSlot3"></div>
+    <div class="bar-right">
+      <div id="mgrSwitchRole" class="role-sw" style="display:none"></div>
+      <div class="bar-right-badges" id="modeBadgeSlot3"></div>
     </div>
   </div></div>
 
@@ -395,11 +394,11 @@
   <div class="mb">
     <div class="mh"><span class="mh-t">編輯備貨紀錄</span><span class="mh-r" id="edRef"></span></div>
     <div class="mbd">
-      <div class="fg"><label class="fl">客戶名稱</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-cu" oninput="mk(this)"></div></div>
-      <div class="fg"><label class="fl">品項</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-it" oninput="mk(this)"></div></div>
+      <div class="fg"><label class="fl">客戶名稱</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-cu" list="dl-e-cu" oninput="mk(this)"><datalist id="dl-e-cu"></datalist></div></div>
+      <div class="fg"><label class="fl">品項</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-it" list="dl-e-it" oninput="mk(this)"><datalist id="dl-e-it"></datalist></div></div>
       <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ca" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ty" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ca" list="dl-e-ca" oninput="mk(this)"><datalist id="dl-e-ca"></datalist></div></div>
+        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ty" list="dl-e-ty" oninput="mk(this)"><datalist id="dl-e-ty"></datalist></div></div>
       </div>
       <div class="fr">
         <div class="fg"><label class="fl">備貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-sd" oninput="mk(this)"></div></div>
@@ -418,12 +417,12 @@
 <!-- ══ GROUP BATCH EDIT ══ -->
 <div class="mv" id="gEdMv">
   <div class="mb lg2">
-    <div class="mh"><span class="mh-t">批次編輯整組</span><span class="mh-r" id="gEdRef"></span></div>
+    <div class="mh"><span class="mh-t">批次編輯</span><span class="mh-r" id="gEdRef"></span></div>
     <div class="mbd">
       <div style="font-size:11px;font-weight:600;color:var(--ink);margin-bottom:9px;letter-spacing:.05em">組內目前完整資料（唯讀，供比對用）</div>
       <div class="gprev-wrap"><table class="gprev" id="gEdPreview"></table></div>
       <div id="gEdWarn"></div>
-      <div style="font-size:11px;color:var(--tx-3);margin:16px 0;line-height:1.7">以下留白的欄位不會被更動，僅套用您有填寫的欄位到組內全部 <span id="gEdCount">0</span> 筆紀錄。</div>
+      <div style="font-size:11px;color:var(--tx-3);margin:16px 0;line-height:1.7">留白欄位不變更，已填寫的欄位將套用到全部 <span id="gEdCount">0</span> 筆。</div>
       <div class="fr">
         <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ca" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
         <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ty" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
@@ -433,7 +432,7 @@
         <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="g-hd" oninput="mk(this)"></div></div>
       </div>
     </div>
-    <div class="ma"><button onclick="closeGroupEdit()">取消</button><button class="sv" onclick="saveGroupEdit(this)">套用到整組</button></div>
+    <div class="ma"><button onclick="closeGroupEdit()">取消</button><button class="sv" onclick="saveGroupEdit(this)">套用</button></div>
   </div>
 </div>
 
@@ -461,7 +460,7 @@
 </div>
 
 <div class="inline-pop" id="inlinePop">
-  <input type="text" id="inlinePopSearch" autocomplete="off" placeholder="輸入關鍵字篩選…" oninput="renderInlineFilter()">
+  <input type="text" id="inlinePopSearch" autocomplete="off" placeholder="輸入關鍵字，按 Enter 套用…" oninput="renderHeaderFilterPop()" onkeydown="hfSearchKey(event)">
   <div class="lst" id="inlinePopList"></div>
 </div>
 <div class="tst" id="tst"></div>
