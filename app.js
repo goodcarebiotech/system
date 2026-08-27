@@ -4,9 +4,9 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMj
 /* 完美對齊您最新更新的精確寬度 */
 const COLS=[
   {k:'stockDate',n:'備貨日期',w:95,role:'s'},
+  {k:'item',n:'品項',w:158,role:'s'},
   {k:'batch',n:'批號',w:85,role:'s'},
   {k:'shipDate',n:'送貨日期',w:105,role:'s'},
-  {k:'item',n:'品項',w:158,role:'s'},
   {k:'customer',n:'客戶',w:70,role:'s'},
   {k:'category',n:'科別',w:50,role:'s'},
   {k:'type',n:'賣備樣',w:50,role:'s'},
@@ -77,7 +77,7 @@ function renderModeBadges(){
 renderModeBadges();
 
 const CURRENT_YM=(function(){const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
-let FM=CURRENT_YM,FI='',ASales='',AItem='',AEmpty=new Set(),LOGF='all';
+let FM=CURRENT_YM,FI='',FShip='',ASales='',AItem='',AEmpty=new Set(),LOGF='all';
 let GRID=[],EDITS={};
 
 function showLoad(msg){document.getElementById('loadOverlayText').textContent=msg||'讀取資料中…';document.getElementById('loadOverlay').style.display='flex';}
@@ -383,19 +383,36 @@ function tab(n,b){document.querySelectorAll('#salesApp .pg').forEach(p=>p.classL
 function setView(v){VIEW=v;document.getElementById('vL').classList.toggle('on',v==='list');
   document.getElementById('vG').classList.toggle('on',v==='group');renderRec();}
 function renderMChips(){
-  const [cy, cm] = CURRENT_YM.split('-').map(Number);
-  const ms=[];
-  for(let i=0; i<3; i++) {
-    let y=cy, m=cm-i;
-    while(m<1){m+=12;y--;}
-    ms.push(y+'-'+String(m).padStart(2,'0'));
-  }
-  document.getElementById('mChips').innerHTML=ms.map(m=>`<button class="chip ${FM===m?'on':''}" onclick="FM='${m}';renderMChips();renderRec()">${m.slice(0,4)}年${+m.slice(5)}月</button>`).join('');}
+  document.getElementById('mChips').innerHTML=
+    `<button type="button" class="ym-btn" onclick="openYmPicker()">${FM.slice(0,4)}年${+FM.slice(5)}月<span class="ym-ico">▾</span></button>`+
+    `<input type="month" id="ymPicker" value="${FM}" class="ym-native" onchange="pickYm(this.value)">`+
+    `<button type="button" class="chip wo ${FShip==='hd'?'on':''}" onclick="toggleShipFilter('hd')">未送貨</button>`+
+    `<button type="button" class="chip wo ${FShip==='sh'?'on':''}" onclick="toggleShipFilter('sh')">已送貨</button>`;
+}
+function openYmPicker(){const el=document.getElementById('ymPicker');if(el.showPicker){try{el.showPicker();return;}catch(e){}}el.focus();el.click();}
+function pickYm(v){if(!v)return;FM=v;renderMChips();renderRec();}
+function toggleShipFilter(v){FShip=(FShip===v)?'':v;renderMChips();renderRec();}
 function renderIChips(){const cnt={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>cnt[x.item]=(cnt[x.item]||0)+1);
   document.getElementById('iChips').innerHTML=`<button class="chip ${FI===''?'on':''}" onclick="FI='';renderIChips();renderRec()">全部</button>`+
     Object.keys(cnt).map(i=>`<button class="chip ${FI===i?'on':''}" onclick="FI='${jse(i)}';renderIChips();renderRec()">${esc(i)}<span class="n">${cnt[i]}</span></button>`).join('');}
-function myRecs(){return DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)&&(!FI||x.item===FI));}
+function myRecs(){return DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)&&(!FI||x.item===FI)&&(!FShip||shipStatus(x)===FShip));}
 function stOf(x){return (x.invoiceDate||x.invoiceNo)?'sh':'hd';}
+// 「我的紀錄」頁面專用的送貨狀態判斷：送貨日期／客戶兩欄都有填才算已送貨，
+// 跟 stOf()（發票是否登打，給行政／主管報表用）是不同的概念，先不動 stOf() 影響其他頁面。
+function shipStatus(x){return (x.shipDate&&x.customer)?'sh':'hd';}
+function fmtDateShort(d){
+  if(!d)return'未填日期';
+  const p=d.split('-');if(p.length<3)return d;
+  const wd=['日','一','二','三','四','五','六'][new Date(d).getDay()];
+  return `${+p[1]}/${+p[2]}（週${wd}）`;
+}
+// 依備貨日期分段，新到舊；同一天內的資料維持原本順序
+function dateSections(rows){
+  const order=[],by={};
+  rows.forEach(x=>{const d=x.stockDate||'';if(!by[d]){by[d]=[];order.push(d);}by[d].push(x);});
+  order.sort((a,b)=>b.localeCompare(a));
+  return order.map(d=>({date:d,rows:by[d]}));
+}
 function pendRecs(){return DB.records.filter(x=>x.sales===CUR&&!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn));}
 let RECFULL=false;
 function toggleRecFull(){RECFULL=!RECFULL;renderRecHead();renderRec();}
@@ -455,26 +472,33 @@ function setExactTableWidth(tableId,cols,store,onlyVisible,extra){
 function recRowHtml(x){
   return `<tr onclick="openEd('${x.recordId}')" style="cursor:pointer">`+COLS.map(c=>
     `<td class="pad ${(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate'||c.k==='orderNo'||c.k==='invoiceNo'||c.k==='batch')?'mn':''} ${c.role==='a'&&!RECFULL?'colhide':''}">${esc(x[c.k]||'—')}</td>`).join('')+
-    `<td class="pad"><span class="sm ${stOf(x)==='sh'?'g':'h'}">${stOf(x)==='sh'?'已出貨':'庫存中'}</span></td></tr>`;
+    `<td class="pad"><span class="sm ${shipStatus(x)==='sh'?'g':'h'}">${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span></td></tr>`;
 }
 function renderRec(){
-  const rows=myRecs(),el=document.getElementById('recCards');
+  const rows=myRecs(),el=document.getElementById('recCards'),showItem=!FI;
   if(!rows.length)el.innerHTML=`<div class="emp"><div class="emp-i">＋</div><div class="emp-t">本月尚無備貨紀錄</div><div class="emp-s">前往「備貨登記」新增第一筆</div></div>`;
-  else if(VIEW==='list')el.innerHTML=rows.map(x=>`<div class="rc" onclick="openEd('${x.recordId}')"><div class="rc-s ${stOf(x)}"></div>
-    <div class="rc-b"><div class="rc-t"><span class="rc-c">${esc(x.customer||'（未填）')}</span><span class="bg ${stOf(x)}">${stOf(x)==='sh'?'已出貨':'庫存中'}</span></div>
-    <div class="rc-i" style="color:${itemColor(x.item)}">${esc(x.item||'（未填）')}</div>
-    <div class="rc-m">${typeBadge(x.type)}<span class="mn">${esc(x.stockDate)}</span><span>科別 <b>${esc(x.category||'—')}</b></span><span>單號 <b>${esc(x.orderNo||'—')}</b></span></div>
-    </div><div class="rc-a">›</div></div>`).join('');
-  else{const g={};rows.forEach(x=>{const k=x.stockDate+'|'+x.customer+'|'+x.item;(g[k]=g[k]||[]).push(x)});
-    GROUPS=Object.values(g);
-    el.innerHTML=GROUPS.map((its,i)=>{const f=its[0];
-      return `<div class="rc" onclick="tg(${i})"><div class="rc-s ${stOf(f)}"></div><div class="rc-b">
-      <div class="rc-t"><span class="rc-c">${esc(f.customer||'（未填）')}<span class="rc-q">×${its.length}</span></span><span class="bg ${stOf(f)}">${stOf(f)==='sh'?'已出貨':'庫存中'}</span></div>
-      <div class="rc-i" style="color:${itemColor(f.item)}">${esc(f.item||'（未填）')}</div>
-      <div class="rc-m"><span class="mn">${esc(f.stockDate)}</span><span>科別 <b>${esc(f.category||'—')}</b></span>
-        <span class="rc-batch" onclick="event.stopPropagation();openGroupEdit(${i})">批次編輯 ›</span></div>
-      <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')} ${stOf(x)==='sh'?'已出貨':'庫存中'}</span><span>編輯 ›</span></div>`).join('')}</div>
-      </div><div class="rc-a">▾</div></div>`;}).join('');}
+  else if(VIEW==='list'){
+    el.innerHTML=dateSections(rows).map(sec=>`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`+
+      sec.rows.map(x=>{const fam=familyOf(x.item);
+        return `<div class="rc" onclick="openEd('${x.recordId}')"><div class="rc-s" style="background:${fam.color}"></div>
+        <div class="rc-b"><div class="rc-t"><span class="rc-c">${esc(x.customer||'（未填）')}<span class="rc-cat">${esc(x.category||'—')}</span></span><span class="bg ${shipStatus(x)}">${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span></div>
+        <div class="rc-m">${showItem?`<span style="color:${fam.color};font-weight:500">${esc(x.item||'（未填）')}</span>`:''}${typeBadge(x.type)}<span>單號 <b>${esc(x.orderNo||'—')}</b></span></div>
+        </div><div class="rc-a">›</div></div>`;}).join('')
+    ).join('');
+  }else{
+    GROUPS=[];
+    el.innerHTML=dateSections(rows).map(sec=>{
+      const g={};sec.rows.forEach(x=>{const k=x.customer+'|'+x.item;(g[k]=g[k]||[]).push(x)});
+      const cards=Object.values(g).map(its=>{const i=GROUPS.push(its)-1,f=its[0],fam=familyOf(f.item);
+        return `<div class="rc" onclick="tg(${i})"><div class="rc-s" style="background:${fam.color}"></div><div class="rc-b">
+        <div class="rc-t"><span class="rc-c">${esc(f.customer||'（未填）')}<span class="rc-cat">${esc(f.category||'—')}</span><span class="rc-q">×${its.length}</span></span><span class="bg ${shipStatus(f)}">${shipStatus(f)==='sh'?'已送貨':'未送貨'}</span></div>
+        <div class="rc-m">${showItem?`<span style="color:${fam.color};font-weight:500">${esc(f.item||'（未填）')}</span>`:''}<span class="rc-batch" onclick="event.stopPropagation();openGroupEdit(${i})">批次編輯 ›</span></div>
+        <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')} ${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span><span>編輯 ›</span></div>`).join('')}</div>
+        </div><div class="rc-a">▾</div></div>`;
+      }).join('');
+      return `<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`+cards;
+    }).join('');
+  }
 
   if(VIEW==='list'){
     document.getElementById('recTB').innerHTML=rows.map(recRowHtml).join('');
@@ -492,8 +516,8 @@ function renderRec(){
   }
 
   document.getElementById('s1').textContent=rows.length;
-  document.getElementById('s2').textContent=rows.filter(x=>stOf(x)==='sh').length;
-  document.getElementById('s3').textContent=rows.filter(x=>stOf(x)==='hd').length;
+  document.getElementById('s2').textContent=rows.filter(x=>shipStatus(x)==='sh').length;
+  document.getElementById('s3').textContent=rows.filter(x=>shipStatus(x)==='hd').length;
   document.getElementById('s4').textContent=pendRecs().length;
   renderIB();
 }
@@ -505,8 +529,8 @@ const TYPE_COLOR={'賣':'sell','備':'prep','樣':'sample'};
 function typeBadge(t){if(!t)return'';const cls=TYPE_COLOR[t];const label=cls?t:'其它';
   return `<span class="tbadge${cls?' '+cls:' o'}" title="${esc(t)}">${label}</span>`;}
 function tgT(i){document.querySelectorAll(`#tgt-${i}`).forEach(r=>{r.style.display=r.style.display==='none'?'table-row':'none';});}
-function keyHtml(){return `<div class="key"><span><i style="background:var(--ok)"></i>已出貨</span><span><i style="background:var(--nav-3)"></i>庫存中</span></div>`;}
-function renderIB(){const m={};myRecs().forEach(x=>{if(!x.item)return;m[x.item]=m[x.item]||{sh:0,hd:0};m[x.item][stOf(x)]++});
+function keyHtml(){return `<div class="key"><span><i style="background:var(--ok)"></i>已送貨</span><span><i style="background:var(--nav-3)"></i>未送貨</span></div>`;}
+function renderIB(){const m={};myRecs().forEach(x=>{if(!x.item)return;m[x.item]=m[x.item]||{sh:0,hd:0};m[x.item][shipStatus(x)]++});
   const e=Object.entries(m);
   document.getElementById('ibRec').innerHTML=e.length?e.map(([n,v])=>{const t=v.sh+v.hd,p=Math.round(v.sh/t*100);
     return `<div class="sp"><div class="sp-t"><span class="sp-n">${esc(n)}</span><span class="sp-v">共 <b>${t}</b> 筆</span></div>
