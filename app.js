@@ -1021,19 +1021,6 @@ function renderNameGrid(){
       <span class="rpt-dot ${settledSet.has(p.name)?'reported':''}"></span>${esc(p.name)}
     </button>`).join('');
 }
-// 依「數量」判斷這個品項目前該不該留意，邏輯跟報表其他地方保持一致，方便掃視。
-// thisEnding===null 分兩種情況：上月完全沒有基準（尚未設定基準），或者上月有基準、
-// 只是這個月「庫存資料」表裡還沒有月結算寫入的月底庫存列（尚未結算）——兩種原因不同，
-// 顯示的文字也要分開，不然容易誤會成同一種問題。
-function stockStatusOf(it){
-  if(it.thisEnding===null){
-    return it.prevEnding===null ? {label:'尚未設定基準',cls:'nobase'} : {label:'尚未結算',cls:'nobase'};
-  }
-  if(it.thisEnding<0) return {label:'資料異常',cls:'bad'};
-  if((it.prevEnding||0)>0 && it.thisEnding===0 && (it.shipment||0)>0) return {label:'待補貨',cls:'bad'};
-  if(it.thisEnding>0 && (it.shipment||0)===0 && (it.increase||0)===0) return {label:'無異動',cls:'muted'};
-  return {label:'正常',cls:'ok'};
-}
 // 點選業務姓名：不依賴 loadManagerData 是否已經跑完，獨立打一個小範圍的 getStockReport
 // 請求（只查這一個人、目前選定的月份），點下去才開始讀，畫面反應快，也不會被全公司資料拖住。
 // 不帶 live 參數＝後端純讀「庫存資料」表，不會去掃備貨紀錄表做即時試算。
@@ -1050,51 +1037,96 @@ async function selectMgrPerson(salesName){
   if(res.status!=='success'){ area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`; return; }
   renderMgrDetail(salesName, res);
 }
+let MGR_DETAIL_SALES='', MGR_DETAIL_ITEMS=[], MGR_DETAIL_ML='', MGR_DETAIL_PML='';
+let MGR_DETAIL_GROUP='ALL', MGR_DETAIL_VIEW='absolute';
+function nf(n){ return Number(n||0).toLocaleString('zh-TW'); }
+function niceCeil_(v){
+  if(v<=5)return 5;
+  const mag=Math.pow(10,Math.floor(Math.log10(v)));
+  const norm=v/mag;
+  const nice=norm<=1?1:norm<=2?2:norm<=5?5:10;
+  return nice*mag;
+}
 function renderMgrDetail(salesName, res){
+  MGR_DETAIL_SALES=salesName;
+  MGR_DETAIL_ITEMS=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
+  MGR_DETAIL_ML=monthLabel(res.yearMonth);
+  MGR_DETAIL_PML=monthLabel(res.prevYearMonth);
+  MGR_DETAIL_GROUP='ALL'; MGR_DETAIL_VIEW='absolute';
+  renderMgrDetailBody();
+}
+function setMgrDetailGroup(g){ MGR_DETAIL_GROUP=g; renderMgrDetailBody(); }
+function setMgrDetailView(v){ MGR_DETAIL_VIEW=v; renderMgrDetailBody(); }
+function renderMgrDetailBody(){
   const area=document.getElementById('mgrDetailArea');
-  const ml=monthLabel(res.yearMonth), pml=monthLabel(res.prevYearMonth);
-  const items=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
+  const items=MGR_DETAIL_ITEMS;
   if(!items.length){
-    area.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(salesName)} 在 ${ml} 沒有任何庫存資料</div><div class="emp-s">「庫存資料」試算表裡找不到這個人這個月份的任何一列</div></div>`;
+    area.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(MGR_DETAIL_SALES)} 在 ${MGR_DETAIL_ML} 沒有任何庫存資料</div><div class="emp-s">「庫存資料」試算表裡找不到這個人這個月份的任何一列</div></div>`;
     return;
   }
-  const totalPrev=items.reduce((s,it)=>s+(it.prevEnding||0),0);
-  const totalShip=items.reduce((s,it)=>s+(it.shipment||0),0);
-  const totalIncr=items.reduce((s,it)=>s+(it.increase||0),0);
-  const totalEnd=items.reduce((s,it)=>s+Math.max(0,it.thisEnding||0),0);
-  const attention=items.filter(it=>['bad','nobase'].includes(stockStatusOf(it).cls)).length;
+  // 品項分群 chips：全部品項 + 各品牌家族，點下去只篩選下方表格，數字是各分類的本月庫存小計
+  const groupTotal=gid=>items.filter(it=>gid==='ALL'||familyOf(it.item).key===gid).reduce((s,it)=>s+Math.max(0,it.thisEnding||0),0);
+  const groups=[{key:'ALL',name:'全部品項',color:'var(--nav)'}].concat(PRODUCT_FAMILIES);
+  const stripHtml=groups.map(g=>`<button type="button" class="grp-chip ${MGR_DETAIL_GROUP===g.key?'on':''}" style="--chip-color:${g.color}" onclick="setMgrDetailGroup('${g.key}')">
+      <span class="grp-chip-dot"></span>${esc(g.name)}<b>${nf(groupTotal(g.key))}</b>
+    </button>`).join('');
 
-  const summary=`<div class="sf-summary">
-    <div class="sf-num"><div class="v">${totalPrev}</div><div class="k">${pml}月底庫存</div></div>
-    <div class="sf-arrow">－</div>
-    <div class="sf-num"><div class="v" style="color:var(--bad)">${totalShip}</div><div class="k">${ml}出貨</div></div>
-    <div class="sf-arrow">＋</div>
-    <div class="sf-num"><div class="v" style="color:var(--nav-3)">${totalIncr}</div><div class="k">${ml}庫存增加</div></div>
-    <div class="sf-arrow">＝</div>
-    <div class="sf-num"><div class="v" style="color:var(--ok)">${totalEnd}</div><div class="k">${ml}月底庫存</div></div>
-  </div>`;
+  const filtered=MGR_DETAIL_GROUP==='ALL'?items:items.filter(it=>familyOf(it.item).key===MGR_DETAIL_GROUP);
+  const scaleMax=niceCeil_(Math.max(1,...filtered.map(it=>it.prevEnding||0)));
 
-  const rows=items.map(it=>{
-    const status=stockStatusOf(it);
+  const rowsHtml=filtered.length?filtered.map(it=>{
     const ending=Math.max(0,it.thisEnding||0);
-    const base=Math.max(it.prevEnding||0,ending+(it.shipment||0),1);
-    const endPct=Math.round(ending/base*100);
-    const shipPct=Math.round((it.shipment||0)/base*100);
-    const low=status.cls==='bad';
-    return `<div class="wf-row">
-      <div class="wf-top"><span class="wf-name">${esc(it.item)}</span>
-        <span class="wf-nums">${it.prevEnding===null?'—':it.prevEnding} － ${it.shipment===null?'—':it.shipment} ＋ ${it.increase} ＝ <b class="${low?'low':''}">${it.thisEnding===null?'—':ending}</b>
-        <span class="stat-pill ${status.cls}">${status.label}</span></span></div>
-      <div class="wf-bar"><div class="wf-seg wf-remain ${low?'low':''}" style="width:${it.thisEnding===null?0:endPct}%"></div><div class="wf-seg wf-used" style="width:${it.thisEnding===null?0:shipPct}%"></div></div>
+    const shipment=Math.max(0,it.shipment||0);
+    const rate=(it.prevEnding&&it.thisEnding!==null)?Math.round(shipment/it.prevEnding*1000)/10:null;
+    let stockPct,shipPct;
+    if(MGR_DETAIL_VIEW==='ratio'){
+      const base=it.prevEnding||0;
+      stockPct=base>0?ending/base*100:0;
+      shipPct=base>0?Math.min(100-stockPct,shipment/base*100):0;
+    }else{
+      stockPct=scaleMax>0?ending/scaleMax*100:0;
+      shipPct=scaleMax>0?Math.min(100-stockPct,shipment/scaleMax*100):0;
+    }
+    const axisMax=MGR_DETAIL_VIEW==='ratio'?'100%':nf(scaleMax);
+    const axisHalf=MGR_DETAIL_VIEW==='ratio'?'50%':nf(Math.round(scaleMax/2));
+    const noData=it.thisEnding===null;
+    return `<div class="stkr-row">
+      <div class="stkr-name">${esc(it.item)}</div>
+      <div class="stkr-num stkr-main">${noData?'—':nf(ending)}</div>
+      <div class="stkr-bar">
+        <div class="stkr-axis"><span>0</span><span>${axisHalf}</span><span>${axisMax}</span></div>
+        <div class="stkr-track">
+          <span class="stkr-seg stock" style="width:${noData?0:Math.max(0,Math.min(100,stockPct))}%"></span>
+          <span class="stkr-seg ship" style="width:${noData?0:Math.max(0,Math.min(100,shipPct))}%;left:${noData?0:Math.max(0,Math.min(100,stockPct))}%"></span>
+        </div>
+      </div>
+      <div class="stkr-num">${it.shipment===null?'—':nf(it.shipment)}</div>
+      <div class="stkr-num">${it.prevEnding===null?'—':nf(it.prevEnding)}</div>
+      <div class="stkr-num">${rate===null?'—':rate+'%'}</div>
     </div>`;
-  }).join('');
+  }).join(''):`<div class="empty-state">這個分類目前沒有品項資料。</div>`;
 
-  area.innerHTML=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(salesName)}</span>
-      ${attention?`<span class="stat-pill bad">${attention} 項需留意</span>`:`<span class="stat-pill ok">全部正常</span>`}
+  area.innerHTML=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(MGR_DETAIL_SALES)}</span></div>
+    <div class="grp-strip">${stripHtml}</div>
+    <div class="stkr-toolbar">
+      <div><p class="stkr-formula-title">月份庫存計算</p>
+        <p class="stkr-formula">${MGR_DETAIL_PML}庫存 － ${MGR_DETAIL_ML}出貨 ＋ ${MGR_DETAIL_ML}庫存增加 ＝ ${MGR_DETAIL_ML}庫存</p></div>
+      <div class="stkr-view-switch">
+        <span class="control-label">色條顯示方式</span>
+        <div class="stkr-view-tabs">
+          <button type="button" class="${MGR_DETAIL_VIEW==='absolute'?'on':''}" onclick="setMgrDetailView('absolute')">實際數量</button>
+          <button type="button" class="${MGR_DETAIL_VIEW==='ratio'?'on':''}" onclick="setMgrDetailView('ratio')">出貨比例</button>
+        </div>
+      </div>
     </div>
-    ${summary}
-    <div class="sr-key"><span><i style="background:var(--ok)"></i>${ml}月底庫存</span><span><i style="background:#D8DEE4"></i>${ml}出貨</span></div>
-    ${rows}`;
+    <div class="stkr-legend">
+      <span><i class="stock"></i>本月庫存</span><span><i class="ship"></i>本月出貨</span>
+      <span class="stkr-scale-note">${MGR_DETAIL_VIEW==='ratio'?'每個品項皆以上月庫存為 100%':'共同數量尺度：0–'+nf(scaleMax)}</span>
+    </div>
+    <div class="stkr-table">
+      <div class="stkr-head"><span>品項</span><span>本月庫存</span><span>庫存結構</span><span>本月出貨</span><span>上月庫存</span><span>出貨率</span></div>
+      ${rowsHtml}
+    </div>`;
 }
 function renderManagerDashboard(){
   document.getElementById('mgrYM').textContent=CURRENT_YM;
