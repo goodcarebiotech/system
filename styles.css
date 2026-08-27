@@ -271,6 +271,10 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stat-pill.nobase{background:var(--warn-tint);color:var(--warn)}
 .stat-pill.muted{background:var(--sub);color:var(--tx-3)}
 .mgr-est-note{font-size:11px;color:var(--warn);background:var(--warn-tint);padding:9px 12px;border-radius:6px;margin:14px 0;line-height:1.6}
+.mgr-month-nav{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px}
+.mgr-month-btn{padding:7px 14px;border:1px solid var(--line-2);border-radius:6px;background:var(--paper);color:var(--tx-2);font-size:12px;cursor:pointer;transition:.16s var(--e)}
+.mgr-month-btn:hover{border-color:var(--nav);color:var(--nav)}
+.mgr-month-label{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:600;color:var(--ink);min-width:88px;text-align:center}
 .wf-unset-title{font-size:11px;color:var(--tx-3);margin:18px 0 8px;font-weight:600;letter-spacing:.02em}
 @media(max-width:420px){
   .stk-row{gap:6px}
