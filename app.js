@@ -135,13 +135,21 @@ async function googleSignIn(btn){
   if(isInAppBrowser()){ document.getElementById('inAppWarn').style.display='block'; return; }
   const orig=document.getElementById('googleBtnText').textContent;
   btn.disabled=true;document.getElementById('googleBtnText').textContent='登入中…';
+  // 原本手機一律強制用 signInWithRedirect（整頁導去 Google 再導回來）。
+  // 但這個方式依賴「導回頁面後還讀得到剛剛存的登入狀態」，手機瀏覽器（尤其 iOS Safari）
+  // 對第三方儲存空間的封鎖越來越嚴格，常常導致導回來之後 getRedirectResult() 讀不到
+  // 任何東西、卻也不會報錯——使用者看到的就是「登入完又跳回登入畫面」。
+  // signInWithPopup 不需要整頁跳轉、不依賴那個儲存空間，所以不分手機或電腦，
+  // 一律先嘗試彈窗登入；只有瀏覽器真的擋掉彈窗時，才退回用整頁跳轉。
   try{
-    if(isMobile()){ await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider); return; }
     const result=await window.__fb.signInWithPopup(window.__fb.auth, window.__fb.provider);
     await handleAuthedUser(result.user);
   }catch(err){
     const code=err&&err.code||'';
-    if(code==='auth/popup-blocked'||code==='auth/operation-not-supported-in-this-environment'||String(err.message||'').includes('initial state')){
+    const msg=String(err&&err.message||'');
+    const popupBlocked = code==='auth/popup-blocked' || code==='auth/operation-not-supported-in-this-environment'
+      || msg.includes('initial state') || msg.includes('Cross-Origin-Opener-Policy');
+    if(popupBlocked){
       try{ await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider); return; }catch(e2){}
     }
     if(code!=='auth/popup-closed-by-user' && code!=='auth/cancelled-popup-request'){ toast('Google 登入失敗：'+(err.message||code), true); }
@@ -1127,13 +1135,11 @@ function renderGridHead(stats){
       else if(c.k==='shipDate')badge=`<span class="hbadge">${stats.ship}</span>`;
       else if(c.k==='item')badge=`<span class="hbadge">${stats.item}</span>`;
     }
-    // 表頭篩選：業務／品項兩欄可點擊表頭直接篩選（沿用既有的 inlinePop 彈出選單）
-    const filterable=(c.k==='sales'||c.k==='item');
-    const active=(c.k==='sales'&&ASales)||(c.k==='item'&&AItem);
-    const thCls=[c.role==='a'?'g2':'', filterable?'th-f':'', active?'th-f-on':''].filter(Boolean).join(' ');
-    const clickAttr=filterable?` onclick="toggleInlineFilter(event,'${c.k}')"`:'';
-    const ficon=filterable?`<span class="th-fico">▾</span>`:'';
-    return `<th class="${thCls}"${clickAttr}>${c.n}${ficon}${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
+    // 表頭篩選：每一欄都能點表頭篩選（像 Excel 的自動篩選），有篩選中的欄位只用小箭頭變色標示，
+    // 不整格反白，看起來才不會很突兀。
+    const active=hfActive(c.k);
+    const thCls=[c.role==='a'?'g2':'', 'th-f', active?'th-f-on':''].filter(Boolean).join(' ');
+    return `<th class="${thCls}" onclick="toggleHeaderFilter(event,'${c.k}')">${c.n}<span class="th-fico">▾</span>${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
   }).join('');
   attachColResize('gridHead','gridCol',GRID_COL_W);
   setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
@@ -1148,49 +1154,82 @@ function renderAChips(){
     `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGrid()">全部</button>`+
     ITEM_CATALOG.filter(i=>ic[i]).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGrid()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
   document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');}
-let INLINE_KIND=null;
-function toggleInlineFilter(e,kind){
+
+// ── 表頭篩選（Excel 自動篩選風格）：每一欄都能點表頭，勾選要顯示的值 ──
+// HF[欄位]＝「要排除、不顯示」的值集合；沒有這個 key 或集合是空的＝該欄沒有篩選（全部顯示）
+let HF={};
+function hfActive(col){return !!(HF[col] && HF[col].size);}
+function hfColValues(col){
+  const counts=new Map();
+  DB.records.forEach(x=>{
+    const raw=x[col];
+    const v=(raw!==undefined&&raw!==null&&String(raw).trim()!=='')?String(raw):'';
+    counts.set(v,(counts.get(v)||0)+1);
+  });
+  const arr=[...counts.entries()];
+  arr.sort((a,b)=>{ if(a[0]==='')return 1; if(b[0]==='')return -1; return b[1]-a[1]; });
+  return arr;
+}
+let HF_KIND=null;
+function toggleHeaderFilter(e,col){
   e.stopPropagation();
   if(e.target && e.target.classList && e.target.classList.contains('col-rs'))return; // 避免拖曳欄寬的把手誤觸篩選
   const pop=document.getElementById('inlinePop');
-  if(INLINE_KIND===kind && pop.classList.contains('on')){pop.classList.remove('on');INLINE_KIND=null;return;}
-  INLINE_KIND=kind;
+  if(HF_KIND===col && pop.classList.contains('on')){pop.classList.remove('on');HF_KIND=null;return;}
+  HF_KIND=col;
   const btn=e.currentTarget.getBoundingClientRect();
   pop.style.left=(btn.left+window.scrollX)+'px';
   pop.style.top=(btn.bottom+window.scrollY+4)+'px';
   document.getElementById('inlinePopSearch').value='';
   pop.classList.add('on');
-  renderInlineFilter();
+  renderHeaderFilterPop();
   setTimeout(()=>document.getElementById('inlinePopSearch').focus(),50);
 }
-function renderInlineFilter(){
+function renderHeaderFilterPop(){
+  const col=HF_KIND; if(!col)return;
   const q=document.getElementById('inlinePopSearch').value.trim();
-  const src=INLINE_KIND==='sales'?SALES_NAMES:ITEM_CATALOG;
-  const cur=INLINE_KIND==='sales'?ASales:AItem;
-  const list=q?src.filter(v=>v.includes(q)):src;
+  const all=hfColValues(col);
+  const list=q?all.filter(([v])=>(v===''?'（空白）':v).includes(q)):all;
+  const ex=HF[col]||new Set();
   document.getElementById('inlinePopList').innerHTML=
-    `<div class="it ${cur===''?'on':''}" onclick="pickInlineFilter('')">全部</div>`+
-    list.map(v=>`<div class="it ${cur===v?'on':''}" onclick="pickInlineFilter('${jse(v)}')">${esc(v)}</div>`).join('');
+    `<div class="hf-act"><button type="button" onclick="hfSelectAll('${col}')">全選</button><button type="button" onclick="hfClearAll('${col}')">全部取消</button></div>`+
+    list.map(([v,n])=>{
+      const checked=!ex.has(v);
+      const label=v===''?'（空白）':esc(v);
+      return `<label class="hf-it"><input type="checkbox" ${checked?'checked':''} onchange="hfToggleVal('${col}','${jse(v)}',this.checked)"><span class="hf-lb">${label}</span><span class="n">${n}</span></label>`;
+    }).join('');
 }
-function pickInlineFilter(v){
-  if(INLINE_KIND==='sales')ASales=v; else AItem=v;
-  document.getElementById('inlinePop').classList.remove('on');INLINE_KIND=null;
-  renderAChips();renderGrid();
+function hfToggleVal(col,v,checked){
+  if(!HF[col])HF[col]=new Set();
+  if(checked)HF[col].delete(v); else HF[col].add(v);
+  if(HF[col].size===0)delete HF[col];
+  renderGrid(); // renderGrid() 內部會一併重畫表頭，更新篩選中的提示
 }
+function hfSelectAll(col){ delete HF[col]; renderGrid(); renderHeaderFilterPop(); }
+function hfClearAll(col){ HF[col]=new Set(hfColValues(col).map(([v])=>v)); renderGrid(); renderHeaderFilterPop(); }
 document.addEventListener('click',e=>{
   const pop=document.getElementById('inlinePop');
-  if(pop&&pop.classList.contains('on')&&!pop.contains(e.target)){pop.classList.remove('on');INLINE_KIND=null;}
+  if(pop&&pop.classList.contains('on')&&!pop.contains(e.target)){pop.classList.remove('on');HF_KIND=null;}
 });
 function clearAdminFilter(which){
   if(which==='sales')ASales=''; else AItem='';
   renderAChips();renderGrid();
 }
 function tglEmpty(k){AEmpty.has(k)?AEmpty.delete(k):AEmpty.add(k);renderAChips();renderGrid();}
-function resetFilters(){ASales='';AItem='';AEmpty.clear();renderAChips();renderGrid();}
+function resetFilters(){ASales='';AItem='';AEmpty.clear();HF={};renderAChips();renderGrid();}
 function gridRows(){let rows=DB.records.slice();
   if(ASales)rows=rows.filter(x=>x.sales===ASales);
   if(AItem)rows=rows.filter(x=>x.item===AItem);
   if(AEmpty.size)rows=rows.filter(x=>[...AEmpty].some(k=>!x[k]));
+  Object.keys(HF).forEach(col=>{
+    const ex=HF[col];
+    if(!ex||!ex.size)return;
+    rows=rows.filter(x=>{
+      const raw=x[col];
+      const v=(raw!==undefined&&raw!==null&&String(raw).trim()!=='')?String(raw):'';
+      return !ex.has(v);
+    });
+  });
   return rows;}
 
 // ── 行政總表：分批非同步渲染 ──
@@ -1245,7 +1284,7 @@ function renderGrid(){
         const nextVal = i<GRID.length-1 ? effVal(GRID[i+1],'loanOut') : null;
         const isFirst = prevVal!==loanVal, isLast = nextVal!==loanVal;
         if(isFirst) loanColorIdx=(loanColorIdx+1)%LOAN_COLOR_N;
-        trCls='grp'+(isFirst?' grp-first':'')+(isLast?' grp-last':'');
+        trCls='loan-grp'+(isFirst?' loan-grp-first':'')+(isLast?' loan-grp-last':'');
       }else{
         const key=(x.stockDate||'')+'|'+(x.item||'')+'|'+(x.sales||'');
         if(key!==lastKey){band=!band;lastKey=key;}
