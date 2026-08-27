@@ -324,14 +324,29 @@ table.dt tbody tr:hover td{background:var(--nav-tint)!important}
 .cel.loan-c3{background:#FBE3E8}
 .cel.loan-c4{background:#EDE3FA}
 .cel.loan-c5{background:#DFF7F3}
-/* 分區外框：改用系統藍的細線＋淡淡的內側高光，像試算表選取範圍那種俐落感，
-   取代原本太粗、太像手繪筆記的黑框 */
-table.dt tbody tr.loan-grp td:first-child{border-left:2px solid var(--nav-3);box-shadow:inset 2px 0 0 rgba(255,255,255,.55)}
-table.dt tbody tr.loan-grp td:last-child{border-right:2px solid var(--nav-3);box-shadow:inset -2px 0 0 rgba(255,255,255,.55)}
-table.dt tbody tr.loan-grp.loan-grp-first td{border-top:2px solid var(--nav-3)}
-table.dt tbody tr.loan-grp.loan-grp-first td:first-child{box-shadow:inset 2px 1px 0 rgba(255,255,255,.55)}
-table.dt tbody tr.loan-grp.loan-grp-first td:last-child{box-shadow:inset -2px 1px 0 rgba(255,255,255,.55)}
-table.dt tbody tr.loan-grp.loan-grp-last td{border-bottom:2px solid var(--nav-3)}
+/* 分區外框：銀灰色系統邊框（取代先前的藍色線），套用在行政總表 #gridTableEl 上 */
+table.dt tbody tr.loan-group td{
+  border-bottom:1px solid #e1e5e8!important;
+  box-shadow:inset 0 -1px 0 rgba(255,255,255,.8);
+}
+table.dt tbody tr.loan-group td:first-child{border-left:1px solid #b8c1c8!important}
+table.dt tbody tr.loan-group td:last-child{border-right:1px solid #b8c1c8!important}
+table.dt tbody tr.loan-group-start td{
+  border-top:1px solid #aab5bd!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95);
+}
+table.dt tbody tr.loan-group-end td{
+  border-bottom:1px solid #aab5bd!important;
+  box-shadow:inset 0 -1px 0 rgba(100,112,122,.16);
+}
+table.dt tbody tr.loan-group-start td:first-child{border-radius:7px 0 0 0}
+table.dt tbody tr.loan-group-start td:last-child{border-radius:0 7px 0 0}
+table.dt tbody tr.loan-group-end td:first-child{border-radius:0 0 0 7px}
+table.dt tbody tr.loan-group-end td:last-child{border-radius:0 0 7px 0}
+table.dt tbody tr.loan-group:hover td{
+  background:var(--paper)!important;
+  box-shadow:inset 0 0 0 999px rgba(225,230,234,.22), inset 0 -1px 0 rgba(255,255,255,.8);
+}
 /* 表頭篩選（Excel 風格）：篩選中只用小箭頭變色＋底線標示，不整格反白，比較有系統感 */
 table.dt th.th-f{cursor:pointer;user-select:none}
 table.dt th.th-f:hover .th-fico{opacity:.9}
