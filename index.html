@@ -120,10 +120,7 @@
     </div>
     <div class="pn">
       <div class="pn-h"><span class="pn-t">紀錄總覽</span>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <div id="ymSlot"></div>
-          <div class="seg"><button class="on" id="vG" onclick="setView('group')">依日期分組</button><button id="vL" onclick="setView('list')">清單</button></div>
-        </div></div>
+        <div class="seg"><button class="on" id="vG" onclick="setView('group')">依日期分組</button><button id="vL" onclick="setView('list')">清單</button></div></div>
       <div class="cf"><div class="cf-r" id="mChips"></div></div>
       <div class="cf"><div class="cf-h">品項</div><div class="cf-r" id="iChips"></div></div>
       <div id="recCards" style="padding:16px"></div>
@@ -460,9 +457,19 @@
   </div>
 </div>
 
-<div class="inline-pop" id="inlinePop">
-  <input type="text" id="inlinePopSearch" autocomplete="off" placeholder="輸入關鍵字，按 Enter 套用…" oninput="renderHeaderFilterPop()" onkeydown="hfSearchKey(event)">
-  <div class="lst" id="inlinePopList"></div>
+<div class="mv" id="filterMv">
+  <div class="mb lg2">
+    <div class="mh"><span class="mh-t" id="filterModalTitle">篩選</span><span class="mh-r" style="cursor:pointer" onclick="closeFilterModal()">✕ 關閉</span></div>
+    <div class="mbd filter-mbd">
+      <div class="ff-list" id="filterFieldList"></div>
+      <div class="fv-panel">
+        <input type="text" id="filterValueSearch" class="fv-search" autocomplete="off" placeholder="搜尋值…" oninput="renderFilterValueList()">
+        <div class="fv-quick"><button type="button" onclick="filterSelectAllField()">全選</button><button type="button" onclick="filterClearField()">全部取消</button></div>
+        <div class="fv-list" id="filterValueList"></div>
+      </div>
+    </div>
+    <div class="ma"><button onclick="resetAllFilters()" style="flex:.8">重設全部</button><button onclick="closeFilterModal()">取消</button><button class="sv" onclick="applyFilterModal()">確定套用</button></div>
+  </div>
 </div>
 <div class="tst" id="tst"></div>
 <div id="loadOverlay" style="display:none;position:fixed;inset:0;background:rgba(16,23,32,.4);z-index:500;align-items:center;justify-content:center">
