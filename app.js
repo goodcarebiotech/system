@@ -63,10 +63,10 @@ async function refreshLogs(){
   if(res.status==='success')DB.logs=res.data;
 }
 
-let ROLE='sales',CUR='王大明',CUR_EMAIL='',VIEW='list',BQ=1,AQ=1,PKT=null,PKV={},EDID=null,GROUPS=[],GEDI=null,CUR_STOCK_ITEM=null;
+let ROLE='sales',CUR='王大明',CUR_EMAIL='',VIEW='group',BQ=1,AQ=1,PKT=null,PKV={},EDID=null,GROUPS=[],GEDI=null,CUR_STOCK_ITEM=null;
 
 function renderModeBadges(){
-  const html = `<div class="bar-out" id="__REFRESH__">↻ 重新整理</div><div class="bar-out" onclick="logout()">登出</div>`;
+  const html = `<div class="bar-out ico" id="__REFRESH__" title="重新整理" aria-label="重新整理">↻</div><div class="bar-out" onclick="logout()">登出</div>`;
   const slot1 = document.getElementById('modeBadgeSlot1');
   const slot2 = document.getElementById('modeBadgeSlot2');
   const slot3 = document.getElementById('modeBadgeSlot3');
@@ -207,8 +207,7 @@ function setupRoleSwitcher(slotId){
   const roles=rolesForEmail(CUR_EMAIL).filter(r=>r!==ROLE);
   if(roles.length){
     el.style.display='flex';
-    el.innerHTML=`<span style="font-size:11px;color:var(--tx-3);align-self:center">切換身份：</span>`+
-      roles.map(r=>`<button class="btn-g" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
+    el.innerHTML=roles.map(r=>`<button onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
   }else{ el.style.display='none'; el.innerHTML=''; }
 }
 function logout(){
@@ -311,8 +310,8 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;',
 function jse(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
 function busy(btn,on,label){
   if(!btn)return;
-  if(on){ if(btn.dataset.orig===undefined)btn.dataset.orig=btn.textContent; btn.disabled=true; btn.style.opacity='.6'; btn.style.cursor='not-allowed'; btn.textContent=label||'處理中…'; }
-  else { btn.disabled=false; btn.style.opacity=''; btn.style.cursor=''; if(btn.dataset.orig!==undefined)btn.textContent=btn.dataset.orig; }
+  if(on){ if(btn.dataset.orig===undefined)btn.dataset.orig=btn.textContent; btn.disabled=true; btn.classList.add('is-busy'); btn.textContent=label||'處理中…'; }
+  else { btn.disabled=false; btn.classList.remove('is-busy'); if(btn.dataset.orig!==undefined)btn.textContent=btn.dataset.orig; }
 }
 function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.classList.toggle('bad',!!bad);t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
@@ -473,7 +472,7 @@ function renderRec(){
       <div class="rc-t"><span class="rc-c">${esc(f.customer||'（未填）')}<span class="rc-q">×${its.length}</span></span><span class="bg ${stOf(f)}">${stOf(f)==='sh'?'已出貨':'庫存中'}</span></div>
       <div class="rc-i" style="color:${itemColor(f.item)}">${esc(f.item||'（未填）')}</div>
       <div class="rc-m"><span class="mn">${esc(f.stockDate)}</span><span>科別 <b>${esc(f.category||'—')}</b></span>
-        <span class="rc-batch" onclick="event.stopPropagation();openGroupEdit(${i})">批次編輯本組 ›</span></div>
+        <span class="rc-batch" onclick="event.stopPropagation();openGroupEdit(${i})">批次編輯 ›</span></div>
       <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')} ${stOf(x)==='sh'?'已出貨':'庫存中'}</span><span>編輯 ›</span></div>`).join('')}</div>
       </div><div class="rc-a">▾</div></div>`;}).join('');}
 
@@ -487,7 +486,7 @@ function renderRec(){
         <td class="pad mn">${esc(f.stockDate)}</td><td class="pad" colspan="${totalCols-1}">
           <b>${esc(f.customer||'（未填）')}</b> ${esc(f.item||'（未填）')} <span class="mn" style="color:var(--nav-2)">×${its.length} 筆</span>
           <span style="float:right;color:var(--tx-3)">展開 ▾</span></td></tr>`;
-      const children=its.map(x=>`<tr id="tgt-${i}" style="display:none">`+recRowHtml(x).replace(/^<tr[^>]*>/,'')).join('');
+      const children=its.map(x=>`<tr id="tgt-${i}" style="display:none" onclick="openEd('${x.recordId}')">`+recRowHtml(x).replace(/^<tr[^>]*>/,'')).join('');
       return parent+children;
     }).join('');
   }
@@ -861,9 +860,14 @@ async function submitReg(btn){
     busy(btn,false);
   }
 }
+function fillDatalist(dlId,values){const dl=document.getElementById(dlId);if(dl)dl.innerHTML=values.map(v=>`<option value="${esc(v)}">`).join('');}
 function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;EDID=id;
   document.getElementById('edRef').textContent='REC / '+id;
   set('e-cu',x.customer);set('e-it',x.item);set('e-ca',x.category);set('e-ty',x.type);set('e-sd',x.stockDate);set('e-hd',x.shipDate);set('e-ba',x.batch);set('e-on',x.orderNo);
+  fillDatalist('dl-e-cu',myHistory('customer'));
+  fillDatalist('dl-e-it',myHistory('item'));
+  fillDatalist('dl-e-ca',myHistory('category'));
+  fillDatalist('dl-e-ty',myHistory('type'));
   document.getElementById('edMv').classList.add('on');}
 function set(id,v){const e=document.getElementById(id);e.value=v||'';mk(e);}
 function closeEd(){document.getElementById('edMv').classList.remove('on');}
@@ -1191,6 +1195,9 @@ function toggleHeaderFilter(e,col){
   renderHeaderFilterPop();
   setTimeout(()=>document.getElementById('inlinePopSearch').focus(),50);
 }
+function closeHeaderFilter(){
+  document.getElementById('inlinePop').classList.remove('on'); HF_KIND=null;
+}
 function renderHeaderFilterPop(){
   const col=HF_KIND; if(!col)return;
   const q=document.getElementById('inlinePopSearch').value.trim();
@@ -1198,12 +1205,36 @@ function renderHeaderFilterPop(){
   const list=q?all.filter(([v])=>(v===''?'（空白）':v).includes(q)):all;
   const ex=HF[col]||new Set();
   document.getElementById('inlinePopList').innerHTML=
-    `<div class="hf-act"><button type="button" onclick="hfSelectAll('${col}')">全選</button><button type="button" onclick="hfClearAll('${col}')">全部取消</button></div>`+
-    list.map(([v,n])=>{
+    `<div class="hf-act"><button type="button" onclick="hfSelectAll('${col}')">全選</button></div>`+
+    (list.length? list.map(([v,n])=>{
       const checked=!ex.has(v);
       const label=v===''?'（空白）':esc(v);
-      return `<label class="hf-it"><input type="checkbox" ${checked?'checked':''} onchange="hfToggleVal('${col}','${jse(v)}',this.checked)"><span class="hf-lb">${label}</span><span class="n">${n}</span></label>`;
-    }).join('');
+      return `<div class="hf-it"><label><input type="checkbox" ${checked?'checked':''} onchange="hfToggleVal('${col}','${jse(v)}',this.checked)"><span class="hf-lb">${label}</span></label><span class="n">${n}</span><span class="hf-only" onclick="hfIsolate('${col}','${jse(v)}')">只顯示</span></div>`;
+    }).join('') : `<div class="hf-empty">沒有符合的值</div>`);
+}
+// 輸入框：即時篩選清單，按 Enter 直接套用「只顯示符合搜尋的值」，Esc 關閉
+function hfSearchKey(e){
+  if(e.key==='Enter'){ e.preventDefault(); hfApplySearch(); }
+  else if(e.key==='Escape'){ closeHeaderFilter(); }
+}
+function hfApplySearch(){
+  const col=HF_KIND; if(!col)return;
+  const q=document.getElementById('inlinePopSearch').value.trim();
+  if(!q){ delete HF[col]; renderGrid(); closeHeaderFilter(); return; }
+  const all=hfColValues(col).map(([v])=>v);
+  const matched=all.filter(v=>(v===''?'（空白）':v).includes(q));
+  if(!matched.length)return; // 沒有符合的值就不動作，讓使用者可以繼續修改關鍵字
+  const matchedSet=new Set(matched);
+  HF[col]=new Set(all.filter(v=>!matchedSet.has(v)));
+  renderGrid();
+  closeHeaderFilter();
+}
+// 單一值一鍵「只顯示這個」，不用先全部取消再手動勾選
+function hfIsolate(col,v){
+  const all=hfColValues(col).map(([vv])=>vv);
+  HF[col]=new Set(all.filter(x=>x!==v));
+  renderGrid();
+  closeHeaderFilter();
 }
 function hfToggleVal(col,v,checked){
   if(!HF[col])HF[col]=new Set();
@@ -1212,7 +1243,6 @@ function hfToggleVal(col,v,checked){
   renderGrid(); // renderGrid() 內部會一併重畫表頭，更新篩選中的提示
 }
 function hfSelectAll(col){ delete HF[col]; renderGrid(); renderHeaderFilterPop(); }
-function hfClearAll(col){ HF[col]=new Set(hfColValues(col).map(([v])=>v)); renderGrid(); renderHeaderFilterPop(); }
 document.addEventListener('click',e=>{
   const pop=document.getElementById('inlinePop');
   if(pop&&pop.classList.contains('on')&&!pop.contains(e.target)){pop.classList.remove('on');HF_KIND=null;}
