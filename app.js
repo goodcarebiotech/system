@@ -5,10 +5,10 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMj
 const COLS=[
   {k:'stockDate',n:'備貨日期',w:95,role:'s'},
   {k:'item',n:'品項',w:158,role:'s'},
-  {k:'batch',n:'批號',w:85,role:'s'},
+  {k:'batch',n:'批號',w:95,role:'s'},
   {k:'shipDate',n:'送貨日期',w:105,role:'s'},
-  {k:'customer',n:'客戶',w:70,role:'s'},
-  {k:'category',n:'科別',w:50,role:'s'},
+  {k:'customer',n:'客戶',w:158,role:'s'},
+  {k:'category',n:'科別',w:80,role:'s'},
   {k:'type',n:'賣備樣',w:50,role:'s'},
   {k:'orderNo',n:'訂購單號',w:80,role:'s'},
   {k:'remark',n:'備註',w:300,role:'s'},
@@ -339,9 +339,9 @@ function queueSalesSync(delay){
   }, delay||1200);
 }
 async function refreshSales(){
-  const btn=document.getElementById('salesRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  const btn=document.getElementById('salesRefreshBtn');busy(btn,true);
   await loadSalesData(false);
-  btn.textContent=old;toast('已更新為最新資料');
+  busy(btn,false);toast('已更新為最新資料');
 }
 
 let ADMIN_LOGS_LOADED=false;
@@ -425,9 +425,9 @@ function queueAdminSync(delay){
 let _gridPaintTimer=null;
 function renderGridDebounced(){ clearTimeout(_gridPaintTimer); _gridPaintTimer=setTimeout(renderGrid,60); }
 async function refreshAdmin(){
-  const btn=document.getElementById('adminRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  const btn=document.getElementById('adminRefreshBtn');busy(btn,true);
   await loadAdminData();
-  btn.textContent=old;toast('已更新為最新資料');
+  busy(btn,false);toast('已更新為最新資料');
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -659,16 +659,32 @@ function recMissing(x){ return REC_REQUIRED.filter(k=>!(x[k]&&String(x[k]).trim(
 function recComplete(x){ return recMissing(x).length===0; }
 // 分組展開後的單筆列：把科別／批號／送貨日期／賣備樣／單號全部列出來，
 // 舊版只顯示單號與出貨狀態，編輯完根本看不出改了什麼。
+// 展開後的單筆列排版：
+//   第一行＝賣／備／樣圓標籤 + 科別 + 出貨狀態（一眼可辨識的識別資訊）
+//   第二行＝批號／送貨日期／訂購單號，固定三欄對齊，不會因為字數不同而擠成一團
+//   第三行＝備註（有填才出現）
+// 編輯按鈕文字一律是「編輯」，只用綠／紅框線表示這筆資料是否齊全。
+function srCell(x,k,mono){
+  const has=x[k]&&String(x[k]).trim();
+  return `<span class="srf${has?'':' srf-miss'}"><span class="srk">${esc(LBL[k])}</span><span class="srv${mono?' mn':''}">${esc(x[k]||'—')}</span></span>`;
+}
+function srEditBtn(x){
+  const okAll=recComplete(x);
+  return `<button type="button" class="sr-ed ${okAll?'ok':'bad'}" data-editrid="${esc(x.recordId)}" title="${okAll?'資料已齊全':'尚有欄位未填'}">編輯 ›</button>`;
+}
 function recSubRow(x){
-  const miss=recMissing(x), okAll=miss.length===0;
-  const f=(k,mono)=>`<span class="srf${(x[k]&&String(x[k]).trim())?'':' srf-miss'}"><span class="srk">${esc(LBL[k])}</span><span class="srv${mono?' mn':''}">${esc(x[k]||'—')}</span></span>`;
-  return `<div class="rc-sr">
-    <div class="sr-fields">
-      ${f('batch',1)}${f('shipDate',1)}${f('category')}${f('type')}${f('orderNo',1)}
-      ${x.remark?`<span class="srf srf-wide"><span class="srk">備註</span><span class="srv">${esc(x.remark)}</span></span>`:''}
+  const sh=shipStatus(x)==='sh';
+  return `<div class="rc-sr" data-editrid="${esc(x.recordId)}">
+    <div class="sr-main">
+      <div class="sr-head">
+        ${typeBadge(x.type)||'<span class="tbadge o">—</span>'}
+        <span class="sr-cat">${esc(x.category||'未填科別')}</span>
+        <span class="sr-st ${sh?'g':'h'}">${sh?'已送貨':'未送貨'}</span>
+      </div>
+      <div class="sr-grid">${srCell(x,'batch',1)}${srCell(x,'shipDate',1)}${srCell(x,'orderNo',1)}</div>
+      ${x.remark?`<div class="sr-remark">備註 ${esc(x.remark)}</div>`:''}
     </div>
-    <button type="button" class="sr-ed ${okAll?'ok':'bad'}" onclick="event.stopPropagation();openEd('${x.recordId}')">
-      ${okAll?'編輯':'補齊 '+miss.length+' 欄'} ›</button>
+    ${srEditBtn(x)}
   </div>`;
 }
 function renderRec(){
@@ -721,7 +737,19 @@ function renderRec(){
   document.getElementById('s4').textContent=pendRecs().length;
   renderIB();
 }
-function tg(i){document.getElementById('g'+i).classList.toggle('o');}
+function tg(i){const el=document.getElementById('g'+i);if(el)el.classList.toggle('o');}
+// ── 展開後單筆列的「編輯」：改用事件委派 ──────────────────────────
+// 舊版把 openEd 寫在 inline onclick 上，但這些列是巢狀在「整張卡片可點擊展開」的
+// 容器裡，一旦外層有其他 click 監聽或內容被重繪，inline 的 stopPropagation 就可能
+// 失效（電腦版待補齊頁點編輯沒反應就是這個情況）。
+// 改成在 document 上統一攔截帶有 data-editrid 的元素：不管列是什麼時候被重繪出來的、
+// 巢狀幾層，都保證點得到，而且只需要一個監聽器。
+document.addEventListener('click', function(e){
+  const t=e.target.closest&&e.target.closest('[data-editrid]');
+  if(!t)return;
+  e.stopPropagation(); e.preventDefault();
+  openEd(t.getAttribute('data-editrid'));
+}, true);
 const ITEM_PALETTE=['#16304C','#166B47','#8C6E32','#7A3B69','#2C6B6B','#8A5D0B','#5A4FA0','#B5342C'];
 function itemColor(name){if(!name)return'var(--tx)';let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;
   return ITEM_PALETTE[h%ITEM_PALETTE.length];}
@@ -832,15 +860,18 @@ function renderStats(){
 // 分組沿用 GROUPS 陣列（renderRec 會先清空、renderPend 再往後接），
 // 因此批次編輯視窗完全共用同一套邏輯，不需要第二份程式。
 function pendSubRow(x){
-  const miss=recMissing(x);
-  const f=(k,mono)=>`<span class="srf${(x[k]&&String(x[k]).trim())?'':' srf-miss'}"><span class="srk">${esc(LBL[k])}</span><span class="srv${mono?' mn':''}">${esc(x[k]||'—')}</span></span>`;
-  return `<div class="rc-sr">
-    <div class="sr-fields">
-      ${f('customer')}${f('category')}${f('type')}${f('batch',1)}${f('shipDate',1)}${f('orderNo',1)}
-      ${f('invoiceDate',1)}${f('invoiceNo',1)}${x.loanOut?f('loanOut',1):''}${x.loanReturn?f('loanReturn',1):''}
+  return `<div class="rc-sr" data-editrid="${esc(x.recordId)}">
+    <div class="sr-main">
+      <div class="sr-head">
+        ${typeBadge(x.type)||'<span class="tbadge o">—</span>'}
+        <span class="sr-cat">${esc(x.customer||'未填客戶')}</span>
+        <span class="sr-st h">待補齊</span>
+      </div>
+      <div class="sr-grid">${srCell(x,'batch',1)}${srCell(x,'shipDate',1)}${srCell(x,'orderNo',1)}</div>
+      <div class="sr-grid">${srCell(x,'category')}${srCell(x,'invoiceDate',1)}${srCell(x,'invoiceNo',1)}</div>
+      ${(x.loanOut||x.loanReturn)?`<div class="sr-grid">${srCell(x,'loanOut',1)}${srCell(x,'loanReturn',1)}<span></span></div>`:''}
     </div>
-    <button type="button" class="sr-ed ${miss.length?'bad':'ok'}" onclick="event.stopPropagation();openEd('${x.recordId}')">
-      ${miss.length?'補齊 '+miss.length+' 欄':'編輯'} ›</button>
+    ${srEditBtn(x)}
   </div>`;
 }
 function renderPend(){
@@ -1419,12 +1450,12 @@ async function loadManagerData(){
   }
 }
 async function refreshManager(){
-  const btn=document.getElementById('mgrRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
+  const btn=document.getElementById('mgrRefreshBtn');busy(btn,true);
   MGR_LOADED=false;
   Object.keys(STOCK_RPT_CACHE).forEach(k=>delete STOCK_RPT_CACHE[k]); // 手動重新整理才清快取
   MGR_DETAIL_CACHE={};
   await loadManagerData();
-  btn.textContent=old;toast('已更新為最新資料');
+  busy(btn,false);toast('已更新為最新資料');
 }
 function monthsBack(ym,n){
   const arr=[];let[y,m]=ym.split('-').map(Number);
@@ -1521,8 +1552,10 @@ function renderMgrDetailBody(){
     // 欄位順序調整為：本月庫存 → 庫存結構 → 本月出貨 → 出貨率 → 上月庫存，
     // 讓「出貨率」緊接在「本月出貨」後面（手機版更直覺）。
     // 手機版會隱藏刻度軸（0／250／500）與左側大數字，改把本月庫存數放在長條的尾巴。
+    // 品名改成最左側的彩色標籤（顏色＝品牌家族色），少佔一行、也更容易分辨系列
+    const fam=familyOf(it.item);
     return `<div class="stkr-row">
-      <div class="stkr-name">${esc(it.item)}</div>
+      <div class="stkr-name"><span class="stkr-tag" style="--tag:${fam.color}">${esc(it.item)}</span></div>
       <div class="stkr-num stkr-main">${noData?'—':nf(ending)}</div>
       <div class="stkr-bar">
         <div class="stkr-axis"><span>0</span><span>${axisHalf}</span><span>${axisMax}</span></div>
