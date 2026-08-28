@@ -1,5 +1,5 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
-const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec'};
+const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
 const COLS=[
