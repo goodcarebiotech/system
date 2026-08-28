@@ -44,9 +44,26 @@ function familyOf(item){ return PRODUCT_FAMILIES.find(f=>f.items.includes(item))
 // 業務庫存統計卡片用的短名稱：NEW EPI 系列不用顯示 ml／級數，
 // 「速原2.5ml-2級」顯示成「速原2.5」、「樂業10ml」顯示成「樂業10」就好。
 // 只有符合「數字+ml（可選-數字級）結尾」的品項名稱才會被縮短，其他系列的品項名稱不受影響。
-function shortItemName(item){
-  return String(item||'').replace(/(\d+(?:\.\d+)?)ml(?:-\d+級)?$/,'$1');
+// ── 品項名稱的「顯示用」轉換 ─────────────────────────────────
+// 【重要】試算表裡的品項字串是 '速原10ml-2級' 這種寫法，而且「庫存資料」表、
+// 「備貨紀錄」表都是靠這個字串完全相符來對應資料。所以絕對不能把資料裡的 ml 改成 mL——
+// 一改，所有既有資料就對不上了。
+// 因此改成「只在畫面上顯示時」把 ml 換成標準寫法 mL，存進去的值一律維持原樣。
+function dispItem(item){
+  return String(item||'').replace(/ml\b/gi,'mL');
 }
+function shortItemName(item){
+  return dispItem(String(item||'').replace(/(\d+(?:\.\d+)?)ml(?:-\d+級)?$/i,'$1'));
+}
+// 長條圖旁邊的標籤空間很窄，修復霜那兩個品項全名放不下會被截掉，
+// 所以另外給一組「更短的標籤名」。找不到對應時退回 dispItem 全名。
+const TAG_NAME={
+  '速原10ml-2級':'速原10mL','速原5ml-2級':'速原5mL','速原2.5ml-2級':'速原2.5mL',
+  '樂業10ml':'樂業10mL','樂業5ml':'樂業5mL','薇基因(盒裝)':'薇基因',
+  '妙癒修復霜-20ml(盒裝)':'修復霜20mL(盒)','妙癒修復霜-5ml(軟管)':'修復霜5mL(管)',
+  '歐儷芙舒口噴劑':'歐儷芙噴劑'
+};
+function tagItemName(item){ return TAG_NAME[item]||dispItem(item); }
 
 async function api(a,p){
   try{
@@ -246,6 +263,12 @@ function showRoleChooser(roles){
   document.getElementById('roleChooser').style.display='block';
 }
 function proceedLogin(role){
+  // 資料隔離的最後一道前端防線：只允許進入「這個信箱在名冊上真的擁有」的角色。
+  // 業務端的資料本來就由後端依 salesName 過濾（salesInit／getLogs／getStockReport），
+  // 但如果有人在瀏覽器主控台直接呼叫 proceedLogin('admin')，舊版會直接把行政總表畫面打開
+  // 並呼叫 adminInit（後端沒有身分驗證）。這裡先擋掉這條路。
+  const allowed=rolesForEmail(CUR_EMAIL);
+  if(!allowed.includes(role)){ toast('您的帳號沒有這個角色的權限',true); return; }
   ROLE=role;
   localStorage.setItem('lastRole:'+CUR_EMAIL, role);
   document.getElementById('login').style.display='none';
@@ -459,21 +482,29 @@ function mk(el){
   const w=el.closest('.fw');
   const v=!!(el.value&&el.value.trim()!=='');
   el.classList.toggle('on',v);
-  if(w){ w.classList.toggle('ok',v); w.classList.toggle('has-val',v); ensureClearBtn(w,el); }
+  if(w){
+    w.classList.toggle('ok',v);
+    const host=w.closest('.fg')||w;
+    host.classList.toggle('has-val',v);
+    ensureClearBtn(w,el);
+  }
   fillCount();
 }
 // 在每個文字／日期欄位右側動態加上一顆清除鈕。用動態插入而不是逐一改 HTML，
 // 是因為欄位分散在登記、編輯、批次編輯、行政快速建立好幾個區塊，逐一加太容易漏。
 function ensureClearBtn(w,el){
   if(el.tagName!=='INPUT') return;
-  if(w.querySelector('.fw-clear')) return;
+  // 掛在外層的 .fg（欄位群組）而不是 .fw（輸入框本體）：叉叉會落在「標籤那一行的右端」，
+  // 完全不會壓到輸入的文字，日期欄位也不會跟原生的日曆圖示打架。
+  const host=w.closest('.fg')||w;
+  if(host.querySelector('.fw-clear')) return;
   const b=document.createElement('button');
   b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除'); b.textContent='✕';
   b.addEventListener('click',function(ev){
     ev.preventDefault(); ev.stopPropagation();
     el.value=''; mk(el); el.focus();
   });
-  w.appendChild(b);
+  host.appendChild(b);
 }
 // 頁面載入後，先幫所有既有欄位補上清除鈕（之後 mk() 也會補）
 window.addEventListener('DOMContentLoaded',()=>{
@@ -499,6 +530,9 @@ const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l
   item:{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   category:{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
   type:{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
+  batch:{t:'選擇批號',ph:'請選擇或輸入批號',l:()=>myHistory('batch')},
+  'e-ba':{t:'選擇批號',ph:'請選擇或輸入批號',l:()=>myHistory('batch')},
+  'g-ba':{t:'選擇批號',ph:'請選擇或輸入批號',l:()=>myHistory('batch')},
   'e-cu':{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l:()=>myHistory('customer')},
   'e-it':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   'e-ca':{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
@@ -543,7 +577,7 @@ function renderPk(){
       const i=String(v).toLowerCase().indexOf(lq);
       if(i>=0) label=esc(String(v).slice(0,i))+'<mark>'+esc(String(v).slice(i,i+q.length))+'</mark>'+esc(String(v).slice(i+q.length));
     }
-    return `<div class="pk-it ${v===cur?'on':''}" onclick="pickV('${jse(v)}')">${label}${v===cur?'<span>✓</span>':''}</div>`;
+    return `<div class="pk-it ${v===cur?'on':''}" onclick="pickV('${jse(v)}')">${label.replace(/ml/gi,'mL')}${v===cur?'<span>✓</span>':''}</div>`;
   }).join('');
   if(!f.length && !q) h+=`<div class="pk-e">尚無歷史紀錄，請直接輸入後按右上角「確認」</div>`;
   if(!f.length && q)  h+=`<div class="pk-e">沒有符合「${esc(q)}」的既有紀錄，可直接使用上方新增</div>`;
@@ -558,29 +592,33 @@ function pickV(v){
   if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
   if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
-  s.textContent=v;s.classList.remove('ph');b.classList.add('on');
+  s.textContent=dispItem(v);s.classList.remove('ph');b.classList.add('on');
   const fw=b.closest('.fw'); fw.classList.add('ok'); fw.classList.add('has-val');
   ensurePkClearBtn(fw,PKT);
   closePk();fillCount();}
 // 已選好的下拉欄位，右側一樣給一顆清除鈕
 function ensurePkClearBtn(fw,k){
-  if(!fw||fw.querySelector('.fw-clear'))return;
+  if(!fw)return;
+  const host=fw.closest('.fg')||fw;
+  if(host.querySelector('.fw-clear'))return;
   const b=document.createElement('button');
   b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除'); b.textContent='✕';
   b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); clearPk(k); });
-  fw.appendChild(b);
+  host.appendChild(b);
 }
 function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
   s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');
-  const fw=b.closest('.fw'); fw.classList.remove('ok'); fw.classList.remove('has-val');
+  const fw=b.closest('.fw'); fw.classList.remove('ok');
+  const host=fw.closest('.fg')||fw; host.classList.remove('has-val');
   fillCount();}
 // 開啟編輯／批次編輯視窗時，把既有值塞回下拉按鈕上
 function setPk(k,v){
   const b=document.getElementById('pk-'+k); if(!b)return;
-  const fw=b.closest('.fw'); if(fw) fw.classList.toggle('has-val',!!v);
+  const fw=b.closest('.fw'); const host=fw&&(fw.closest('.fg')||fw);
+  if(host){ host.classList.toggle('has-val',!!v); if(v) ensurePkClearBtn(fw,k); }
   PKV[k]=v||'';
   const sp=b.querySelector('.v');
-  if(v){ sp.textContent=v; sp.classList.remove('ph'); b.classList.add('on'); b.closest('.fw').classList.add('ok'); }
+  if(v){ sp.textContent=dispItem(v); sp.classList.remove('ph'); b.classList.add('on'); b.closest('.fw').classList.add('ok'); }
   else { sp.textContent=PK[k].ph; sp.classList.add('ph'); b.classList.remove('on'); b.closest('.fw').classList.remove('ok'); }
 }
 
@@ -621,6 +659,14 @@ function toggleShipFilter(v){FShip=(FShip===v)?'':v;renderMChips();renderRec();}
 function renderIChips(){const cnt={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>cnt[x.item]=(cnt[x.item]||0)+1);
   document.getElementById('iChips').innerHTML=`<button class="chip ${FI===''?'on':''}" onclick="FI='';renderIChips();renderRec()">全部</button>`+
     Object.keys(cnt).sort(byItemOrder).map(i=>`<button class="chip ${FI===i?'on':''}" onclick="FI='${jse(i)}';renderIChips();renderRec()">${esc(i)}<span class="n">${cnt[i]}</span></button>`).join('');}
+// 建立時間新到舊；createdAt 一樣或缺漏時，再依備貨日期、最後依 recordId 保持穩定順序
+function byNewestFirst(a,b){
+  const ac=a.createdAt||'', bc=b.createdAt||'';
+  if(ac&&bc&&ac!==bc) return bc.localeCompare(ac);
+  const ad=a.stockDate||'', bd=b.stockDate||'';
+  if(ad!==bd) return bd.localeCompare(ad);
+  return String(b.recordId||'').localeCompare(String(a.recordId||''));
+}
 function myRecs(){
   let rows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)&&(!FI||x.item===FI)&&(!FShip||shipStatus(x)===FShip));
   Object.keys(RF).forEach(col=>{
@@ -653,6 +699,7 @@ function fmtDateShort(d){
 // 指定的順序整個打散，看起來像排序沒生效。這時回傳單一區段、不顯示日期標題。
 function dateSections(rows){
   if(RSORT) return [{date:null,rows:rows}];
+  rows=rows.slice().sort(byNewestFirst);
   const order=[],by={};
   rows.forEach(x=>{const d=x.stockDate||'';if(!by[d]){by[d]=[];order.push(d);}by[d].push(x);});
   order.sort((a,b)=>b.localeCompare(a));
@@ -858,9 +905,11 @@ function recSubRow(x){
 function renderRec(){
   const rows=myRecs(),el=document.getElementById('recCards'),showItem=!FI;
   GROUPS=[];
-  // 有自訂排序就用自訂排序，否則維持預設的「備貨日期新到舊」
+  // 預設順序＝「最新建立的排最前面」。舊版是用備貨日期排，但同一天建立好幾筆時
+  // 備貨日期完全相同，順序就變成試算表的原始列序（看起來就是沒有規則）。
+  // 改成先比 createdAt（建立時間），沒有 createdAt 的舊資料才退回備貨日期。
   if(RSORT) rows.sort(sortCompare(RSORT.col,RSORT.dir));
-  else rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||''));
+  else rows.sort(byNewestFirst);
   if(!rows.length)el.innerHTML=`<div class="emp"><div class="emp-i">＋</div><div class="emp-t">本月尚無備貨紀錄</div><div class="emp-s">前往「備貨登記」新增第一筆</div></div>`;
   else if(VIEW==='list'){
     el.innerHTML=dateSections(rows).map(sec=>(sec.date===null?'':`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`)+
@@ -1045,13 +1094,30 @@ function pendSubRow(x){
     ${srEditBtn(x)}
   </div>`;
 }
+// 待補齊頁的品項篩選（跟「我的紀錄」上方的品項膠囊同一套操作方式）
+let PFI='';
+function setPendItem(v){ PFI=v; renderPend(); }
+function renderPendItemChips(){
+  const el=document.getElementById('pendItemChips'); if(!el)return;
+  const cnt={};
+  pendRecs().forEach(x=>{ const k=x.item||''; cnt[k]=(cnt[k]||0)+1; });
+  const keys=Object.keys(cnt).filter(k=>k).sort(byItemOrder);
+  const noItem=cnt['']||0;
+  el.innerHTML=`<button class="chip ${PFI===''?'on':''}" onclick="setPendItem('')">全部<span class="n">${pendRecs().length}</span></button>`+
+    keys.map(k=>`<button class="chip ${PFI===k?'on':''}" onclick="setPendItem('${jse(k)}')">${esc(tagItemName(k))}<span class="n">${cnt[k]}</span></button>`).join('')+
+    (noItem?`<button class="chip ${PFI==='__none__'?'on':''}" onclick="setPendItem('__none__')">未指定品項<span class="n">${noItem}</span></button>`:'');
+}
 function renderPend(){
-  const rows=pendRecs(),n=rows.length;
+  const all=pendRecs();
+  renderPendItemChips();
+  const rows=PFI?(PFI==='__none__'?all.filter(x=>!x.item):all.filter(x=>x.item===PFI)):all.slice();
+  const n=all.length;
   document.getElementById('pCnt').textContent=n;document.getElementById('pCnt2').textContent=n;
   document.getElementById('pAlert').style.display=n?'flex':'none';
   document.getElementById('pDot').style.display=n?'inline-block':'none';
   const el=document.getElementById('pendList');
   if(!n){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-i">✓</div><div class="emp-t">目前沒有待補齊項目</div><div class="emp-s">所有資料都已完整</div></div></div>`;return;}
+  if(!rows.length){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-i">—</div><div class="emp-t">這個品項目前沒有待補齊項目</div><div class="emp-s">請切換上方的品項篩選</div></div></div>`;return;}
 
   rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||'')
     ||byItemOrder(a.item||'',b.item||'')||String(a.batch||'').localeCompare(String(b.batch||'')));
@@ -1069,7 +1135,7 @@ function renderPend(){
       const its=g[k], i=GROUPS.push(its)-1, f=its[0], fam=familyOf(f.item);
       const missTotal=its.reduce((sum,x)=>sum+recMissing(x).length,0);
       return `<div class="rc rc-pend" onclick="tg(${i})"><div class="rc-s" style="background:${fam.color}"></div><div class="rc-b">
-        <div class="rc-t"><span class="rc-c">${esc(f.item||'（未指定品項）')}${its.length>1?`<span class="rc-q">×${its.length}</span>`:''}</span>
+        <div class="rc-t"><span class="rc-c">${esc(dispItem(f.item)||'（未指定品項）')}${its.length>1?`<span class="rc-q">×${its.length}</span>`:''}</span>
           <span class="bg hd">待補齊</span></div>
         <div class="rc-m">
           <span>批號 <b class="mn">${esc(f.batch||'—')}</b></span>
@@ -1269,7 +1335,7 @@ function exportLogs(mode) {
 async function submitReg(btn){
   if(btn.disabled)return;
   const item={customer:PKV.customer||'',item:PKV.item||'',category:PKV.category||'',type:PKV.type||'',
-    batch:val('f-batch'),stockDate:val('f-sd'),shipDate:val('f-hd'),orderNo:val('f-on'),remark:val('f-rm')};
+    batch:PKV.batch||'',stockDate:val('f-sd'),shipDate:val('f-hd'),orderNo:val('f-on'),remark:val('f-rm')};
   if(!item.customer||!item.item){
     addLog({act:'新增紀錄',ok:false,desc:'嘗試新增備貨紀錄',err:'必填欄位未完成（客戶名稱／品項）'});
     renderLogs();toast('請填寫客戶名稱與品項',true);return;}
@@ -1289,8 +1355,8 @@ async function submitReg(btn){
     tmpIds.push(tid);
     DB.records.push({recordId:tid,...item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:CUR,updatedAt:new Date().toISOString(),_tmp:true});
   }
-  ['f-batch','f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
-  ['customer','item','category','type'].forEach(clearPk);BQ=1;bq(0);
+  ['f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+  ['customer','item','category','type','batch'].forEach(clearPk);BQ=1;bq(0);
   renderMChips();renderIChips();renderRec();renderStats();renderPend();
   tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
   busy(btn,false);
@@ -1321,8 +1387,8 @@ function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;
   document.getElementById('edRef').textContent='REC / '+id;
   // 客戶／品項／科別／賣備樣改用跟「備貨登記」同一套的下拉選擇器（可搜尋、可直接輸入新值），
   // 不再是看起來像純文字框的 datalist——手機上根本看不出來可以點開選單。
-  setPk('e-cu',x.customer);setPk('e-it',x.item);setPk('e-ca',x.category);setPk('e-ty',x.type);
-  set('e-sd',x.stockDate);set('e-hd',x.shipDate);set('e-ba',x.batch);set('e-on',x.orderNo);
+  setPk('e-cu',x.customer);setPk('e-it',x.item);setPk('e-ca',x.category);setPk('e-ty',x.type);setPk('e-ba',x.batch);
+  set('e-sd',x.stockDate);set('e-hd',x.shipDate);set('e-on',x.orderNo);
   set('e-rm',x.remark);
   const miss=recMissing(x);
   const tip=document.getElementById('edMiss');
@@ -1346,8 +1412,8 @@ function gedCell(x,k){
 }
 function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
   document.getElementById('gEdRef').textContent=its.length+' 筆';
-  ['g-ba','g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
-  ['g-cu','g-it','g-ca','g-ty'].forEach(k=>setPk(k,''));
+  ['g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+  ['g-cu','g-it','g-ca','g-ty','g-ba'].forEach(k=>setPk(k,''));
 
   document.getElementById('gEdPreview').innerHTML=its.map((x,ri)=>
     `<div class="gsum-it">
@@ -1373,7 +1439,7 @@ function closeGroupEdit(){document.getElementById('gEdMv').classList.remove('on'
 function collectGroupChanges(){
   const changes={};
   const cu=PKV['g-cu']||'', it=PKV['g-it']||'', ca=PKV['g-ca']||'', ty=PKV['g-ty']||'';
-  const ba=val('g-ba'),hd=val('g-hd');
+  const ba=PKV['g-ba']||'', hd=val('g-hd');
   if(cu)changes.customer=cu;if(it)changes.item=it;
   if(ca)changes.category=ca;if(ty)changes.type=ty;
   if(ba)changes.batch=ba;if(hd)changes.shipDate=hd;
@@ -1437,7 +1503,7 @@ async function saveEd(btn){
   if(btn&&btn.disabled)return;
   const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
   const nv={customer:PKV['e-cu']||'',item:PKV['e-it']||'',category:PKV['e-ca']||'',type:PKV['e-ty']||'',
-    stockDate:val('e-sd'),shipDate:val('e-hd'),batch:val('e-ba'),orderNo:val('e-on'),remark:val('e-rm')};
+    stockDate:val('e-sd'),shipDate:val('e-hd'),batch:PKV['e-ba']||'',orderNo:val('e-on'),remark:val('e-rm')};
   const diffs=[];Object.keys(nv).forEach(k=>{if(String(x[k]||'')!==String(nv[k]||''))diffs.push({label:LBL[k],before:x[k],after:nv[k]});});
   if(!diffs.length){toast('沒有任何變更');closeEd();return;}
 
@@ -1551,7 +1617,7 @@ function setMgrOvItem(it){ MGR_OV_ITEM=it; renderMgrOverview(); }
 function renderMgrOverview(){
   // 品項切換按鈕（速原10ml-2級 固定排第一個）
   document.getElementById('mgrOvItems').innerHTML=MGR_OV_ITEMS.map(it=>
-    `<button type="button" class="ov-item-btn ${MGR_OV_ITEM===it?'on':''}" onclick="setMgrOvItem('${jse(it)}')">${esc(it)}</button>`).join('');
+    `<button type="button" class="ov-item-btn ${MGR_OV_ITEM===it?'on':''}" onclick="setMgrOvItem('${jse(it)}')">${esc(tagItemName(it))}</button>`).join('');
 
   const by={};
   ((MGR_OV_RPT&&MGR_OV_RPT.items)||[]).forEach(it=>{
@@ -1569,7 +1635,7 @@ function renderMgrOverview(){
 
   const total=list.reduce((sum,x)=>sum+(x.qty||0),0);
   document.getElementById('mgrOvTotalV').textContent=nf(total);
-  document.getElementById('mgrOvTotalK').textContent=`${monthLabel(MGR_OV_YM)}　${MGR_OV_ITEM}　全業務月底庫存加總`;
+  document.getElementById('mgrOvTotalK').textContent=`${monthLabel(MGR_OV_YM)}　${dispItem(MGR_OV_ITEM)}　全業務月底庫存加總`;
 
   const rows=Math.max(1,Math.ceil(list.length/2)); // 左右各一欄，一欄約十位業務
   document.getElementById('mgrOvList').innerHTML=list.length
@@ -1614,7 +1680,7 @@ async function changeMgrStockMonth(delta){
   try{
     MGR_REPORT=await fetchStockReport(MGR_STOCK_YM);
   }catch(err){ toast('讀取失敗：'+err.message,true); return; }
-  renderNameGrid(); renderMgrTopHolders(); renderMgrStockProgress();
+  renderNameGrid(); renderMgrStockProgress();
   if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
   else document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會讀取該業務在 ${monthLabel(MGR_STOCK_YM)} 的庫存明細</div></div>`;
 }
@@ -1657,7 +1723,6 @@ async function loadManagerData(){
     MGR_LOADED=true;
     renderMgrOverview();
     renderNameGrid();
-    renderMgrTopHolders();
     renderMgrStockProgress();
     if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
   }
@@ -1706,7 +1771,10 @@ async function selectMgrPerson(salesName){
   });
 }
 let MGR_DETAIL_SALES='', MGR_DETAIL_ITEMS=[], MGR_DETAIL_ML='', MGR_DETAIL_PML='';
-let MGR_DETAIL_GROUP='ALL', MGR_DETAIL_VIEW='absolute';
+// 色條一律用「實際數量」呈現（原本還有一個「出貨比例」切換，實務上沒人用，
+// 反而讓每一列的長度基準不一致、更難互相比較，因此整個移除）。
+let MGR_DETAIL_GROUP='ALL';
+const MGR_DETAIL_VIEW='absolute';
 function nf(n){ return Number(n||0).toLocaleString('zh-TW'); }
 function niceCeil_(v){
   if(v<=5)return 5;
@@ -1720,11 +1788,10 @@ function renderMgrDetail(salesName, res){
   MGR_DETAIL_ITEMS=(res.items||[]).slice().sort((a,b)=>byItemOrder(a.item,b.item));
   MGR_DETAIL_ML=monthLabel(res.yearMonth);
   MGR_DETAIL_PML=monthLabel(res.prevYearMonth);
-  MGR_DETAIL_GROUP='ALL'; MGR_DETAIL_VIEW='absolute';
+  MGR_DETAIL_GROUP='ALL';
   renderMgrDetailBody();
 }
 function setMgrDetailGroup(g){ MGR_DETAIL_GROUP=g; renderMgrDetailBody(); }
-function setMgrDetailView(v){ MGR_DETAIL_VIEW=v; renderMgrDetailBody(); }
 function renderMgrDetailBody(){
   const area=document.getElementById('mgrDetailArea');
   const items=MGR_DETAIL_ITEMS;
@@ -1748,19 +1815,12 @@ function renderMgrDetailBody(){
     const ending=Math.max(0,it.thisEnding||0);
     const shipment=Math.max(0,it.shipment||0);
     const rate=(it.prevEnding&&it.thisEnding!==null)?Math.round(shipment/it.prevEnding*1000)/10:null;
-    let stockPct,shipPct;
-    if(MGR_DETAIL_VIEW==='ratio'){
-      const base=ending+shipment;
-      stockPct=base>0?ending/base*100:0;
-      shipPct=base>0?shipment/base*100:0;
-    }else{
-      stockPct=Math.min(100,ending/scaleMax*100);
-      shipPct=Math.min(100-stockPct,shipment/scaleMax*100);
-    }
+    let stockPct=Math.min(100,ending/scaleMax*100);
+    let shipPct=Math.min(100-stockPct,shipment/scaleMax*100);
     stockPct=Math.max(0,Math.min(100,stockPct));
     shipPct=Math.max(0,Math.min(100-stockPct,shipPct));
-    const axisMax=MGR_DETAIL_VIEW==='ratio'?'100%':nf(scaleMax);
-    const axisHalf=MGR_DETAIL_VIEW==='ratio'?'50%':nf(Math.round(scaleMax/2));
+    const axisMax=nf(scaleMax);
+    const axisHalf=nf(Math.round(scaleMax/2));
     const noData=it.thisEnding===null;
     // 欄位順序調整為：本月庫存 → 庫存結構 → 本月出貨 → 出貨率 → 上月庫存，
     // 讓「出貨率」緊接在「本月出貨」後面（手機版更直覺）。
@@ -1768,7 +1828,7 @@ function renderMgrDetailBody(){
     // 品名改成最左側的彩色標籤（顏色＝品牌家族色），少佔一行、也更容易分辨系列
     const fam=familyOf(it.item);
     return `<div class="stkr-row">
-      <div class="stkr-name"><span class="stkr-tag" style="--tag:${fam.color}">${esc(it.item)}</span></div>
+      <div class="stkr-name"><span class="stkr-tag" style="--tag:${fam.color}" title="${esc(dispItem(it.item))}">${esc(tagItemName(it.item))}</span></div>
       <div class="stkr-num stkr-main">${noData?'—':nf(ending)}</div>
       <div class="stkr-bar">
         <div class="stkr-axis"><span>0</span><span>${axisHalf}</span><span>${axisMax}</span></div>
@@ -1791,42 +1851,17 @@ function renderMgrDetailBody(){
     <div class="stkr-toolbar">
       <div><p class="stkr-formula-title">月份庫存計算</p>
         <p class="stkr-formula">${MGR_DETAIL_PML}庫存 － ${MGR_DETAIL_ML}出貨 ＋ ${MGR_DETAIL_ML}庫存增加 ＝ ${MGR_DETAIL_ML}庫存</p></div>
-      <div class="stkr-view-switch">
-        <span class="control-label">色條顯示方式</span>
-        <div class="stkr-view-tabs">
-          <button type="button" class="${MGR_DETAIL_VIEW==='absolute'?'on':''}" onclick="setMgrDetailView('absolute')">實際數量</button>
-          <button type="button" class="${MGR_DETAIL_VIEW==='ratio'?'on':''}" onclick="setMgrDetailView('ratio')">出貨比例</button>
-        </div>
-      </div>
     </div>
     <div class="stkr-legend">
       <span><i class="stock"></i>本月庫存</span><span><i class="ship"></i>本月出貨</span>
-      <span class="stkr-scale-note">${MGR_DETAIL_VIEW==='ratio'?'每列以「本月庫存＋本月出貨」為 100%':'共同數量尺度：0–'+nf(scaleMax)}</span>
+      <span class="stkr-scale-note">共同數量尺度：0–${nf(scaleMax)}</span>
     </div>
     <div class="stkr-table">
       <div class="stkr-head"><span>品項</span><span>本月庫存</span><span class="h-bar">庫存結構</span><span>本月出貨</span><span class="h-rate">出貨率</span><span>上月庫存</span></div>
       ${rowsHtml}
     </div>`;
 }
-// ── 品項庫存留存排行：依「業務＋品項」目前月底庫存排名，看誰身上囤了最多哪個品項 ──
-function topStockHolders(){
-  return MGR_REPORT.items.filter(it=>(it.thisEnding||0)>0)
-    .map(it=>({sales:it.sales,item:it.item,opening:it.prevEnding||0,remaining:it.thisEnding}))
-    .sort((a,b)=>b.remaining-a.remaining);
-}
-let MGR_TOP_EXPANDED=false;
-function renderMgrTopHolders(){
-  const list=topStockHolders();
-  const show=MGR_TOP_EXPANDED?list:list.slice(0,5);
-  const vmax=list.length?list[0].remaining:1;
-  document.getElementById('mgrTopHolders').innerHTML=show.length?show.map((x,i)=>
-    `<div class="rank-row"><span class="rank-n mn">${String(i+1).padStart(2,'0')}</span><span class="rank-name">${esc(x.sales)} · ${esc(x.item)}</span>
-     <div class="rank-bar"><span style="width:${Math.round(x.remaining/vmax*100)}%"></span></div><span class="rank-v mn">${x.remaining}</span></div>`
-  ).join(''):`<div class="emp-s">${MGR_LOADED?'目前沒有任何月底庫存資料':'讀取中…'}</div>`;
-  document.getElementById('mgrTopHoldersMore').innerHTML=list.length>5?
-    `<button class="btn-g" onclick="toggleMgrTopExpand()">${MGR_TOP_EXPANDED?'收合':'查看完整排名（共 '+list.length+' 筆）'}</button>`:'';
-}
-function toggleMgrTopExpand(){MGR_TOP_EXPANDED=!MGR_TOP_EXPANDED;renderMgrTopHolders();}
+// 「品項庫存留存排行」面板已移除（跟業務庫存明細報表的資訊重複，主管實際上只看明細）。
 function isFilled(v){return v!==undefined&&v!==null&&String(v).trim().length>0;}
 function effVal(x,k){const ek=x.recordId+'::'+k;return EDITS[ek]!==undefined?EDITS[ek]:x[k];}
 function atab(n,b){document.querySelectorAll('#adminApp .pg').forEach(p=>p.classList.remove('on'));
@@ -1859,7 +1894,7 @@ function renderAChips(){
   const ic={};DB.records.forEach(x=>{if(x.item)ic[x.item]=(ic[x.item]||0)+1});
   document.getElementById('aItemChips').innerHTML=
     `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGridDebounced()">全部</button>`+
-    ITEM_CATALOG.filter(i=>ic[i]).sort(byItemOrder).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGridDebounced()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
+    ITEM_CATALOG.filter(i=>ic[i]).sort(byItemOrder).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGridDebounced()">${esc(dispItem(i))}<span class="n">${ic[i]}</span></button>`).join('');
   document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');
   const activeCols=COLS.filter(c=>hfActive(HF,c.k));
   document.getElementById('adminActiveFilterChips').innerHTML=sortChipHtml(ASORT,'admin')+activeCols.map(c=>
