@@ -15,6 +15,8 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{max-width:100%;overflow-x:hidden}
+/* iOS 安全區：避免內容被瀏海／底部 home indicator 遮住（配合 viewport-fit=cover） */
+body{padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 body{background:var(--shell);color:var(--tx);font-family:'Noto Sans TC',-apple-system,sans-serif;-webkit-font-smoothing:antialiased;font-feature-settings:'palt';font-size:14px;line-height:1.65}
 .sf{font-family:'Noto Serif TC',serif}
 .mn{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
@@ -274,6 +276,13 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .mgr-month-nav{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px}
 .mgr-month-btn{padding:7px 14px;border:1px solid var(--line-2);border-radius:6px;background:var(--paper);color:var(--tx-2);font-size:12px;cursor:pointer;transition:.16s var(--e)}
 .mgr-month-btn:hover{border-color:var(--nav);color:var(--nav)}
+/* 主管報表分段標題：明確切開「本月備貨概況」與「庫存結算報表」兩個不同時間基準的段落 */
+.sec-label{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:26px 0 12px;
+  font-family:'Noto Serif TC',serif;font-size:15px;font-weight:600;color:var(--ink);
+  padding-bottom:9px;border-bottom:2px solid var(--nav)}
+.sec-label:first-of-type{margin-top:4px}
+.sec-note{font-family:'Noto Sans TC',sans-serif;font-size:11px;font-weight:400;color:var(--tx-3)}
+
 .mgr-month-label{font-family:'Noto Serif TC',serif;font-size:15px;font-weight:600;color:var(--ink);min-width:88px;text-align:center}
 
 /* ── 品項庫存明細（主管報表點選業務後）：改成表格＋緊湊座標軸長條，不再是整條大長條圖 ── */
@@ -318,9 +327,23 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .empty-state{padding:40px 20px;text-align:center;color:var(--tx-3);font-size:12.5px}
 @media (max-width:760px){
   .stkr-head{display:none}
-  .stkr-row{grid-template-columns:1fr repeat(3,auto);gap:8px 12px}
-  .stkr-name{grid-column:1/4}
+  .stkr-row{grid-template-columns:1fr auto;gap:6px 10px;padding:14px 4px}
+  .stkr-name{grid-column:1;font-size:13.5px}
+  .stkr-num.stkr-main{grid-column:2;grid-row:1;font-size:19px}
   .stkr-bar{grid-column:1/-1;grid-row:2}
+  /* 手機上沒有表頭，數字必須自帶標籤，否則看不出來是什麼 */
+  .stkr-row .stkr-num:not(.stkr-main){text-align:left;font-size:11.5px;color:var(--tx-3);font-family:'Noto Sans TC',sans-serif}
+  .stkr-row .stkr-num:not(.stkr-main)::before{content:attr(data-label) '　';color:var(--tx-3);opacity:.75}
+  .stkr-row .stkr-num:not(.stkr-main) {font-variant-numeric:tabular-nums}
+  .c-ship{grid-column:1;grid-row:3}
+  .c-prev{grid-column:2;grid-row:3;text-align:right}
+  .c-rate{grid-column:1/-1;grid-row:4}
+  .stkr-toolbar{flex-direction:column;align-items:stretch;gap:12px}
+  .control-label,.stkr-view-switch{text-align:left}
+  .stkr-scale-note{margin-left:0;width:100%}
+  .grp-chip{padding:8px 11px;font-size:11.5px}
+  .mgr-month-nav{gap:8px}
+  .mgr-month-btn{padding:8px 12px;font-size:11.5px}
 }
 .wf-unset-title{font-size:11px;color:var(--tx-3);margin:18px 0 8px;font-weight:600;letter-spacing:.02em}
 @media(max-width:420px){
