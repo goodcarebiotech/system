@@ -231,6 +231,7 @@ async function googleSignIn(btn){
   if(isInAppBrowser()){ document.getElementById('inAppWarn').style.display='block'; return; }
 
   SIGNIN_BUSY=true;
+  hideLoginDiag();
   if(btn)btn.disabled=true;
   setGoogleBtnText('登入中…');
   try{
@@ -284,9 +285,22 @@ async function handleAuthedUser(user){
       CUR_EMAIL=who.email||email;
       CUR=who.name||nameForEmail(email);
     }else if(who&&who.code==='AUTH'){
+      // 這裡有兩種完全不同的狀況，訊息要分開講，否則會一直往名冊去找但問題根本不在那裡：
+      //   NOT_IN_ROSTER → 真的不在 gas.js 的名冊上
+      //   其他（FETCH_FAILED / TOKEN_REJECTED…）→ 伺服器端的設定或授權問題
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
       await window.__fb.clearAuthResidue();
-      toast('此帳號尚未開通使用權限：'+email, true); return;
+      if(who.reason==='NOT_IN_ROSTER'){
+        toast('此帳號尚未開通使用權限：'+email, true);
+        showLoginDiag('此帳號（'+email+'）通過了 Google 驗證，但不在 gas.js 的 ROSTERS 名冊中。');
+      }else{
+        toast('伺服器無法驗證登入身分',true);
+        console.error('[登入驗證失敗]', who);
+        // 把完整原因直接留在登入畫面上，不要用會自動消失的提示——
+        // 這種設定類的錯誤需要照著訊息去改設定，訊息不能一閃就不見。
+        showLoginDiag('伺服器無法驗證登入身分\n代碼：'+(who.reason||'未知')+'\n'+(who.message||''));
+      }
+      return;
     }else{
       // 後端暫時連不上（網路問題／GAS 部署中）：用本機名冊先讓畫面出來，
       // 但任何資料請求仍然會被後端擋下，不會造成權限外洩。
@@ -305,6 +319,20 @@ async function handleAuthedUser(user){
     showRoleChooser(roles);
   }finally{ AUTH_HANDLING=false; }
 }
+// 在登入畫面上顯示一段可以複製的診斷訊息（不會自動消失）
+function showLoginDiag(msg){
+  let el=document.getElementById('loginDiag');
+  if(!el){
+    el=document.createElement('div');
+    el.id='loginDiag';
+    el.className='login-diag';
+    const step=document.getElementById('googleStep');
+    if(step)step.appendChild(el); else return;
+  }
+  el.textContent=msg;
+  el.style.display='block';
+}
+function hideLoginDiag(){ const el=document.getElementById('loginDiag'); if(el)el.style.display='none'; }
 function showRoleChooser(roles){
   const box=document.getElementById('roleChooserOptions');
   box.innerHTML=roles.map(r=>`<button class="btn-role-choice" onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
