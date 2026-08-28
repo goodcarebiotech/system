@@ -17,28 +17,72 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// 每次登入都強制跳出帳號選擇畫面，避免手機上「已經登入過某個 Google 帳號」時
-// 直接靜默用舊帳號登入，使用者想換帳號卻換不掉。
-const provider = new GoogleAuthProvider();
-provider.setCustomParameters({ prompt: 'select_account' });
+// ───────────────────────────────────────────────────────────────
+// 【手機「登出後再登入會跳 400 malformed」的修正】
+//
+// 原本這裡是在模組載入時建立「一個」GoogleAuthProvider，然後整個網頁生命週期重複使用它：
+//
+//     const provider = new GoogleAuthProvider();
+//     provider.setCustomParameters({ prompt: 'select_account' });
+//
+// 這個 provider 物件是有狀態的。第一次登入時 Firebase 會在它身上留下這次登入用的參數
+// （scope、customParameters、以及內部組 OAuth 請求用的欄位）。登出之後再按一次登入，
+// Firebase 會拿「同一個已經被用過的 provider」再組一次 OAuth 請求網址，
+// 於是 prompt / login_hint / state 這些參數有機會被重複附加、或帶著殘留的舊值，
+// 送到 Google 之後就是一個格式不合法的網址 —— Google 不會說明哪裡錯，只會回一頁
+// 「400. That's an error. The server cannot process the request because it is malformed.」
+// 正是手機上「選好帳號之後」看到的那一頁。
+//
+// 修法：不再共用單例，改成每次要登入時「現做一個全新的 provider」（makeProvider()），
+// 每次 OAuth 請求都從乾淨狀態組起來，不會累積上一次的殘留參數。
+//
+// 另外提供 clearAuthResidue()：登出時把 Firebase 留在瀏覽器裡的登入狀態
+// （IndexedDB 的 firebaseLocalStorageDb、以及 localStorage / sessionStorage 內
+// firebase:authUser 開頭的鍵）一併清乾淨。手機瀏覽器常見狀況是 signOut() 已經回來了、
+// 但底層 IndexedDB 還留著半份舊 session，下一次登入就會拿著這份殘骸去組請求。
+// ───────────────────────────────────────────────────────────────
+function makeProvider() {
+  const p = new GoogleAuthProvider();
+  // 每次都要求 Google 顯示帳號選擇畫面，避免手機上被靜默沿用舊帳號、想換帳號卻換不掉。
+  p.setCustomParameters({ prompt: 'select_account' });
+  return p;
+}
 
-window.__fb = { auth, provider, signInWithPopup, signOut, onAuthStateChanged };
+async function clearAuthResidue() {
+  try {
+    [localStorage, sessionStorage].forEach(store => {
+      if (!store) return;
+      const kill = [];
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (k && (k.indexOf('firebase:authUser') === 0 || k.indexOf('firebase:redirectEvent') === 0)) kill.push(k);
+      }
+      kill.forEach(k => store.removeItem(k));
+    });
+  } catch (e) { /* 隱私模式下 storage 可能整個被停用，忽略即可 */ }
+
+  // IndexedDB 刪除是非同步的，若還有連線沒關會卡在 blocked，
+  // 因此最多等 1.2 秒就放行，絕不讓清理動作把登入流程卡死。
+  await new Promise(resolve => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    setTimeout(finish, 1200);
+    try {
+      const req = indexedDB.deleteDatabase('firebaseLocalStorageDb');
+      req.onsuccess = finish; req.onerror = finish; req.onblocked = finish;
+    } catch (e) { finish(); }
+  });
+}
+
+window.__fb = { auth, makeProvider, clearAuthResidue, signInWithPopup, signOut, onAuthStateChanged };
 
 // ───────────────────────────────────────────────────────────────
-// 【手機登入問題的修正】
-// 原本這裡用的是 signInWithRedirect + getRedirectResult：按下登入後整頁導去 Google，
-// 登入完再整頁導回來，回來後呼叫 getRedirectResult() 讀「剛剛登入的結果」。
-// 這個流程依賴 sessionStorage 保存一份「登入中繼狀態」，但是：
-//   ・iOS Safari／Android 無痕模式會清掉或隔離 sessionStorage
-//   ・現代瀏覽器的 storage partitioning（儲存空間分區）會讓跳轉回來後讀不到原本那份狀態
-// 只要讀不到，Firebase 就會丟出：
-//   "Unable to process request due to missing initial state..."
-// 也就是你在手機上看到的那個錯誤。
-//
-// 修法：完全不使用 redirect 流程，改為一律使用 signInWithPopup（見 app.js googleSignIn）。
-// 彈窗登入全程都在同一個分頁、同一個 session 裡完成，不需要任何跨頁跳轉的中繼狀態，
-// 因此不受上述限制影響。這裡也連帶把 getRedirectResult 整個拿掉，
-// 因為只要頁面載入時呼叫它，就有可能在儲存空間被隔離的環境下拋出同一個錯誤。
+// 【為什麼不用 signInWithRedirect】
+// redirect 流程會先把「登入中繼狀態」寫進 sessionStorage，整頁跳去 Google 再跳回來。
+// iOS Safari／Android 無痕模式會清掉或隔離 sessionStorage，現代瀏覽器的 storage
+// partitioning 也會讓跳轉回來後讀不到那份狀態，Firebase 就丟出
+// "Unable to process request due to missing initial state..."。
+// 彈窗登入全程都在同一個分頁、同一個 session 裡完成，不受這個限制影響，故一律使用彈窗。
 //
 // 登入狀態的保存優先用 indexedDB（手機瀏覽器上比 localStorage 穩定，
 // 在部分隱私設定下 localStorage 會被停用），失敗才退回 localStorage。
