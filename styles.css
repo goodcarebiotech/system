@@ -1057,3 +1057,9 @@ input[type="date"].fb{padding-right:38px}
   .rc{border-radius:var(--r-s);box-shadow:none;border:1px solid var(--line)}
   .rc-date-sec{margin:18px 0 8px;font-size:10.5px;letter-spacing:.12em;color:var(--tx-3)}
 }
+
+/* 登入畫面的診斷訊息：設定類錯誤需要照著訊息去改設定，不能用會自動消失的提示 */
+.login-diag{display:none;margin-top:16px;padding:13px 14px;background:var(--bad-tint);
+  border-left:3px solid var(--bad);border-radius:0 var(--r-s) var(--r-s) 0;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.7;color:var(--bad);
+  white-space:pre-wrap;word-break:break-all;text-align:left;user-select:text}
