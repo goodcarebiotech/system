@@ -92,11 +92,10 @@
         </div>
         <div class="grp">
           <div class="grp-h"><span class="grp-n">02</span><span class="grp-t">批號與日期</span><span class="grp-l"></span></div>
-          <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="text" id="f-batch" oninput="mk(this)"></div></div>
+          <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-batch" onclick="openPk('batch')"><span class="v ph">請選擇或輸入批號</span><span class="c">▾</span></button></div></div>
           <div class="fr">
             <div class="fg"><label class="fl">備貨日期<span class="rq">＊</span></label><div class="fw ok"><span class="fs"></span><input class="fb tx on" type="date" id="f-sd" value="" oninput="mk(this)"></div></div>
-            <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="f-hd" oninput="mk(this)"></div>
-              <div class="qk"><button type="button" onclick="qd('f-hd',0)">今天</button><button type="button" onclick="qd('f-hd',1)">明天</button></div></div>
+            <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="f-hd" oninput="mk(this)"></div></div>
           </div>
         </div>
         <div class="grp">
@@ -179,6 +178,10 @@
   <section class="pg" id="pg-pend">
     <div class="pn" style="margin-bottom:14px"><div class="pn-b" style="padding:14px 16px">
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.75;font-weight:300">行政人員已建立資料，但尚未有完整的備貨明細。依備貨日期分組，點卡片展開看明細；右側 ✎ 可整組批次補齊，展開後也能單筆編輯。</div></div></div>
+    <div class="cf-r" style="margin-bottom:14px">
+      <span class="cf-h">品項</span>
+      <div class="chips" id="pendItemChips"></div>
+    </div>
     <div id="pendList"></div>
   </section>
 
@@ -365,13 +368,7 @@
     </div>
 
 
-    <div class="pn" style="margin-top:18px">
-      <div class="pn-h"><span class="pn-t">品項庫存留存排行</span><span class="pn-n" id="mgrTopHoldersNote">依業務＋品項，該月底剩餘庫存最多</span></div>
-      <div class="pn-b">
-        <div id="mgrTopHolders"></div>
-        <div style="text-align:center;margin-top:14px" id="mgrTopHoldersMore"></div>
-      </div>
-    </div>
+    
 
   </section>
 </div>
@@ -423,11 +420,10 @@
       </div>
       <div class="fr">
         <div class="fg"><label class="fl">備貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-sd" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ba" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-e-ba" onclick="openPk('e-ba')"><span class="v ph">請選擇或輸入批號</span><span class="c">▾</span></button></div></div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-hd" oninput="mk(this)"></div>
-          <div class="qk"><button type="button" onclick="qd('e-hd',0)">今天</button><button type="button" onclick="qd('e-hd',1)">明天</button></div></div>
+        <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-hd" oninput="mk(this)"></div></div>
         <div class="fg"><label class="fl">訂購單號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-on" oninput="mk(this)"></div></div>
       </div>
       <div class="fg" style="margin-bottom:0"><label class="fl">備註</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-rm" oninput="mk(this)"></div></div>
@@ -457,7 +453,7 @@
           <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ty" onclick="openPk('g-ty')"><span class="v ph">請選擇</span><span class="c">▾</span></button></div></div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ba" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ba" onclick="openPk('g-ba')"><span class="v ph">請選擇或輸入批號</span><span class="c">▾</span></button></div></div>
         <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="g-hd" oninput="mk(this)"></div></div>
       </div>
     </div>
