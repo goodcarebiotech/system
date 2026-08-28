@@ -312,31 +312,32 @@
 
   <section class="pg on" id="pg-manager" style="max-width:1600px;margin:0 auto">
     <div class="pn" style="margin-bottom:16px"><div class="pn-b" style="padding:14px 18px">
-      <div style="font-size:11.5px;color:var(--tx-2)">下方「備貨概況」為 <b class="mn" id="mgrYM" style="color:var(--ink)"></b>（與上月比較）。
-      <span style="color:var(--warn)">庫存相關區塊看的是另一個月份</span>，因為系統每月 1 日才結算上個月的庫存，可在該區塊自行切換月份。</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.8">本頁所有數字皆直接讀自「庫存資料」試算表（月底庫存／月出貨）。
+      系統每月 1 日結算上個月，因此預設顯示上個月；兩個區塊都可以自行切換月份。</div>
     </div></div>
 
     <div class="sec-label">一、本月備貨概況</div>
 
-    <div class="st">
-      <div class="st-u"><div class="v" id="m1">0</div><div class="k">全公司本月備貨</div><div class="dlt" id="m1d"></div></div>
-      <div class="st-u g"><div class="v" id="m2">0</div><div class="k">已出貨</div><div class="dlt" id="m2d"></div></div>
-      <div class="st-u a"><div class="v" id="m3">0</div><div class="k">庫存中</div><div class="dlt" id="m3d"></div></div>
-      <div class="st-u w"><div class="v" id="m4">0</div><div class="k">全公司待補齊（全部）</div><div class="dlt" id="m4d"></div></div>
+    <div class="pn elevated">
+      <div class="pn-h"><span class="pn-t">產品備貨數量</span><span class="pn-n">來源：庫存資料表 · 月底庫存</span></div>
+      <div class="pn-b">
+        <div class="mgr-month-nav">
+          <button type="button" class="mgr-month-btn" onclick="changeMgrOvMonth(-1)">‹ 上一月</button>
+          <span class="mgr-month-label" id="mgrOvMonthLabel">—</span>
+          <button type="button" class="mgr-month-btn" onclick="changeMgrOvMonth(1)">下一月 ›</button>
+        </div>
+        <div class="ov-items" id="mgrOvItems"></div>
+        <div class="ov-total">
+          <div class="ov-total-v mn" id="mgrOvTotalV">0</div>
+          <div class="ov-total-k" id="mgrOvTotalK">—</div>
+        </div>
+        <div id="mgrOvList"></div>
+      </div>
     </div>
 
-    <div class="two" style="margin-top:18px">
-      <div class="pn"><div class="pn-h"><span class="pn-t">近六個月全公司備貨量</span></div><div class="pn-b">
-        <div class="ch" id="mgrChart"></div>
-        <div class="ch-x" id="mgrChartX"></div>
-      </div></div>
-      <div class="pn"><div class="pn-h"><span class="pn-t">品牌家族本月出貨量</span></div><div class="pn-b" id="mgrFamily"></div></div>
-    </div>
     <div class="pn" style="margin-top:18px">
-      <div class="pn-h"><span class="pn-t">業務績效排行</span><span class="pn-n">依本月備貨筆數排序，點列可查看該人庫存明細</span></div>
-      <div class="tsc" style="max-height:52vh"><table class="dt"><thead><tr>
-        <th>業務</th><th>本月備貨</th><th>已出貨</th><th>庫存中</th><th>待補齊（全部）</th><th>出貨率</th>
-      </tr></thead><tbody id="mgrRankBody"></tbody></table></div>
+      <div class="pn-h"><span class="pn-t">品牌家族本月出貨量</span><span class="pn-n" id="mgrFamilyNote"></span></div>
+      <div class="pn-b" id="mgrFamily"></div>
     </div>
 
     <div class="sec-label">二、庫存結算報表<span class="sec-note">每月 1 日結算上個月，可切換月份</span></div>
@@ -355,14 +356,6 @@
       <div id="mgrDetailArea" class="mgr-detail"></div>
     </div>
 
-
-    <div class="pn" style="margin-top:18px">
-      <div class="pn-h"><span class="pn-t">業務庫存健康度</span><span class="pn-n" id="mgrStockFormula"></span></div>
-      <div class="pn-b">
-        <div class="sf-summary" id="mgrStockSummary"></div>
-        <div id="mgrStockRanking"></div>
-      </div>
-    </div>
 
     <div class="pn" style="margin-top:18px">
       <div class="pn-h"><span class="pn-t">品項庫存留存排行</span><span class="pn-n" id="mgrTopHoldersNote">依業務＋品項，該月底剩餘庫存最多</span></div>
@@ -435,19 +428,27 @@
     <div class="mh"><span class="mh-t">批次編輯</span><span class="mh-r" id="gEdRef"></span></div>
     <div class="mbd">
       <div style="font-size:11px;font-weight:600;color:var(--ink);margin-bottom:9px;letter-spacing:.05em">組內目前完整資料（唯讀，供比對用）</div>
-      <div class="gprev-wrap"><table class="gprev" id="gEdPreview"></table></div>
+      <div class="gsum" id="gEdPreview"></div>
       <div id="gEdWarn"></div>
-      <div style="font-size:11px;color:var(--tx-3);margin:16px 0;line-height:1.7">留白欄位不變更，已填寫的欄位將套用到全部 <span id="gEdCount">0</span> 筆。</div>
       <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ca" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ty" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ca" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ty" oninput="mk(this)"></div></div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ba" placeholder="留白＝不變更" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ba" oninput="mk(this)"></div></div>
         <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="g-hd" oninput="mk(this)"></div></div>
       </div>
     </div>
-    <div class="ma"><button onclick="closeGroupEdit()">取消</button><button class="sv" onclick="saveGroupEdit(this)">套用</button></div>
+    <div class="ma"><button onclick="closeGroupEdit()">取消</button><button class="sv" onclick="openGroupConfirm()">套用</button></div>
+  </div>
+</div>
+
+<!-- ══ GROUP BATCH EDIT · 送出前確認 ══ -->
+<div class="mv" id="gCfMv">
+  <div class="mb">
+    <div class="mh"><span class="mh-t">確認批次套用</span><span class="mh-r" id="gCfRef"></span></div>
+    <div class="mbd" id="gCfBody"></div>
+    <div class="ma"><button onclick="closeGroupConfirm()">取消</button><button class="sv" onclick="doGroupEdit(this)">確認套用</button></div>
   </div>
 </div>
 
@@ -466,6 +467,7 @@
     <div class="mbd filter-mbd">
       <div class="ff-list" id="filterFieldList"></div>
       <div class="fv-panel">
+        <div class="fv-sort" id="filterSortBar"></div>
         <input type="text" id="filterValueSearch" class="fv-search" autocomplete="off" placeholder="搜尋值…" oninput="renderFilterValueList()">
         <div class="fv-quick"><button type="button" onclick="filterSelectAllField()">全選</button><button type="button" onclick="filterClearField()">全部取消</button></div>
         <div class="fv-list" id="filterValueList"></div>
