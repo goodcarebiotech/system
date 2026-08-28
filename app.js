@@ -24,11 +24,18 @@ const EMPTY_F=[{k:'invoiceDate',n:'發票日期'},{k:'invoiceNo',n:'發票號碼
 const LBL={};COLS.forEach(c=>LBL[c.k]=c.n);
 
 let DB={records:[],logs:[],stock:{items:[]}};
-let ITEM_CATALOG=['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml','薇基因(盒裝)','妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)','歐儷芙舒口噴劑'];
+// ── 品項的「全系統唯一顯示順序」──────────────────────────────
+// 速原 10 → 5 → 2.5 → 樂業 10 → 5 → 薇基因 → 修復霜 → 歐儷芙。
+// 所有跟品項有關的清單（登記選單、篩選膠囊、庫存報表、報表切換鈕…）一律套用這個順序，
+// 不再各自用注音／筆劃或出現次數排序，避免同一個品項在不同畫面出現在不同位置。
+const ITEM_ORDER=['速原10ml-2級','速原5ml-2級','速原2.5ml-2級','樂業10ml','樂業5ml','薇基因(盒裝)','妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)','歐儷芙舒口噴劑'];
+function itemRank(n){ const i=ITEM_ORDER.indexOf(n); return i<0?999:i; }
+function byItemOrder(a,b){ return itemRank(a)-itemRank(b)||String(a).localeCompare(String(b),'zh-TW'); }
+let ITEM_CATALOG=ITEM_ORDER.slice();
 let SALES_NAMES=['王大明','李小美','陳建志'];
 
 const PRODUCT_FAMILIES=[
-  {key:'newepi',name:'NEW EPI',color:'#1B4E8C',g1:'#7FB3E0',g2:'#3D7FC4',items:['速原2.5ml-2級','速原5ml-2級','速原10ml-2級','樂業5ml','樂業10ml']},
+  {key:'newepi',name:'NEW EPI',color:'#1B4E8C',g1:'#7FB3E0',g2:'#3D7FC4',items:['速原10ml-2級','速原5ml-2級','速原2.5ml-2級','樂業10ml','樂業5ml']},
   {key:'vaginne',name:'薇基因',color:'#9B5FB5',g1:'#D2A0DC',g2:'#9B5FB5',items:['薇基因(盒裝)']},
   {key:'wonder',name:'妙癒修復霜',color:'#1F6B45',g1:'#A9D6AE',g2:'#5B9F68',items:['妙癒修復霜-20ml(盒裝)','妙癒修復霜-5ml(軟管)']},
   {key:'orelief',name:'歐儷芙',color:'#1A8A8A',g1:'#7FD9D9',g2:'#22A6A6',items:['歐儷芙舒口噴劑']}
@@ -392,6 +399,31 @@ function resetLogSearch(){
   document.getElementById('logTo').value='';
   renderALog();
 }
+// ── 行政端寫入後的同步策略（與業務端相同的做法）──────────────────
+// 舊版每次送出成功都會 loadAdminData()：跳全螢幕遮罩、把整張總表重新抓一次再整表重繪。
+// 但本機資料在送出成功時已經同步更新過了，所以改成畫面立即更新、真正的重抓在背景靜默進行，
+// 並做 debounce（連續操作只在最後同步一次）。
+let _adminSyncTimer=null,_adminSyncing=false;
+function queueAdminSync(delay){
+  clearTimeout(_adminSyncTimer);
+  _adminSyncTimer=setTimeout(async()=>{
+    if(_adminSyncing)return;
+    _adminSyncing=true;
+    try{
+      const res=await api('adminInit',{});
+      if(res.status==='success'){
+        DB.records=res.data||[];
+        if(res.options&&res.options.salesNames&&res.options.salesNames.length) SALES_NAMES=res.options.salesNames;
+        renderAChips();renderGrid();
+      }
+    }catch(e){}
+    _adminSyncing=false;
+  }, delay||1500);
+}
+// 篩選膠囊連點時，總表不必每一下都整表重建（資料多時每次重建都是明顯的頓卡），
+// 用 60ms 的去抖動把連續點擊合併成一次重繪。
+let _gridPaintTimer=null;
+function renderGridDebounced(){ clearTimeout(_gridPaintTimer); _gridPaintTimer=setTimeout(renderGrid,60); }
 async function refreshAdmin(){
   const btn=document.getElementById('adminRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
   await loadAdminData();
@@ -400,10 +432,22 @@ async function refreshAdmin(){
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function jse(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+// 處理中的按鈕：只在文字前面加一個轉圈圖示並停用點擊，
+// 不再改寫 textContent。舊版是把整段文字換成「送出中…」再換回來，
+// 在視窗同時關閉或重繪時就會出現「文字整個不見」的狀況。
+// label 參數保留只是為了不用改所有呼叫點，實際上已經不會用到。
 function busy(btn,on,label){
   if(!btn)return;
-  if(on){ if(btn.dataset.orig===undefined)btn.dataset.orig=btn.textContent; btn.disabled=true; btn.classList.add('is-busy'); btn.textContent=label||'處理中…'; }
-  else { btn.disabled=false; btn.classList.remove('is-busy'); if(btn.dataset.orig!==undefined)btn.textContent=btn.dataset.orig; }
+  if(on){
+    btn.disabled=true; btn.classList.add('is-busy');
+    if(!btn.querySelector('.btn-spin')){
+      const sp=document.createElement('span'); sp.className='btn-spin';
+      btn.insertBefore(sp, btn.firstChild);
+    }
+  }else{
+    btn.disabled=false; btn.classList.remove('is-busy');
+    const sp=btn.querySelector('.btn-spin'); if(sp)sp.remove();
+  }
 }
 function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.classList.toggle('bad',!!bad);t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
@@ -428,6 +472,14 @@ const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l
   item:{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   category:{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
   type:{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
+  'e-cu':{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l:()=>myHistory('customer')},
+  'e-it':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
+  'e-ca':{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
+  'e-ty':{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
+  'g-cu':{t:'選擇客戶名稱',ph:'留白＝不變更',l:()=>myHistory('customer')},
+  'g-it':{t:'選擇品項',ph:'留白＝不變更',l:()=>ITEM_CATALOG},
+  'g-ca':{t:'選擇科別',ph:'留白＝不變更',l:()=>myHistory('category')},
+  'g-ty':{t:'選擇賣/備/樣',ph:'留白＝不變更',l:()=>myHistory('type')},
   'ac-item':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   'ac-sales':{t:'選擇業務',ph:'請選擇業務',l:()=>SALES_NAMES},
   'admin-sales-filter':{t:'篩選業務',ph:'',l:()=>SALES_NAMES},
@@ -452,6 +504,14 @@ function pickV(v){
   s.textContent=v;s.classList.remove('ph');b.classList.add('on');b.closest('.fw').classList.add('ok');closePk();fillCount();}
 function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
   s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');b.closest('.fw').classList.remove('ok');fillCount();}
+// 開啟編輯／批次編輯視窗時，把既有值塞回下拉按鈕上
+function setPk(k,v){
+  const b=document.getElementById('pk-'+k); if(!b)return;
+  PKV[k]=v||'';
+  const sp=b.querySelector('.v');
+  if(v){ sp.textContent=v; sp.classList.remove('ph'); b.classList.add('on'); b.closest('.fw').classList.add('ok'); }
+  else { sp.textContent=PK[k].ph; sp.classList.add('ph'); b.classList.remove('on'); b.closest('.fw').classList.remove('ok'); }
+}
 
 /* ── SALES ── */
 function initSales(){
@@ -489,7 +549,7 @@ function pickYm(v){if(!v)return;FM=v;renderMChips();renderRec();}
 function toggleShipFilter(v){FShip=(FShip===v)?'':v;renderMChips();renderRec();}
 function renderIChips(){const cnt={};DB.records.filter(x=>x.sales===CUR&&x.item).forEach(x=>cnt[x.item]=(cnt[x.item]||0)+1);
   document.getElementById('iChips').innerHTML=`<button class="chip ${FI===''?'on':''}" onclick="FI='';renderIChips();renderRec()">全部</button>`+
-    Object.keys(cnt).map(i=>`<button class="chip ${FI===i?'on':''}" onclick="FI='${jse(i)}';renderIChips();renderRec()">${esc(i)}<span class="n">${cnt[i]}</span></button>`).join('');}
+    Object.keys(cnt).sort(byItemOrder).map(i=>`<button class="chip ${FI===i?'on':''}" onclick="FI='${jse(i)}';renderIChips();renderRec()">${esc(i)}<span class="n">${cnt[i]}</span></button>`).join('');}
 function myRecs(){
   let rows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)&&(!FI||x.item===FI)&&(!FShip||shipStatus(x)===FShip));
   Object.keys(RF).forEach(col=>{
@@ -591,8 +651,29 @@ function recRowHtml(x){
     `<td class="pad ${(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate'||c.k==='orderNo'||c.k==='invoiceNo'||c.k==='batch')?'mn':''} ${c.role==='a'&&!RECFULL?'colhide':''}">${esc(x[c.k]||'—')}</td>`).join('')+
     `<td class="pad"><span class="sm ${shipStatus(x)==='sh'?'g':'h'}">${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span></td></tr>`;
 }
+// 一筆紀錄是否「資料齊全」：業務端該填的八個欄位都有值。
+// 分組展開後每一筆的「編輯」按鈕會依此顯示綠色（齊全）或紅色（有缺），
+// 一眼就能看出哪一筆還沒補完，不用逐筆點進去看。
+const REC_REQUIRED=['customer','item','category','type','batch','stockDate','shipDate','orderNo'];
+function recMissing(x){ return REC_REQUIRED.filter(k=>!(x[k]&&String(x[k]).trim())); }
+function recComplete(x){ return recMissing(x).length===0; }
+// 分組展開後的單筆列：把科別／批號／送貨日期／賣備樣／單號全部列出來，
+// 舊版只顯示單號與出貨狀態，編輯完根本看不出改了什麼。
+function recSubRow(x){
+  const miss=recMissing(x), okAll=miss.length===0;
+  const f=(k,mono)=>`<span class="srf${(x[k]&&String(x[k]).trim())?'':' srf-miss'}"><span class="srk">${esc(LBL[k])}</span><span class="srv${mono?' mn':''}">${esc(x[k]||'—')}</span></span>`;
+  return `<div class="rc-sr">
+    <div class="sr-fields">
+      ${f('batch',1)}${f('shipDate',1)}${f('category')}${f('type')}${f('orderNo',1)}
+      ${x.remark?`<span class="srf srf-wide"><span class="srk">備註</span><span class="srv">${esc(x.remark)}</span></span>`:''}
+    </div>
+    <button type="button" class="sr-ed ${okAll?'ok':'bad'}" onclick="event.stopPropagation();openEd('${x.recordId}')">
+      ${okAll?'編輯':'補齊 '+miss.length+' 欄'} ›</button>
+  </div>`;
+}
 function renderRec(){
   const rows=myRecs(),el=document.getElementById('recCards'),showItem=!FI;
+  GROUPS=[];
   // 有自訂排序就用自訂排序，否則維持預設的「備貨日期新到舊」
   if(RSORT) rows.sort(sortCompare(RSORT.col,RSORT.dir));
   else rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||''));
@@ -606,14 +687,13 @@ function renderRec(){
         </div><div class="rc-a">›</div></div>`;}).join('')
     ).join('');
   }else{
-    GROUPS=[];
     el.innerHTML=dateSections(rows).map(sec=>{
       const g={};sec.rows.forEach(x=>{const k=x.customer+'|'+x.item;(g[k]=g[k]||[]).push(x)});
       const cards=Object.values(g).map(its=>{const i=GROUPS.push(its)-1,f=its[0],fam=familyOf(f.item);
         return `<div class="rc" onclick="tg(${i})"><div class="rc-s" style="background:${fam.color}"></div><div class="rc-b">
         <div class="rc-t"><span class="rc-c">${esc(f.customer||'（未填）')}<span class="rc-cat">${esc(f.category||'—')}</span><span class="rc-q">×${its.length}</span></span><span class="bg ${shipStatus(f)}">${shipStatus(f)==='sh'?'已送貨':'未送貨'}</span></div>
         <div class="rc-m">${showItem?`<span style="color:${fam.color};font-weight:500">${esc(f.item||'（未填）')}</span>`:''}</div>
-        <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')} ${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span><span>編輯 ›</span></div>`).join('')}</div>
+        <div class="rc-sub" id="g${i}">${its.map(recSubRow).join('')}</div>
         </div><div class="rc-a rc-a-edit" onclick="event.stopPropagation();openGroupEdit(${i})" title="批次編輯">✎</div></div>`;
       }).join('');
       return (sec.date===null?'':`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`)+cards;
@@ -651,7 +731,7 @@ function typeBadge(t){if(!t)return'';const cls=TYPE_COLOR[t];const label=cls?t:'
 function tgT(i){document.querySelectorAll(`#tgt-${i}`).forEach(r=>{r.style.display=r.style.display==='none'?'table-row':'none';});}
 function keyHtml(){return `<div class="key"><span><i style="background:var(--ok)"></i>已送貨</span><span><i style="background:var(--nav-3)"></i>未送貨</span></div>`;}
 function renderIB(){const m={};myRecs().forEach(x=>{if(!x.item)return;m[x.item]=m[x.item]||{sh:0,hd:0};m[x.item][shipStatus(x)]++});
-  const e=Object.entries(m);
+  const e=Object.entries(m).sort((a,b)=>byItemOrder(a[0],b[0]));
   document.getElementById('ibRec').innerHTML=e.length?e.map(([n,v])=>{const t=v.sh+v.hd,p=Math.round(v.sh/t*100);
     return `<div class="sp"><div class="sp-t"><span class="sp-n">${esc(n)}</span><span class="sp-v">共 <b>${t}</b> 筆</span></div>
     <div class="stk"><div class="a" style="width:${p}%"></div><div class="b" style="width:${100-p}%"></div></div></div>`;}).join('')+keyHtml()
@@ -743,15 +823,64 @@ function renderStats(){
     ].map(([lbl,n])=>`<div class="fb-row"><span>${lbl}</span><div class="fb-track"><span style="width:${Math.round(n/tt*100)}%"></span></div><span class="mn">${n}</span></div>`).join('');
   }else{el1.textContent='—';elN.textContent='0';document.getElementById('fulfillBars').innerHTML=`<div class="emp-s">尚無已送貨的紀錄可供計算</div>`;}
 }
-function renderPend(){const rows=pendRecs(),n=rows.length;
+// ── 待補齊：改成跟「我的紀錄 · 依日期分組」相同的呈現方式 ──────────────
+// 舊版每一筆都是一張只有品項與發票日期的小卡，資訊太少、也不能批次處理。
+// 現在依「備貨日期」分段，同一天內再依「批號＋品項」分組：
+//   ・整張卡點一下就展開，看到組內每一筆的完整欄位
+//   ・右側 ✎ 可以整組批次補齊（科別／賣備樣／批號／送貨日期／客戶／品項）
+//   ・展開後每一筆都能單獨編輯，按鈕上直接寫還缺幾欄
+// 分組沿用 GROUPS 陣列（renderRec 會先清空、renderPend 再往後接），
+// 因此批次編輯視窗完全共用同一套邏輯，不需要第二份程式。
+function pendSubRow(x){
+  const miss=recMissing(x);
+  const f=(k,mono)=>`<span class="srf${(x[k]&&String(x[k]).trim())?'':' srf-miss'}"><span class="srk">${esc(LBL[k])}</span><span class="srv${mono?' mn':''}">${esc(x[k]||'—')}</span></span>`;
+  return `<div class="rc-sr">
+    <div class="sr-fields">
+      ${f('customer')}${f('category')}${f('type')}${f('batch',1)}${f('shipDate',1)}${f('orderNo',1)}
+      ${f('invoiceDate',1)}${f('invoiceNo',1)}${x.loanOut?f('loanOut',1):''}${x.loanReturn?f('loanReturn',1):''}
+    </div>
+    <button type="button" class="sr-ed ${miss.length?'bad':'ok'}" onclick="event.stopPropagation();openEd('${x.recordId}')">
+      ${miss.length?'補齊 '+miss.length+' 欄':'編輯'} ›</button>
+  </div>`;
+}
+function renderPend(){
+  const rows=pendRecs(),n=rows.length;
   document.getElementById('pCnt').textContent=n;document.getElementById('pCnt2').textContent=n;
   document.getElementById('pAlert').style.display=n?'flex':'none';
   document.getElementById('pDot').style.display=n?'inline-block':'none';
   const el=document.getElementById('pendList');
   if(!n){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-i">✓</div><div class="emp-t">目前沒有待補齊項目</div><div class="emp-s">所有資料都已完整</div></div></div>`;return;}
-  el.innerHTML=rows.map(x=>`<div class="pd"><div class="pd-t"><span class="pd-n">${esc(x.item||'（未指定品項）')}</span><span class="pd-d">${esc(x.invoiceDate||'—')}</span></div>
-    <div class="pd-s">${x.invoiceNo?'發票 '+esc(x.invoiceNo)+' 已開立，':''}尚未有客戶與明細資料</div>
-    <button class="pd-a" onclick="openEd('${x.recordId}')">補齊資料</button></div>`).join('');}
+
+  rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||'')
+    ||byItemOrder(a.item||'',b.item||'')||String(a.batch||'').localeCompare(String(b.batch||'')));
+
+  // 依備貨日期分段（沒填備貨日期的集中在「未填日期」）
+  const order=[],by={};
+  rows.forEach(x=>{const d=x.stockDate||'';if(!by[d]){by[d]=[];order.push(d);}by[d].push(x);});
+  order.sort((a,b)=>{ if(!a)return 1; if(!b)return -1; return b.localeCompare(a); });
+
+  el.innerHTML=order.map(d=>{
+    // 同一天內，備貨日期＋批號＋品項相同的視為同一組，可以一次補齊
+    const g={},gk=[];
+    by[d].forEach(x=>{const k=(x.batch||'')+'|'+(x.item||'');if(!g[k]){g[k]=[];gk.push(k);}g[k].push(x);});
+    const cards=gk.map(k=>{
+      const its=g[k], i=GROUPS.push(its)-1, f=its[0], fam=familyOf(f.item);
+      const missTotal=its.reduce((sum,x)=>sum+recMissing(x).length,0);
+      return `<div class="rc rc-pend" onclick="tg(${i})"><div class="rc-s" style="background:${fam.color}"></div><div class="rc-b">
+        <div class="rc-t"><span class="rc-c">${esc(f.item||'（未指定品項）')}${its.length>1?`<span class="rc-q">×${its.length}</span>`:''}</span>
+          <span class="bg hd">待補齊</span></div>
+        <div class="rc-m">
+          <span>批號 <b class="mn">${esc(f.batch||'—')}</b></span>
+          <span>發票 <b class="mn">${esc(f.invoiceNo||'—')}</b></span>
+          <span>借出單 <b class="mn">${esc(f.loanOut||'—')}</b></span>
+          <span style="color:var(--bad)">共缺 <b style="color:var(--bad)">${missTotal}</b> 個欄位</span>
+        </div>
+        <div class="rc-sub" id="g${i}">${its.map(pendSubRow).join('')}</div>
+      </div><div class="rc-a rc-a-edit" onclick="event.stopPropagation();openGroupEdit(${i})" title="整組批次補齊">✎</div></div>`;
+    }).join('');
+    return `<div class="rc-date-sec">${fmtDateShort(d)}</div>`+cards;
+  }).join('');
+}
 
 // ==========================================
 // 1. 業務端與行政端的 LOG 渲染主入口
@@ -962,11 +1091,14 @@ async function submitReg(btn){
 function fillDatalist(dlId,values){const dl=document.getElementById(dlId);if(dl)dl.innerHTML=values.map(v=>`<option value="${esc(v)}">`).join('');}
 function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;EDID=id;
   document.getElementById('edRef').textContent='REC / '+id;
-  set('e-cu',x.customer);set('e-it',x.item);set('e-ca',x.category);set('e-ty',x.type);set('e-sd',x.stockDate);set('e-hd',x.shipDate);set('e-ba',x.batch);set('e-on',x.orderNo);
-  fillDatalist('dl-e-cu',myHistory('customer'));
-  fillDatalist('dl-e-it',myHistory('item'));
-  fillDatalist('dl-e-ca',myHistory('category'));
-  fillDatalist('dl-e-ty',myHistory('type'));
+  // 客戶／品項／科別／賣備樣改用跟「備貨登記」同一套的下拉選擇器（可搜尋、可直接輸入新值），
+  // 不再是看起來像純文字框的 datalist——手機上根本看不出來可以點開選單。
+  setPk('e-cu',x.customer);setPk('e-it',x.item);setPk('e-ca',x.category);setPk('e-ty',x.type);
+  set('e-sd',x.stockDate);set('e-hd',x.shipDate);set('e-ba',x.batch);set('e-on',x.orderNo);
+  set('e-rm',x.remark);
+  const miss=recMissing(x);
+  const tip=document.getElementById('edMiss');
+  if(tip) tip.innerHTML=miss.length?`<div class="ed-miss">尚缺 <b>${miss.length}</b> 個欄位：${miss.map(k=>esc(LBL[k])).join('、')}</div>`:`<div class="ed-ok">此筆資料已填寫完整</div>`;
   document.getElementById('edMv').classList.add('on');}
 function set(id,v){const e=document.getElementById(id);e.value=v||'';mk(e);}
 function closeEd(){document.getElementById('edMv').classList.remove('on');}
@@ -986,7 +1118,8 @@ function gedCell(x,k){
 }
 function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
   document.getElementById('gEdRef').textContent=its.length+' 筆';
-  ['g-ca','g-ty','g-ba','g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+  ['g-ba','g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+  ['g-cu','g-it','g-ca','g-ty'].forEach(k=>setPk(k,''));
 
   document.getElementById('gEdPreview').innerHTML=its.map((x,ri)=>
     `<div class="gsum-it">
@@ -998,7 +1131,7 @@ function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
        </div>
      </div>`).join('');
 
-  const fields=[['category','科別'],['type','賣/備/樣'],['batch','批號'],['shipDate','送貨日期']];
+  const fields=[['customer','客戶名稱'],['item','品項'],['category','科別'],['type','賣/備/樣'],['batch','批號'],['shipDate','送貨日期']];
   let warn='';
   fields.forEach(([k,label])=>{
     const cnt={};its.forEach(x=>{const v=x[k]&&x[k].trim()?x[k]:'（空白）';cnt[v]=(cnt[v]||0)+1;});
@@ -1011,8 +1144,11 @@ function closeGroupEdit(){document.getElementById('gEdMv').classList.remove('on'
 
 function collectGroupChanges(){
   const changes={};
-  const ca=val('g-ca'),ty=val('g-ty'),ba=val('g-ba'),hd=val('g-hd');
-  if(ca)changes.category=ca;if(ty)changes.type=ty;if(ba)changes.batch=ba;if(hd)changes.shipDate=hd;
+  const cu=PKV['g-cu']||'', it=PKV['g-it']||'', ca=PKV['g-ca']||'', ty=PKV['g-ty']||'';
+  const ba=val('g-ba'),hd=val('g-hd');
+  if(cu)changes.customer=cu;if(it)changes.item=it;
+  if(ca)changes.category=ca;if(ty)changes.type=ty;
+  if(ba)changes.batch=ba;if(hd)changes.shipDate=hd;
   return changes;
 }
 // 按「套用」不再直接寫入，而是先跳出確認視窗說明會變更哪些欄位、會影響幾筆，
@@ -1068,7 +1204,8 @@ async function doGroupEdit(btn){
 async function saveEd(btn){
   if(btn&&btn.disabled)return;
   const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
-  const nv={customer:val('e-cu'),item:val('e-it'),category:val('e-ca'),type:val('e-ty'),stockDate:val('e-sd'),shipDate:val('e-hd'),batch:val('e-ba'),orderNo:val('e-on')};
+  const nv={customer:PKV['e-cu']||'',item:PKV['e-it']||'',category:PKV['e-ca']||'',type:PKV['e-ty']||'',
+    stockDate:val('e-sd'),shipDate:val('e-hd'),batch:val('e-ba'),orderNo:val('e-on'),remark:val('e-rm')};
   const diffs=[];Object.keys(nv).forEach(k=>{if(String(x[k]||'')!==String(nv[k]||''))diffs.push({label:LBL[k],before:x[k],after:nv[k]});});
   if(!diffs.length){toast('沒有任何變更');closeEd();return;}
   busy(btn,true,'儲存中…');
@@ -1079,7 +1216,7 @@ async function saveEd(btn){
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
     toast('已儲存修改，操作已記錄');
     busy(btn,false);
-    if(ROLE==='admin')loadAdminData();else queueSalesSync(); 
+    if(ROLE==='admin')queueAdminSync();else queueSalesSync(); 
   }else if(res.status==='conflict'){
     addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:'版本衝突：這筆資料已被他人修改'});
     renderLogs();toast('這筆資料剛剛被其他人改過，已為您載入最新版本，請重新確認後再儲存',true);
@@ -1101,7 +1238,7 @@ async function delRec(btn){
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
     toast('已刪除此筆紀錄');
     busy(btn,false);
-    if(ROLE==='admin')loadAdminData();else queueSalesSync();
+    if(ROLE==='admin')queueAdminSync();else queueSalesSync();
   }else{
     addLog({act:'刪除紀錄',ok:false,rid:EDID,err:res.message||'未知錯誤'});renderLogs();toast('刪除失敗',true);
     busy(btn,false);
@@ -1141,9 +1278,12 @@ function shiftYM(ym,delta){
    ・產品備貨數量 → 該月份／該品項的「月底庫存」，依業務列出，最上方是全業務加總。
    ・品牌家族本月出貨量 → 該月份的「月出貨」，依品牌家族加總。
    兩塊共用同一份 getStockReport 結果，所以切月份只會有一次讀取。            */
-const MGR_OV_ITEMS=(function(){ const first='速原10ml-2級';
-  return [first].concat(ITEM_CATALOG.filter(i=>i!==first)); })();
+const MGR_OV_ITEMS=ITEM_ORDER.slice();
 let MGR_OV_YM='', MGR_OV_ITEM=MGR_OV_ITEMS[0], MGR_OV_RPT=null, MGR_OV_BUSY=false;
+// 業務清單預設「固定位置」＝依名冊順序，切品項／切月份時每個人都待在原地，
+// 眼睛不用重新找人。想看排名時按一下「依數量排序」才會重排。
+let MGR_OV_SORT='roster';
+function toggleMgrOvSort(){ MGR_OV_SORT=(MGR_OV_SORT==='roster')?'qty':'roster'; renderMgrOverview(); }
 
 async function changeMgrOvMonth(delta){
   if(MGR_OV_BUSY)return;
@@ -1178,7 +1318,10 @@ function renderMgrOverview(){
   const list=ROSTERS.sales.map(p=>({name:p.name,qty:(by[p.name]!==undefined?by[p.name]:null)}));
   // 名冊以外、但試算表裡有資料的業務也一併列出，避免資料被默默漏掉
   Object.keys(by).forEach(n=>{ if(!ROSTERS.sales.some(p=>p.name===n)) list.push({name:n,qty:by[n]}); });
-  list.sort((x,y)=>(y.qty||0)-(x.qty||0)||x.name.localeCompare(y.name,'zh-TW'));
+  if(MGR_OV_SORT==='qty') list.sort((x,y)=>(y.qty||0)-(x.qty||0)||x.name.localeCompare(y.name,'zh-TW'));
+  const sb=document.getElementById('mgrOvSortBtn');
+  if(sb){ sb.textContent=MGR_OV_SORT==='qty'?'✓ 依數量排序':'依數量排序';
+          sb.classList.toggle('on',MGR_OV_SORT==='qty'); }
 
   const total=list.reduce((sum,x)=>sum+(x.qty||0),0);
   document.getElementById('mgrOvTotalV').textContent=nf(total);
@@ -1330,7 +1473,7 @@ function niceCeil_(v){
 }
 function renderMgrDetail(salesName, res){
   MGR_DETAIL_SALES=salesName;
-  MGR_DETAIL_ITEMS=(res.items||[]).slice().sort((a,b)=>a.item.localeCompare(b.item,'zh-TW'));
+  MGR_DETAIL_ITEMS=(res.items||[]).slice().sort((a,b)=>byItemOrder(a.item,b.item));
   MGR_DETAIL_ML=monthLabel(res.yearMonth);
   MGR_DETAIL_PML=monthLabel(res.prevYearMonth);
   MGR_DETAIL_GROUP='ALL'; MGR_DETAIL_VIEW='absolute';
@@ -1391,7 +1534,7 @@ function renderMgrDetailBody(){
           <span class="stkr-endv mn">${noData?'—':nf(ending)}</span>
         </div>
       </div>
-      <div class="stkr-num c-ship" data-label="本月出貨">${it.shipment===null?'—':nf(it.shipment)}</div>
+      <div class="stkr-num c-ship" data-label="本月出貨">${it.shipment===null?'—':nf(it.shipment)}<span class="rate-in">${rate===null?'':' ('+rate+'%)'}</span></div>
       <div class="stkr-num c-rate" data-label="出貨率">${rate===null?'—':rate+'%'}</div>
       <div class="stkr-num c-prev" data-label="上月庫存">${it.prevEnding===null?'—':nf(it.prevEnding)}</div>
     </div>`;
@@ -1415,7 +1558,7 @@ function renderMgrDetailBody(){
       <span class="stkr-scale-note">${MGR_DETAIL_VIEW==='ratio'?'每列以「本月庫存＋本月出貨」為 100%':'共同數量尺度：0–'+nf(scaleMax)}</span>
     </div>
     <div class="stkr-table">
-      <div class="stkr-head"><span>品項</span><span>本月庫存</span><span>庫存結構</span><span>本月出貨</span><span>出貨率</span><span>上月庫存</span></div>
+      <div class="stkr-head"><span>品項</span><span>本月庫存</span><span class="h-bar">庫存結構</span><span>本月出貨</span><span class="h-rate">出貨率</span><span>上月庫存</span></div>
       ${rowsHtml}
     </div>`;
 }
@@ -1465,12 +1608,12 @@ function renderGridHead(stats){
 function renderAChips(){
   const sc={};DB.records.forEach(x=>{if(x.sales)sc[x.sales]=(sc[x.sales]||0)+1});
   document.getElementById('aSalesChips').innerHTML=
-    `<button class="chip ${ASales===''?'on':''}" onclick="ASales='';renderAChips();renderGrid()">全部</button>`+
-    SALES_NAMES.filter(s=>sc[s]).map(s=>`<button class="chip ${ASales===s?'on':''}" onclick="ASales='${jse(s)}';renderAChips();renderGrid()">${esc(s)}<span class="n">${sc[s]}</span></button>`).join('');
+    `<button class="chip ${ASales===''?'on':''}" onclick="ASales='';renderAChips();renderGridDebounced()">全部</button>`+
+    SALES_NAMES.filter(s=>sc[s]).map(s=>`<button class="chip ${ASales===s?'on':''}" onclick="ASales='${jse(s)}';renderAChips();renderGridDebounced()">${esc(s)}<span class="n">${sc[s]}</span></button>`).join('');
   const ic={};DB.records.forEach(x=>{if(x.item)ic[x.item]=(ic[x.item]||0)+1});
   document.getElementById('aItemChips').innerHTML=
-    `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGrid()">全部</button>`+
-    ITEM_CATALOG.filter(i=>ic[i]).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGrid()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
+    `<button class="chip ${AItem===''?'on':''}" onclick="AItem='';renderAChips();renderGridDebounced()">全部</button>`+
+    ITEM_CATALOG.filter(i=>ic[i]).sort(byItemOrder).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGridDebounced()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
   document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');
   const activeCols=COLS.filter(c=>hfActive(HF,c.k));
   document.getElementById('adminActiveFilterChips').innerHTML=sortChipHtml(ASORT,'admin')+activeCols.map(c=>
@@ -1541,7 +1684,9 @@ function filterColValues(col){
     counts.set(v,(counts.get(v)||0)+1);
   });
   const arr=[...counts.entries()];
-  arr.sort((a,b)=>{ if(a[0]==='')return 1; if(b[0]==='')return -1; return b[1]-a[1]; });
+  // 品項欄依全系統固定順序，其他欄位仍依出現次數多寡排序
+  if(col==='item') arr.sort((a,b)=>{ if(a[0]==='')return 1; if(b[0]==='')return -1; return byItemOrder(a[0],b[0]); });
+  else arr.sort((a,b)=>{ if(a[0]==='')return 1; if(b[0]==='')return -1; return b[1]-a[1]; });
   return arr;
 }
 function openHeaderFilter(e,ctx,col){
@@ -1617,7 +1762,7 @@ function clearAdminFilter(which){
   if(which==='sales')ASales=''; else AItem='';
   renderAChips();renderGrid();
 }
-function tglEmpty(k){AEmpty.has(k)?AEmpty.delete(k):AEmpty.add(k);renderAChips();renderGrid();}
+function tglEmpty(k){AEmpty.has(k)?AEmpty.delete(k):AEmpty.add(k);renderAChips();renderGridDebounced();}
 function resetFilters(){ASales='';AItem='';AEmpty.clear();HF={};renderAChips();renderGrid();}
 function gridRows(){let rows=DB.records.slice();
   if(ASales)rows=rows.filter(x=>x.sales===ASales);
@@ -1644,7 +1789,7 @@ function gridRows(){let rows=DB.records.slice();
 const LOAN_GROUP_COLS = ['stockDate','batch','loanOut']; // 借出單／備貨日期／批號
 const LOAN_COLOR_N = 6; // 底色循環使用幾種顏色
 let _gridRenderTimer = null;
-function renderGridAsync(){ renderGrid(); }
+function renderGridAsync(){ renderGridDebounced(); }
 function renderGrid(){
   GRID=gridRows();
   // 有填「借出單」的資料，依借出單分組排在一起（組內再依備貨日期/品項/業務排序）；
@@ -1769,7 +1914,7 @@ async function commitGrid(btn){
     EDITS={};closeDiff();renderGrid();
     toast(`已更新 ${ks.length} 筆資料，操作已記錄`);
     busy(btn,false);
-    loadAdminData(); 
+    queueAdminSync(); 
   }else{
     ks.forEach(rid=>addLog({act:'修改紀錄',ok:false,rid,diffs:by[rid].list,err:res.message||'未知錯誤',src:'行政端總表'}));
     closeDiff();renderALog();toast('送出失敗：'+(res.message||'未知錯誤'),true);
@@ -1788,7 +1933,7 @@ async function adminCreate(btn){
     clearPk('ac-item');clearPk('ac-sales');AQ=1;aq(0);
     toast(`已建立 ${res.createdCount} 筆${sales?'，業務「'+sales+'」下次登入／重新整理會看到補齊提醒':'，可於總表指定業務'}`);
     busy(btn,false);
-    loadAdminData(); 
+    queueAdminSync(); 
   }else{
     addLog({act:'快速建立',ok:false,desc:`嘗試為${who}建立 ${AQ} 筆「${item}」`,err:res.message||'未知錯誤',src:'行政端網頁'});
     renderALog();toast('建立失敗',true);
