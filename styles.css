@@ -879,3 +879,68 @@ table.dt td.pad{padding:5px 9px;line-height:1.5}
 /* ── 5. 業務清單的批次編輯列 ── */
 #recEditBar{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 #recTableWrap .cel{width:100%}
+
+/* ═════════ Round 5 追加 ═════════ */
+
+/* ── 1. 清除叉叉移到欄位右上角、加大，完全不壓到輸入的文字 ── */
+.fg{position:relative}
+.fg .fw-clear,.fw .fw-clear{display:none;position:absolute;top:-3px;right:0;
+  width:26px;height:26px;padding:0;border:1px solid var(--line-2);border-radius:50%;
+  background:var(--paper);color:var(--tx-2);font-size:12px;line-height:1;cursor:pointer;
+  align-items:center;justify-content:center;z-index:5;transition:.15s var(--e)}
+.fg.has-val > .fw-clear,.fw.has-val > .fw-clear{display:flex}
+.fg .fw-clear:hover,.fw .fw-clear:hover{background:var(--bad);border-color:var(--bad);color:#fff}
+/* 舊版把叉叉塞在輸入框裡面，這兩條要取消，否則文字會被擠掉 */
+.fw.has-val .fb{padding-right:14px}
+.fw.has-val input[type="date"]{padding-right:14px}
+
+/* ── 8. 日期欄位維持與其他欄位相同的高度，不因為空值而縮小 ── */
+input[type="date"].fb{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;
+  min-height:45px;line-height:1.35;font-family:'IBM Plex Mono',monospace}
+input[type="date"].fb::-webkit-date-and-time-value{text-align:left;min-height:19px;margin:0}
+input[type="date"].fb::-webkit-calendar-picker-indicator{opacity:.45;cursor:pointer}
+.fb.pkb,.fb.tx{min-height:45px}
+
+/* ── 3. 庫存統計：更現代的卡片與數字 ── */
+.fam-page-grid{gap:12px}
+.fam-card{border-radius:14px;border-top-width:0;position:relative;overflow:hidden;
+  box-shadow:0 1px 2px rgba(22,48,76,.04),0 6px 18px rgba(22,48,76,.05);transition:.2s var(--e)}
+.fam-card::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--line)}
+.fam-card:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(22,48,76,.05),0 10px 26px rgba(22,48,76,.08)}
+.fam-card-head{padding:16px 18px 0;justify-content:flex-start}
+.fam-card-name{font-size:10px;letter-spacing:.18em}
+.fam-card-total{font-family:'IBM Plex Mono',monospace;font-size:42px;font-weight:600;
+  letter-spacing:-.03em;text-align:left;padding:6px 18px 16px;font-variant-numeric:tabular-nums}
+.fam-spec-row{background:transparent;border-top:1px solid var(--line);padding:4px}
+.fam-spec-cell{border:none;padding:9px 4px 10px;border-radius:8px;transition:background .15s}
+.fam-spec-cell:hover{background:var(--sub)}
+.fam-spec-cell .fsn{font-size:9.5px;margin-bottom:5px;color:var(--tx-3)}
+.fam-spec-cell .fsv{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+@media(max-width:560px){
+  .fam-card-total{font-size:34px;padding:4px 16px 12px}
+  .fam-spec-cell .fsv{font-size:17px}
+  .fam-spec-cell{border-bottom:none}
+}
+
+/* ── 5. 報表：品牌家族出貨量卡片化；業務姓名一排四個 ── */
+.fam-block{background:var(--paper);border:1px solid var(--line);border-left-width:3px;
+  border-radius:0 10px 10px 0;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(22,48,76,.04)}
+.fam-block:last-child{margin-bottom:0}
+.fam-block .fam-head{gap:8px;margin-bottom:9px}
+.fam-block .fam-name{font-size:12.5px;font-weight:600;color:var(--ink)}
+.fam-block .fam-total{margin-left:auto;font-size:10.5px;color:var(--tx-3);white-space:nowrap}
+@media(max-width:560px){
+  .fam-block{padding:10px 12px;margin-bottom:8px}
+  .fam-block .fam-name{font-size:12px}
+  .mgr-name-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .mgr-name-btn{padding:8px 4px;font-size:11px;gap:4px;justify-content:center;border-radius:8px}
+  .mgr-name-btn .rpt-dot{width:5px;height:5px;flex:none}
+  .grp-strip{gap:5px}
+  .grp-chip{padding:5px 9px;font-size:10.5px}
+}
+
+/* ── 4. 待補齊的品項篩選膠囊沿用「我的紀錄」的小尺寸 ── */
+#pg-pend .chip{padding:5px 11px;font-size:11px;border-radius:16px}
+#pg-pend .chip .n{font-size:9.5px;margin-left:4px}
+#pg-pend .cf-h{font-size:10px}
