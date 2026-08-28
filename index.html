@@ -132,6 +132,15 @@
         <div class="tsc" style="max-height:64vh">
           <table class="dt grid" id="recTableEl"><colgroup id="recCol"></colgroup><thead><tr id="recHead"></tr></thead><tbody id="recTB"></tbody></table>
         </div>
+        <div class="tf" id="recEditBar">
+          <span>顯示 <b id="rCnt">0</b> 筆</span>
+          <span class="edn" id="rEdit" style="display:none">已修改 <b id="rEditN">0</b> 格，尚未送出</span>
+          <span style="color:var(--tx-3);font-size:10.5px">切換到「清單」可直接編輯儲存格，或從 Excel 複製後貼上（支援多格）</span>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex:none">
+            <button class="btn-g" onclick="revertRecGrid()">還原變更</button>
+            <button class="btn-d" id="btnSubmitRec" onclick="openRecDiff()" disabled>送出更新</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="pn"><div class="pn-h"><span class="pn-t">品項分佈</span></div><div class="pn-b" id="ibRec"></div></div>
@@ -437,15 +446,15 @@
       <div id="gEdWarn"></div>
       <div class="fr">
         <div class="fg"><label class="fl">客戶名稱</label>
-          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-cu" onclick="openPk('g-cu')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-cu" onclick="openPk('g-cu')"><span class="v ph">請選擇</span><span class="c">▾</span></button></div></div>
         <div class="fg"><label class="fl">品項</label>
-          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-it" onclick="openPk('g-it')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-it" onclick="openPk('g-it')"><span class="v ph">請選擇</span><span class="c">▾</span></button></div></div>
       </div>
       <div class="fr">
         <div class="fg"><label class="fl">科別</label>
-          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ca" onclick="openPk('g-ca')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ca" onclick="openPk('g-ca')"><span class="v ph">請選擇</span><span class="c">▾</span></button></div></div>
         <div class="fg"><label class="fl">賣/備/樣</label>
-          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ty" onclick="openPk('g-ty')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ty" onclick="openPk('g-ty')"><span class="v ph">請選擇</span><span class="c">▾</span></button></div></div>
       </div>
       <div class="fr">
         <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ba" oninput="mk(this)"></div></div>
@@ -470,7 +479,7 @@
   <div class="mb lg2">
     <div class="mh"><span class="mh-t">送出前確認</span><span class="mh-r" id="dfCount"></span></div>
     <div class="mbd" id="dfBody"></div>
-    <div class="ma"><button onclick="closeDiff()">返回修改</button><button class="sv" onclick="commitGrid(this)">確認送出</button></div>
+    <div class="ma"><button onclick="closeDiff()">返回修改</button><button class="sv" onclick="commitDiff(this)">確認送出</button></div>
   </div>
 </div>
 
