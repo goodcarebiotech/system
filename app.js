@@ -124,9 +124,9 @@ function nameForEmail(email){
 let FIREBASE_READY=false, FIREBASE_USER=null;
 window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
-  window.__fb.redirectResultPromise.then(result=>{
-    if(result && result.user){ handleAuthedUser(result.user); }
-  }).catch(err=>{ toast('Google 登入失敗：'+(err.message||err.code||'未知錯誤'), true); });
+  // 已改為純彈窗登入，不再有 getRedirectResult 這一段（見 firebase-init.js 的說明）。
+  // onAuthStateChanged 會在頁面重新載入、且先前登入狀態仍有效時自動觸發，
+  // 使用者不用每次開網頁都重新登入一次。
   window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
     FIREBASE_USER=user;
     if(user && document.getElementById('login').style.display!=='none'){ handleAuthedUser(user); }
@@ -141,24 +141,28 @@ async function googleSignIn(btn){
   if(isInAppBrowser()){ document.getElementById('inAppWarn').style.display='block'; return; }
   const orig=document.getElementById('googleBtnText').textContent;
   btn.disabled=true;document.getElementById('googleBtnText').textContent='登入中…';
-  // 原本手機一律強制用 signInWithRedirect（整頁導去 Google 再導回來）。
-  // 但這個方式依賴「導回頁面後還讀得到剛剛存的登入狀態」，手機瀏覽器（尤其 iOS Safari）
-  // 對第三方儲存空間的封鎖越來越嚴格，常常導致導回來之後 getRedirectResult() 讀不到
-  // 任何東西、卻也不會報錯——使用者看到的就是「登入完又跳回登入畫面」。
-  // signInWithPopup 不需要整頁跳轉、不依賴那個儲存空間，所以不分手機或電腦，
-  // 一律先嘗試彈窗登入；只有瀏覽器真的擋掉彈窗時，才退回用整頁跳轉。
+  // 只用 signInWithPopup，不再保留 signInWithRedirect 這條退路。
+  // signInWithRedirect 會先把「登入中繼狀態」寫進 sessionStorage，整頁跳去 Google 再跳回來，
+  // 但現在的手機瀏覽器（iOS Safari、Android Chrome 的無痕／隱私模式、以及所有做了
+  // storage partitioning 的環境）常常在跳轉回來後就讀不到那份中繼狀態，Firebase 就會丟出
+  // 「Unable to process request due to missing initial state」——這正是手機登入不了的原因。
+  // 彈窗登入全程都在同一個分頁的同一個 session 裡，沒有這個問題，所以一律走彈窗。
   try{
     const result=await window.__fb.signInWithPopup(window.__fb.auth, window.__fb.provider);
     await handleAuthedUser(result.user);
   }catch(err){
     const code=err&&err.code||'';
-    const msg=String(err&&err.message||'');
-    const popupBlocked = code==='auth/popup-blocked' || code==='auth/operation-not-supported-in-this-environment'
-      || msg.includes('initial state') || msg.includes('Cross-Origin-Opener-Policy');
-    if(popupBlocked){
-      try{ await window.__fb.signInWithRedirect(window.__fb.auth, window.__fb.provider); return; }catch(e2){}
+    if(code==='auth/popup-closed-by-user' || code==='auth/cancelled-popup-request'){
+      // 使用者自己關掉彈窗，不算錯誤，安靜結束就好
+    }else if(code==='auth/popup-blocked'){
+      toast('瀏覽器擋住了登入視窗，請允許此網站顯示彈出式視窗後再試一次',true);
+    }else if(code==='auth/unauthorized-domain'){
+      toast('這個網域尚未加入 Firebase 授權清單，請聯絡系統管理員',true);
+    }else if(code==='auth/network-request-failed'){
+      toast('網路連線不穩，請確認網路後再試一次',true);
+    }else{
+      toast('Google 登入失敗：'+(err.message||code||'未知錯誤'),true);
     }
-    if(code!=='auth/popup-closed-by-user' && code!=='auth/cancelled-popup-request'){ toast('Google 登入失敗：'+(err.message||code), true); }
   }
   btn.disabled=false;document.getElementById('googleBtnText').textContent=orig;
 }
@@ -410,10 +414,14 @@ function myRecs(){
   });
   return rows;
 }
-function stOf(x){return (x.invoiceDate||x.invoiceNo)?'sh':'hd';}
-// 「我的紀錄」頁面專用的送貨狀態判斷：送貨日期／客戶兩欄都有填才算已送貨，
-// 跟 stOf()（發票是否登打，給行政／主管報表用）是不同的概念，先不動 stOf() 影響其他頁面。
+// ── 出貨判斷（全系統唯一標準）──
+// 「送貨日期」和「客戶」兩欄都有填，才算已出貨。
+// 原本系統裡並存兩套定義：這裡用發票（發票日期或發票號碼有填就算出貨）、我的紀錄用送貨日期，
+// 導致同一個人在不同畫面看到不一樣的「已出貨」數字。現在一律以送貨日期為準，
+// 發票判斷停用；後端 gas.js 的 computeShipmentCounts_ 也是同一套定義，前後端完全一致。
 function shipStatus(x){return (x.shipDate&&x.customer)?'sh':'hd';}
+// stOf 保留為別名，避免任何漏改的呼叫點跑回舊的發票邏輯造成數字不一致
+function stOf(x){return shipStatus(x);}
 function fmtDateShort(d){
   if(!d)return'未填日期';
   const p=d.split('-');if(p.length<3)return d;
@@ -587,8 +595,15 @@ function renderStats(){
   document.getElementById('t4d').textContent=cPend?'需要您的確認':'已全部補齊';
   document.getElementById('t4d').className='dlt'+(cPend?' down':' up');
 
-  const v=[39,52,33,62,47,rows.length||1],mx=Math.max(...v);
-  document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===5?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
+  // 近六個月備貨量：原本這裡是寫死的假資料 [39,52,33,62,47,實際值]，只有最後一根是真的，
+  // 前五根是憑空捏造的數字——這種東西出現在報表上會直接摧毀整份資料的可信度，已改成
+  // 全部用這位業務真實的備貨紀錄逐月統計。
+  const myMonths=monthsBack(CURRENT_YM,6);
+  const v=myMonths.map(ym=>DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(ym)).length);
+  const mx=Math.max(...v,1);
+  document.getElementById('chW').innerHTML=v.map((n,i)=>`<div class="ch-c"><div class="ch-b ${i===v.length-1?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
+  const chX=document.getElementById('chX');
+  if(chX) chX.innerHTML=myMonths.map(ym=>`<span>${+ym.slice(5)}月</span>`).join('');
 
   // 品項庫存明細：改成真正的「目前庫存」，不是本月備貨紀錄的筆數。
   // 資料來自登入時 salesInit 已經一次帶回的 DB.stock（見 gas.js getStockReport_），
@@ -958,6 +973,8 @@ function initAdmin(){renderAChips();renderGrid();renderALog();}
 // 三個欄位都可能是 null：settled=false 代表這個月系統還沒結算（要等下個月 1 號），
 // prevEnding=null 代表上個月沒有月底庫存基準（尚未在庫存資料試算表填過起算基準）。
 let MGR_REPORT={yearMonth:'',prevYearMonth:'',items:[]};
+// 後端算好的全公司彙總（見 gas.js managerInit_），只有幾十個數字，不再是整份備貨記錄
+let MGR_AGG={stats:{cur:{total:0,ship:0,hold:0},prev:{total:0,ship:0,hold:0},pending:0},trend:[],byItem:[],bySales:[]};
 let MGR_LOADED=false; // 尚未載入完成時，各面板顯示「讀取中」而不是「本月尚無資料」，避免看起來像壞掉
 function monthLabel(ym){ return ym?ym.slice(0,4)+'年'+(+ym.slice(5))+'月':''; }
 function shiftYM(ym,delta){
@@ -969,11 +986,21 @@ function shiftYM(ym,delta){
 // 寫進「庫存資料」表），但可以用上一月／下一月按鈕自由往前後翻，單純讀表、不做任何即時試算——
 // 跟業務登入自己看「本月即時庫存」是兩種不同用途，故意分開。
 let MGR_STOCK_YM='';
-function changeMgrStockMonth(delta){
+// 切月份只影響「庫存報表」這一塊，上方的全公司彙總（本月備貨、六個月趨勢、績效排行）
+// 看的都是當下月份、不會變，所以這裡只重讀小小的 getStockReport，不要整包重新載入，
+// 切月份才會即時、不用再等一次全公司資料。
+async function changeMgrStockMonth(delta){
   MGR_STOCK_YM=shiftYM(MGR_STOCK_YM,delta);
   document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
-  MGR_LOADED=false;
-  loadManagerData();
+  const res=await api('getStockReport',{yearMonth:MGR_STOCK_YM});
+  if(res.status==='success'){
+    MGR_REPORT=res;
+    renderNameGrid(); renderMgrStockHealth(); renderMgrTopHolders();
+    document.getElementById('mgrStockProgN').textContent=
+      monthLabel(MGR_REPORT.yearMonth)+'份　'+new Set(res.items.filter(it=>it.thisEnding!==null).map(it=>it.sales)).size+' / '+ROSTERS.sales.length+' 人已有庫存資料';
+  }else toast('讀取失敗：'+(res.message||'未知錯誤'),true);
+  if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
+  else document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會讀取該業務在 ${monthLabel(MGR_STOCK_YM)} 的庫存明細</div></div>`;
 }
 // 一進主管畫面就先把整個畫面畫出來（姓名格子、面板骨架都不需要等資料），
 // 全公司彙總資料（近六個月備貨量、業務績效排行、庫存健康度…）在背景載入，不擋畫面、
@@ -990,7 +1017,7 @@ async function loadManagerData(){
   try{
     const res=await api('managerInit', {yearMonth:MGR_STOCK_YM});
     if(res.status==='success'){
-      DB.records = res.records||[];
+      MGR_AGG={stats:res.stats,trend:res.trend,byItem:res.byItem,bySales:res.bySales};
       MGR_REPORT = res.report || {yearMonth:MGR_STOCK_YM,prevYearMonth:'',items:[]};
     }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
   }catch(err){
@@ -1072,7 +1099,11 @@ function renderMgrDetailBody(){
     </button>`).join('');
 
   const filtered=MGR_DETAIL_GROUP==='ALL'?items:items.filter(it=>familyOf(it.item).key===MGR_DETAIL_GROUP);
-  const scaleMax=niceCeil_(Math.max(1,...filtered.map(it=>it.prevEnding||0)));
+  // 尺度必須涵蓋「庫存＋出貨」整根堆疊長條，不能只看上月庫存——
+  // 當月庫存增加會讓本月庫存大於上月庫存（例：上月50、本月53），若尺度只取50，
+  // 庫存段就會算出106%、把後面的出貨段擠成負數而整段消失（灰色線不見的原因）。
+  const scaleMax=niceCeil_(Math.max(1,...filtered.map(it=>
+    Math.max(it.prevEnding||0, Math.max(0,it.thisEnding||0)+Math.max(0,it.shipment||0)))));
 
   const rowsHtml=filtered.length?filtered.map(it=>{
     const ending=Math.max(0,it.thisEnding||0);
@@ -1080,13 +1111,16 @@ function renderMgrDetailBody(){
     const rate=(it.prevEnding&&it.thisEnding!==null)?Math.round(shipment/it.prevEnding*1000)/10:null;
     let stockPct,shipPct;
     if(MGR_DETAIL_VIEW==='ratio'){
-      const base=it.prevEnding||0;
+      // 出貨比例：以「本月庫存＋本月出貨」為 100%，看這個月的量有多少比例被出掉
+      const base=ending+shipment;
       stockPct=base>0?ending/base*100:0;
-      shipPct=base>0?Math.min(100-stockPct,shipment/base*100):0;
+      shipPct=base>0?shipment/base*100:0;
     }else{
-      stockPct=scaleMax>0?ending/scaleMax*100:0;
-      shipPct=scaleMax>0?Math.min(100-stockPct,shipment/scaleMax*100):0;
+      stockPct=Math.min(100,ending/scaleMax*100);
+      shipPct=Math.min(100-stockPct,shipment/scaleMax*100);
     }
+    stockPct=Math.max(0,Math.min(100,stockPct));
+    shipPct=Math.max(0,Math.min(100-stockPct,shipPct));
     const axisMax=MGR_DETAIL_VIEW==='ratio'?'100%':nf(scaleMax);
     const axisHalf=MGR_DETAIL_VIEW==='ratio'?'50%':nf(Math.round(scaleMax/2));
     const noData=it.thisEnding===null;
@@ -1096,13 +1130,13 @@ function renderMgrDetailBody(){
       <div class="stkr-bar">
         <div class="stkr-axis"><span>0</span><span>${axisHalf}</span><span>${axisMax}</span></div>
         <div class="stkr-track">
-          <span class="stkr-seg stock" style="width:${noData?0:Math.max(0,Math.min(100,stockPct))}%"></span>
-          <span class="stkr-seg ship" style="width:${noData?0:Math.max(0,Math.min(100,shipPct))}%;left:${noData?0:Math.max(0,Math.min(100,stockPct))}%"></span>
+          <span class="stkr-seg stock" style="width:${noData?0:stockPct}%"></span>
+          <span class="stkr-seg ship" style="width:${noData?0:shipPct}%;left:${noData?0:stockPct}%"></span>
         </div>
       </div>
-      <div class="stkr-num">${it.shipment===null?'—':nf(it.shipment)}</div>
-      <div class="stkr-num">${it.prevEnding===null?'—':nf(it.prevEnding)}</div>
-      <div class="stkr-num">${rate===null?'—':rate+'%'}</div>
+      <div class="stkr-num c-ship" data-label="本月出貨">${it.shipment===null?'—':nf(it.shipment)}</div>
+      <div class="stkr-num c-prev" data-label="上月庫存">${it.prevEnding===null?'—':nf(it.prevEnding)}</div>
+      <div class="stkr-num c-rate" data-label="出貨率">${rate===null?'—':rate+'%'}</div>
     </div>`;
   }).join(''):`<div class="empty-state">這個分類目前沒有品項資料。</div>`;
 
@@ -1121,7 +1155,7 @@ function renderMgrDetailBody(){
     </div>
     <div class="stkr-legend">
       <span><i class="stock"></i>本月庫存</span><span><i class="ship"></i>本月出貨</span>
-      <span class="stkr-scale-note">${MGR_DETAIL_VIEW==='ratio'?'每個品項皆以上月庫存為 100%':'共同數量尺度：0–'+nf(scaleMax)}</span>
+      <span class="stkr-scale-note">${MGR_DETAIL_VIEW==='ratio'?'每列以「本月庫存＋本月出貨」為 100%':'共同數量尺度：0–'+nf(scaleMax)}</span>
     </div>
     <div class="stkr-table">
       <div class="stkr-head"><span>品項</span><span>本月庫存</span><span>庫存結構</span><span>本月出貨</span><span>上月庫存</span><span>出貨率</span></div>
@@ -1129,34 +1163,30 @@ function renderMgrDetailBody(){
     </div>`;
 }
 function renderManagerDashboard(){
+  const A=MGR_AGG;
   document.getElementById('mgrYM').textContent=CURRENT_YM;
-  const prevYM=monthsBack(CURRENT_YM,2)[0];
-  const rows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
-  const prevRows=DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(prevYM));
-  const cShip=rows.filter(x=>stOf(x)==='sh').length, cHold=rows.filter(x=>stOf(x)==='hd').length;
-  const cPend=DB.records.filter(x=>!x.customer&&(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn)).length;
-  const pShip=prevRows.filter(x=>stOf(x)==='sh').length, pHold=prevRows.filter(x=>stOf(x)==='hd').length;
-  document.getElementById('m1').textContent=rows.length;
-  document.getElementById('m2').textContent=cShip;
-  document.getElementById('m3').textContent=cHold;
+  const cur=A.stats.cur, prev=A.stats.prev, cPend=A.stats.pending;
+  document.getElementById('m1').textContent=cur.total;
+  document.getElementById('m2').textContent=cur.ship;
+  document.getElementById('m3').textContent=cur.hold;
   document.getElementById('m4').textContent=cPend;
-  pctDelta('m1d',rows.length,prevRows.length);
-  pctDelta('m2d',cShip,pShip);
-  pctDelta('m3d',cHold,pHold);
+  pctDelta('m1d',cur.total,prev.total);
+  pctDelta('m2d',cur.ship,prev.ship);
+  pctDelta('m3d',cur.hold,prev.hold);
   document.getElementById('m4d').textContent=cPend?'需要追蹤':'目前無積壓';
   document.getElementById('m4d').className='dlt'+(cPend?' down':' up');
 
-  const months=monthsBack(CURRENT_YM,6);
-  const counts=months.map(ym=>DB.records.filter(x=>x.stockDate&&x.stockDate.startsWith(ym)).length);
+  const counts=A.trend.map(t=>t.count);
   const mx=Math.max(...counts,1);
   document.getElementById('mgrChart').innerHTML=counts.map((n,i)=>
     `<div class="ch-c"><div class="ch-b ${i===counts.length-1?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
-  document.getElementById('mgrChartX').innerHTML=months.map(ym=>`<span>${+ym.slice(5)}月</span>`).join('');
+  document.getElementById('mgrChartX').innerHTML=A.trend.map(t=>`<span>${+t.yearMonth.slice(5)}月</span>`).join('');
 
+  // 後端只回傳「各品項」的數字，這裡再依前端的品牌家族設定歸類，資料量極小
   const fam={};
-  rows.forEach(x=>{if(!x.item)return;const f=familyOf(x.item);
+  A.byItem.forEach(x=>{const f=familyOf(x.item);
     fam[f.key]=fam[f.key]||{name:f.name,color:f.color,total:0,ship:0};
-    fam[f.key].total++; if(stOf(x)==='sh')fam[f.key].ship++;});
+    fam[f.key].total+=x.total; fam[f.key].ship+=x.ship;});
   const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
   const famMax=famList.length?Math.max(...famList.map(f=>f.total)):1;
   document.getElementById('mgrFamily').innerHTML=famList.length?famList.map(f=>`
@@ -1168,10 +1198,7 @@ function renderManagerDashboard(){
 
   const bySales={};
   ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
-  rows.forEach(x=>{if(!x.sales)return;if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0};
-    bySales[x.sales].stock++; if(stOf(x)==='sh')bySales[x.sales].ship++; else bySales[x.sales].hold++;});
-  DB.records.forEach(x=>{if(!x.sales||x.customer||!(x.invoiceDate||x.invoiceNo||x.loanOut||x.loanReturn))return;
-    if(!bySales[x.sales])bySales[x.sales]={stock:0,ship:0,hold:0,pend:0}; bySales[x.sales].pend++;});
+  A.bySales.forEach(s=>{bySales[s.name]={stock:s.stock,ship:s.ship,hold:s.hold,pend:s.pend};});
   const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0}));
   rankArr.sort((a,b)=>b.stock-a.stock);
   document.getElementById('mgrRankBody').innerHTML=rankArr.map(r=>`
