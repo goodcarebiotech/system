@@ -169,7 +169,7 @@
 
   <section class="pg" id="pg-pend">
     <div class="pn" style="margin-bottom:14px"><div class="pn-b" style="padding:14px 16px">
-      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.75;font-weight:300">行政人員已建立資料，但尚未有完整的備貨明細。請點選補齊客戶名稱、科別等資料。</div></div></div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.75;font-weight:300">行政人員已建立資料，但尚未有完整的備貨明細。依備貨日期分組，點卡片展開看明細；右側 ✎ 可整組批次補齊，展開後也能單筆編輯。</div></div></div>
     <div id="pendList"></div>
   </section>
 
@@ -311,11 +311,6 @@
   </div></div>
 
   <section class="pg on" id="pg-manager" style="max-width:1600px;margin:0 auto">
-    <div class="pn" style="margin-bottom:16px"><div class="pn-b" style="padding:14px 18px">
-      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.8">本頁所有數字皆直接讀自「庫存資料」試算表（月底庫存／月出貨）。
-      系統每月 1 日結算上個月，因此預設顯示上個月；兩個區塊都可以自行切換月份。</div>
-    </div></div>
-
     <div class="sec-label">一、本月備貨概況</div>
 
     <div class="pn elevated">
@@ -330,6 +325,10 @@
         <div class="ov-total">
           <div class="ov-total-v mn" id="mgrOvTotalV">0</div>
           <div class="ov-total-k" id="mgrOvTotalK">—</div>
+        </div>
+        <div class="ov-toolbar">
+          <span class="ov-toolbar-note">業務依名冊固定順序排列</span>
+          <button type="button" class="ov-sort-btn" id="mgrOvSortBtn" onclick="toggleMgrOvSort()">依數量排序</button>
         </div>
         <div id="mgrOvList"></div>
       </div>
@@ -402,21 +401,27 @@
   <div class="mb">
     <div class="mh"><span class="mh-t">編輯備貨紀錄</span><span class="mh-r" id="edRef"></span></div>
     <div class="mbd">
-      <div class="fg"><label class="fl">客戶名稱</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-cu" list="dl-e-cu" oninput="mk(this)"><datalist id="dl-e-cu"></datalist></div></div>
-      <div class="fg"><label class="fl">品項</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-it" list="dl-e-it" oninput="mk(this)"><datalist id="dl-e-it"></datalist></div></div>
+      <div id="edMiss"></div>
+      <div class="fg"><label class="fl">客戶名稱</label>
+        <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-e-cu" onclick="openPk('e-cu')"><span class="v ph">請選擇或輸入客戶名稱</span><span class="c">▾</span></button></div></div>
+      <div class="fg"><label class="fl">品項</label>
+        <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-e-it" onclick="openPk('e-it')"><span class="v ph">請選擇品項</span><span class="c">▾</span></button></div></div>
       <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ca" list="dl-e-ca" oninput="mk(this)"><datalist id="dl-e-ca"></datalist></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ty" list="dl-e-ty" oninput="mk(this)"><datalist id="dl-e-ty"></datalist></div></div>
+        <div class="fg"><label class="fl">科別</label>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-e-ca" onclick="openPk('e-ca')"><span class="v ph">選擇或輸入</span><span class="c">▾</span></button></div></div>
+        <div class="fg"><label class="fl">賣 / 備 / 樣</label>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-e-ty" onclick="openPk('e-ty')"><span class="v ph">選擇或輸入</span><span class="c">▾</span></button></div></div>
       </div>
       <div class="fr">
         <div class="fg"><label class="fl">備貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-sd" oninput="mk(this)"></div></div>
         <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-ba" oninput="mk(this)"></div></div>
       </div>
       <div class="fr">
-        <div class="fg"><label class="fl">送貨日期<span class="rq">＊</span></label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-hd" oninput="mk(this)"></div>
+        <div class="fg"><label class="fl">送貨日期</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" type="date" id="e-hd" oninput="mk(this)"></div>
           <div class="qk"><button type="button" onclick="qd('e-hd',0)">今天</button><button type="button" onclick="qd('e-hd',1)">明天</button></div></div>
         <div class="fg"><label class="fl">訂購單號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-on" oninput="mk(this)"></div></div>
       </div>
+      <div class="fg" style="margin-bottom:0"><label class="fl">備註</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="e-rm" oninput="mk(this)"></div></div>
     </div>
     <div class="ma"><button onclick="closeEd()">取消</button><button class="del" onclick="delRec(this)">刪除</button><button class="sv" onclick="saveEd(this)">儲存修改</button></div>
   </div>
@@ -431,8 +436,16 @@
       <div class="gsum" id="gEdPreview"></div>
       <div id="gEdWarn"></div>
       <div class="fr">
-        <div class="fg"><label class="fl">科別</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ca" oninput="mk(this)"></div></div>
-        <div class="fg"><label class="fl">賣/備/樣</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ty" oninput="mk(this)"></div></div>
+        <div class="fg"><label class="fl">客戶名稱</label>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-cu" onclick="openPk('g-cu')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
+        <div class="fg"><label class="fl">品項</label>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-it" onclick="openPk('g-it')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><label class="fl">科別</label>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ca" onclick="openPk('g-ca')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
+        <div class="fg"><label class="fl">賣/備/樣</label>
+          <div class="fw"><span class="fs"></span><button type="button" class="fb pkb" id="pk-g-ty" onclick="openPk('g-ty')"><span class="v ph">留白＝不變更</span><span class="c">▾</span></button></div></div>
       </div>
       <div class="fr">
         <div class="fg"><label class="fl">批號</label><div class="fw"><span class="fs"></span><input autocomplete="off" class="fb tx" id="g-ba" oninput="mk(this)"></div></div>
