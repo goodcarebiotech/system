@@ -310,10 +310,15 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stkr-legend i.ship{background:var(--bad)}
 .stkr-scale-note{margin-left:auto;color:var(--tx-3)}
 
-.stkr-head,.stkr-row{display:grid;grid-template-columns:minmax(120px,1.1fr) 64px minmax(160px,2fr) 64px 64px 58px;align-items:center;gap:10px;padding:11px 4px}
+.stkr-table{max-width:720px;margin:0 auto}
+.stkr-head,.stkr-row{display:grid;grid-template-columns:minmax(120px,1.4fr) 78px 84px 70px 78px;align-items:center;gap:10px;padding:9px 4px}
+/* 電腦版不顯示「庫存結構」長條，資訊集中在中間、左右留白 */
+.stkr-head .h-bar{display:none}
+.rate-in{display:none}
 .stkr-head{font-size:10.5px;font-weight:700;color:var(--tx-3);border-bottom:1px solid var(--line-2)}
 .stkr-head span:nth-child(n+2){text-align:right}
 .stkr-row{border-bottom:1px solid var(--line);font-size:12.5px}
+.stkr-row:hover{background:var(--sub)}
 .stkr-row:last-child{border-bottom:0}
 .stkr-name{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stkr-num{text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--tx-2)}
@@ -323,7 +328,8 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stkr-trackline{display:flex;align-items:center;gap:9px}
 .stkr-trackline .stkr-track{flex:1}
 .stkr-endv{display:none}
-.stkr-bar{display:flex;flex-direction:column;gap:3px}
+/* 長條圖為手機版專用（電腦版在下方以純數字集中呈現） */
+.stkr-bar{display:none;flex-direction:column;gap:3px}
 .stkr-axis{display:flex;justify-content:space-between;font-size:9px;color:var(--tx-3);font-family:'IBM Plex Mono',monospace}
 .stkr-track{position:relative;height:10px;border-radius:5px;background:var(--sub);overflow:hidden}
 .stkr-seg{position:absolute;top:0;left:0;height:100%;transition:width .2s var(--e)}
@@ -332,15 +338,20 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .empty-state{padding:40px 20px;text-align:center;color:var(--tx-3);font-size:12.5px}
 @media (max-width:760px){
   .stkr-head{display:none}
-  .stkr-row{grid-template-columns:1fr auto;gap:6px 10px;padding:14px 4px}
-  .stkr-name{grid-column:1;font-size:13.5px}
+  .stkr-table{max-width:none}
+  .stkr-row{grid-template-columns:1fr auto;gap:3px 10px;padding:7px 2px}
+  .stkr-name{grid-column:1;font-size:12.5px}
   .stkr-num.stkr-main{display:none}
   .stkr-axis{display:none}
-  .stkr-endv{display:block;font-size:15px;font-weight:700;color:var(--nav-2);flex:none;min-width:38px;text-align:right}
+  .stkr-bar{display:flex}
+  .stkr-head .h-rate,.stkr-row .c-rate,.stkr-row .c-prev{display:none}
+  .rate-in{display:inline;color:var(--bad);opacity:.75;font-size:.9em}
+  .stkr-endv{display:block;font-size:14px;font-weight:700;color:var(--nav-2);flex:none;min-width:34px;text-align:right}
   .stkr-bar{grid-column:1/-1;grid-row:2}
   .stkr-name{grid-column:1/-1}
   /* 手機上沒有表頭，數字必須自帶標籤，否則看不出來是什麼 */
-  .stkr-row .stkr-num:not(.stkr-main){text-align:left;font-size:11.5px;color:var(--tx-3);font-family:'Noto Sans TC',sans-serif}
+  .stkr-row .stkr-num:not(.stkr-main){text-align:left;font-size:11px;color:var(--tx-3);font-family:'Noto Sans TC',sans-serif}
+  .stkr-row .c-ship{color:var(--bad)}
   .stkr-row .stkr-num:not(.stkr-main)::before{content:attr(data-label) '　';color:var(--tx-3);opacity:.75}
   .stkr-row .stkr-num:not(.stkr-main) {font-variant-numeric:tabular-nums}
   .c-ship{grid-column:1;grid-row:3}
@@ -635,7 +646,7 @@ table.dt td.pad{padding:9px 10px}
 .ma button:hover{background:var(--line-2);color:var(--ink)}
 .ma .del{color:var(--bad);border-color:var(--bad);} .ma .del:hover{background:var(--bad);color:#fff;}
 .ma .sv{background:var(--nav);color:#fff;border-color:var(--nav);flex:1.5} .ma .sv:hover{background:var(--ink);border-color:var(--ink);}
-.is-busy{cursor:not-allowed!important;opacity:.88}
+.is-busy{cursor:progress!important}
 
 .pk{position:fixed;inset:0;background:rgba(16,23,32,.55);backdrop-filter:blur(2px);z-index:300;display:none}
 .pk.on{display:block}
@@ -756,3 +767,51 @@ table.dt td.pad{padding:9px 10px}
 .ov-qty{font-size:14px;font-weight:700;color:var(--nav-2);flex:none}
 .ov-row.nodata .ov-qty{color:var(--line-3);font-weight:400}
 @media(max-width:560px){.ov-grid{column-gap:12px}.ov-row{font-size:11.5px;padding:6px 2px}.ov-qty{font-size:13px}.ov-total-v{font-size:28px}}
+
+
+/* ═════════ Round 2 追加 ═════════ */
+
+/* ── 1. 按鈕處理中的轉圈（文字完全不動）── */
+.btn-spin{display:inline-block;width:12px;height:12px;margin-right:8px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;opacity:.85;flex:none}
+
+/* ── 5. 我的紀錄的篩選列縮小 ── */
+#pg-rec .chip{padding:5px 11px;font-size:11px;border-radius:16px}
+#pg-rec .chip .n{font-size:9.5px;margin-left:4px}
+#pg-rec .filter-ico-btn{padding:5px 10px;font-size:11px;border-radius:16px;gap:4px}
+#pg-rec .ym-btn{padding:5px 11px;font-size:11.5px;border-radius:16px}
+#pg-rec .cf-h{font-size:10px}
+#pg-rec .af-chip{padding:4px 5px 4px 9px;font-size:10.5px}
+
+/* ── 2 + 6. 分組展開後的單筆列：欄位全部列出、編輯鈕紅綠標示 ── */
+.rc-sr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:9px 0;font-size:11px;color:var(--tx-2);border-bottom:1px solid var(--line);cursor:default}
+.sr-fields{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px 12px}
+.srf{display:inline-flex;align-items:baseline;gap:5px;min-width:0}
+.srf-wide{flex-basis:100%}
+.srk{font-size:9.5px;color:var(--tx-3);flex:none}
+.srv{font-size:11.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srf-miss .srv{color:var(--bad);opacity:.8}
+.sr-ed{flex:none;padding:5px 11px;border-radius:16px;font-size:11px;font-weight:600;cursor:pointer;background:var(--paper);transition:.16s var(--e)}
+.sr-ed.ok{border:1px solid var(--ok);color:var(--ok)}
+.sr-ed.ok:hover{background:var(--ok);color:#fff}
+.sr-ed.bad{border:1px solid var(--bad);color:var(--bad)}
+.sr-ed.bad:hover{background:var(--bad);color:#fff}
+.rc.rc-pend{border-left:3px solid var(--warn)}
+@media(max-width:560px){.sr-fields{gap:3px 10px}.srv{font-size:11px}}
+
+/* ── 6. 編輯視窗的缺漏提示 ── */
+.ed-miss{padding:9px 12px;margin-bottom:14px;background:var(--bad-tint);border-left:3px solid var(--bad);border-radius:0 6px 6px 0;font-size:11.5px;color:var(--bad);line-height:1.6}
+.ed-miss b{font-size:13px}
+.ed-ok{padding:9px 12px;margin-bottom:14px;background:var(--ok-tint);border-left:3px solid var(--ok);border-radius:0 6px 6px 0;font-size:11.5px;color:var(--ok)}
+
+/* ── 3. 報表商品切換：改成等寬格狀，選中只換底色不換字重，位置永遠不跳 ── */
+.ov-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:6px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.ov-item-btn{width:100%;padding:8px 6px;background:var(--sub);border:1px solid var(--line-2);border-radius:8px;font-size:11.5px;font-weight:600;color:var(--tx-2);cursor:pointer;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .16s var(--e),color .16s var(--e),border-color .16s var(--e)}
+.ov-item-btn:hover{border-color:var(--nav-3);color:var(--nav-2)}
+.ov-item-btn.on{background:var(--nav);border-color:var(--nav);color:#fff}
+@media(max-width:560px){.ov-items{grid-template-columns:repeat(2,1fr);gap:5px}.ov-item-btn{font-size:11px;padding:7px 4px}}
+
+.ov-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ov-toolbar-note{font-size:10.5px;color:var(--tx-3)}
+.ov-sort-btn{padding:5px 12px;background:var(--paper);border:1px solid var(--line-2);border-radius:16px;font-size:11px;color:var(--tx-2);cursor:pointer;white-space:nowrap;transition:.16s var(--e)}
+.ov-sort-btn:hover{border-color:var(--nav-3);color:var(--nav-2)}
+.ov-sort-btn.on{background:var(--nav);border-color:var(--nav);color:#fff;font-weight:600}
