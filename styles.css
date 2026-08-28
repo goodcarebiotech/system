@@ -310,17 +310,19 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stkr-legend i.ship{background:var(--bad)}
 .stkr-scale-note{margin-left:auto;color:var(--tx-3)}
 
-.stkr-table{max-width:720px;margin:0 auto}
-.stkr-head,.stkr-row{display:grid;grid-template-columns:minmax(120px,1.4fr) 78px 84px 70px 78px;align-items:center;gap:10px;padding:9px 4px}
-/* 電腦版不顯示「庫存結構」長條，資訊集中在中間、左右留白 */
-.stkr-head .h-bar{display:none}
+.stkr-table{max-width:980px;margin:0 auto}
+.stkr-head,.stkr-row{display:grid;grid-template-columns:150px 68px minmax(180px,1.6fr) 74px 62px 72px;align-items:center;gap:10px;padding:8px 4px}
 .rate-in{display:none}
 .stkr-head{font-size:10.5px;font-weight:700;color:var(--tx-3);border-bottom:1px solid var(--line-2)}
 .stkr-head span:nth-child(n+2){text-align:right}
 .stkr-row{border-bottom:1px solid var(--line);font-size:12.5px}
 .stkr-row:hover{background:var(--sub)}
 .stkr-row:last-child{border-bottom:0}
-.stkr-name{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 品名改成最左側的彩色標籤：顏色＝品牌家族色，一眼分辨系列，也少佔一行 */
+.stkr-name{min-width:0}
+.stkr-tag{display:inline-block;max-width:100%;padding:4px 9px;border-radius:5px;font-size:11.5px;font-weight:600;line-height:1.35;
+  color:var(--tag);background:var(--sub);background:color-mix(in srgb,var(--tag) 12%,transparent);border-left:3px solid var(--tag);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 .stkr-num{text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--tx-2)}
 .stkr-num.stkr-main{font-size:15px;font-weight:700;color:var(--nav-2)}
 .stkr-num.c-ship{color:var(--bad);font-weight:600}
@@ -328,8 +330,7 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 .stkr-trackline{display:flex;align-items:center;gap:9px}
 .stkr-trackline .stkr-track{flex:1}
 .stkr-endv{display:none}
-/* 長條圖為手機版專用（電腦版在下方以純數字集中呈現） */
-.stkr-bar{display:none;flex-direction:column;gap:3px}
+.stkr-bar{display:flex;flex-direction:column;gap:3px;min-width:0}
 .stkr-axis{display:flex;justify-content:space-between;font-size:9px;color:var(--tx-3);font-family:'IBM Plex Mono',monospace}
 .stkr-track{position:relative;height:10px;border-radius:5px;background:var(--sub);overflow:hidden}
 .stkr-seg{position:absolute;top:0;left:0;height:100%;transition:width .2s var(--e)}
@@ -339,24 +340,24 @@ tr.rank-clickable:hover td{background:var(--nav-tint)}
 @media (max-width:760px){
   .stkr-head{display:none}
   .stkr-table{max-width:none}
-  .stkr-row{grid-template-columns:1fr auto;gap:3px 10px;padding:7px 2px}
-  .stkr-name{grid-column:1;font-size:12.5px}
+  /* 手機版：第一行＝品名標籤＋長條＋庫存數，第二行＝本月出貨(出貨率)／上月庫存。
+     品名不再單獨佔一行，整體再壓縮一行的高度。 */
+  .stkr-row{grid-template-columns:90px 1fr 1fr;gap:2px 8px;padding:6px 2px;align-items:center}
+  .stkr-name{grid-column:1;grid-row:1/3;align-self:center}
+  .stkr-tag{padding:3px 7px;font-size:10.5px;border-left-width:3px}
   .stkr-num.stkr-main{display:none}
   .stkr-axis{display:none}
-  .stkr-bar{display:flex}
-  .stkr-head .h-rate,.stkr-row .c-rate,.stkr-row .c-prev{display:none}
-  .rate-in{display:inline;color:var(--bad);opacity:.75;font-size:.9em}
-  .stkr-endv{display:block;font-size:14px;font-weight:700;color:var(--nav-2);flex:none;min-width:34px;text-align:right}
-  .stkr-bar{grid-column:1/-1;grid-row:2}
-  .stkr-name{grid-column:1/-1}
+  .stkr-bar{grid-column:2/-1;grid-row:1}
+  .stkr-head .h-rate,.stkr-row .c-rate{display:none}
+  .rate-in{display:inline;opacity:.8;font-size:.9em}
+  .stkr-endv{display:block;font-size:13.5px;font-weight:700;color:var(--nav-2);flex:none;min-width:32px;text-align:right}
   /* 手機上沒有表頭，數字必須自帶標籤，否則看不出來是什麼 */
-  .stkr-row .stkr-num:not(.stkr-main){text-align:left;font-size:11px;color:var(--tx-3);font-family:'Noto Sans TC',sans-serif}
+  .stkr-row .stkr-num:not(.stkr-main){text-align:left;font-size:10.5px;color:var(--tx-3);font-family:'Noto Sans TC',sans-serif}
   .stkr-row .c-ship{color:var(--bad)}
   .stkr-row .stkr-num:not(.stkr-main)::before{content:attr(data-label) '　';color:var(--tx-3);opacity:.75}
   .stkr-row .stkr-num:not(.stkr-main) {font-variant-numeric:tabular-nums}
-  .c-ship{grid-column:1;grid-row:3}
-  .c-prev{grid-column:2;grid-row:3;text-align:right}
-  .c-rate{grid-column:1/-1;grid-row:4}
+  .c-ship{grid-column:2;grid-row:2}
+  .c-prev{grid-column:3;grid-row:2;text-align:right}
   .stkr-toolbar{flex-direction:column;align-items:stretch;gap:12px}
   .control-label,.stkr-view-switch{text-align:left}
   .stkr-scale-note{margin-left:0;width:100%}
@@ -422,7 +423,7 @@ table.gprev td{padding:8px 10px;white-space:nowrap;border-bottom:1px solid var(-
 table.gprev tr:last-child td{border-bottom:none}
 .gwarn b{color:var(--ink)}
 .rc-sr:last-child{border-bottom:none}
-.rc-sr span:last-child{color:var(--nav-2);flex:none;font-weight:500;}
+.rc-sr .sr-ed{color:inherit}
 
 /* ─── SEG / CHIPS ─── */
 .seg{display:inline-flex;background:var(--sub);border:1px solid var(--line-2);border-radius:6px;padding:2px;flex:none}
@@ -535,7 +536,7 @@ table.dt th.th-f-on{box-shadow:inset 0 -2px 0 #FFD980}
 table.dt th.th-f-on .th-fico{opacity:1;color:#FFD980}
 .hf-empty{padding:16px 14px;font-size:12px;color:var(--tx-3);text-align:center}
 /* 還原緊湊內容框 */
-table.dt td.pad{padding:9px 10px}
+table.dt td.pad{padding:5px 9px;line-height:1.5}
 /* 移除 transition 解決 16000 格輸入框同時渲染造成的瀏覽器卡死，並還原字體與內距 */
 .cel{width:100%;border:none;background:transparent;padding:6px 7px;outline:none;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .cel:focus{background:#fff;box-shadow:inset 0 0 0 2px var(--nav)}
@@ -815,3 +816,33 @@ table.dt td.pad{padding:9px 10px}
 .ov-sort-btn{padding:5px 12px;background:var(--paper);border:1px solid var(--line-2);border-radius:16px;font-size:11px;color:var(--tx-2);cursor:pointer;white-space:nowrap;transition:.16s var(--e)}
 .ov-sort-btn:hover{border-color:var(--nav-3);color:var(--nav-2)}
 .ov-sort-btn.on{background:var(--nav);border-color:var(--nav);color:#fff;font-weight:600}
+
+
+/* ═════════ Round 3 追加 ═════════ */
+
+/* ── 2. 展開後單筆列：分行、對齊、不擁擠 ── */
+.rc-sr{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.rc-sr:hover{background:var(--nav-tint)}
+.sr-main{flex:1;min-width:0}
+.sr-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.sr-cat{font-size:12px;font-weight:600;color:var(--ink)}
+.sr-st{font-size:10px;padding:2px 8px;border-radius:12px;font-weight:600;flex:none}
+.sr-st.g{background:var(--ok-tint);color:var(--ok)}
+.sr-st.h{background:var(--warn-tint);color:var(--warn)}
+.sr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 10px;margin-top:2px}
+.sr-grid+.sr-grid{margin-top:4px}
+.srf{display:flex;flex-direction:column;gap:0;min-width:0}
+.srk{font-size:9px;color:var(--tx-3);letter-spacing:.03em;line-height:1.3}
+.srv{font-size:11.5px;color:var(--tx);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srf-miss .srv{color:var(--line-3)}
+.sr-remark{margin-top:5px;font-size:10.5px;color:var(--tx-3);line-height:1.5;overflow:hidden;text-overflow:ellipsis}
+.sr-ed{flex:none;padding:6px 13px;border-radius:16px;font-size:11.5px;font-weight:600;cursor:pointer;background:var(--paper);transition:.16s var(--e)}
+@media(max-width:560px){.sr-grid{grid-template-columns:repeat(3,1fr);gap:2px 8px}.srv{font-size:11px}.sr-ed{padding:6px 11px;font-size:11px}}
+
+/* ── 5. 頂部「更新」按鈕：改成醒目的實心膠囊 ── */
+.bar-out.ico{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;font-size:12px;font-weight:600;line-height:1;
+  background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.45);color:#fff;letter-spacing:.04em}
+.bar-out.ico::after{content:'更新';font-size:11.5px;letter-spacing:.08em}
+.bar-out.ico:hover{background:#fff;color:var(--nav);border-color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.bar-out.ico:active{transform:translateY(1px)}
+@media(max-width:560px){.bar-out.ico{padding:6px 11px}.bar-out.ico::after{display:none}}
