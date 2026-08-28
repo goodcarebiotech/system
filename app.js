@@ -65,12 +65,35 @@ const TAG_NAME={
 };
 function tagItemName(item){ return TAG_NAME[item]||dispItem(item); }
 
-async function api(a,p){
+// ── 取得 Firebase ID Token ────────────────────────────────
+// 這張 token 是「我是誰」的證明：Google 簽章、一小時到期、無法偽造。
+// getIdToken() 本身有內建快取，只有在快到期時才會真的去跟 Google 換新的，
+// 所以每次呼叫的成本幾乎是零（讀記憶體），不會增加網路負擔。
+// 帶 true 代表強制換發，用在「後端說 token 過期」時重試。
+async function getIdToken(forceRefresh){
   try{
-    const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p})});
+    const u=window.__fb&&window.__fb.auth&&window.__fb.auth.currentUser;
+    if(!u)return '';
+    return await u.getIdToken(forceRefresh===true);
+  }catch(e){ return ''; }
+}
+// 每一次 API 呼叫都把 token 一起送出，由後端驗證身分並決定能看／能改哪些資料。
+// 後端回 code:'AUTH' 時（token 剛好在這一秒過期是最常見的情況），
+// 自動強制換發一張新的再重試一次；還是不行才請使用者重新登入。
+async function api(a,p,_retried){
+  try{
+    const idToken=await getIdToken(_retried===true);
+    const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p,idToken})});
     const text=await res.text();
-    try{ return JSON.parse(text); }
+    let json;
+    try{ json=JSON.parse(text); }
     catch(parseErr){ return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定。'}; }
+    if(json&&json.code==='AUTH'){
+      if(!_retried) return api(a,p,true);
+      toast('登入已失效，請重新登入',true);
+      setTimeout(()=>{ if(typeof logout==='function') logout(); },1200);
+    }
+    return json;
   }catch(e){return{status:'error',message:'連線失敗：'+e.message};}
 }
 
@@ -109,7 +132,11 @@ let GRID=[],EDITS={};
 function showLoad(msg){document.getElementById('loadOverlayText').textContent=msg||'讀取資料中…';document.getElementById('loadOverlay').style.display='flex';}
 function hideLoad(){document.getElementById('loadOverlay').style.display='none';}
 
-const ROSTERS={
+// ── 名冊：正本在 gas.js，這裡只是「連不上後端時的備援」──────────────
+// 登入後前端會呼叫 whoami，由後端回傳權威版本並覆寫這份資料（applyRoster）。
+// 所以新增／異動人員請改 gas.js 的 ROSTERS；這份不更新也不影響權限，
+// 因為所有資料權限都是後端依驗證後的信箱決定的，前端名冊只用來決定要顯示哪個畫面。
+let ROSTERS={
   sales:[
     {name:'翁培文',email:'mavish@goodcare-biotech.com.tw'},{name:'劉仲元',email:'marcus@goodcare-biotech.com.tw'},
     {name:'郭其融',email:'lucas@goodcare-biotech.com.tw'},{name:'謝羽宸',email:'daphne-hsieh@goodcare-biotech.com.tw'},
@@ -136,6 +163,10 @@ const ROSTERS={
   ]
 };
 const ROLE_LABEL={sales:'業務登入',admin:'行政登入',manager:'報表'};
+function applyRoster(r){
+  if(!r||!r.sales||!r.sales.length)return;
+  ROSTERS={sales:r.sales||[],admin:r.admin||[],manager:r.manager||[]};
+}
 function rolesForEmail(email){
   const roles=new Set(Object.keys(ROSTERS).filter(k=>ROSTERS[k].some(p=>p.email===email)));
   if(roles.has('manager')) roles.add('admin');
@@ -243,13 +274,31 @@ async function handleAuthedUser(user){
   AUTH_HANDLING=true;
   try{
     const email=user.email||'';
-    const roles=rolesForEmail(email);
-    if(!roles.length){
+    // 角色改由後端認定：前端把 token 送過去，後端驗證信箱後回傳這個人真正的角色與名冊。
+    // 前端自己算的角色只在後端連不上時當備援用（那種情況下也拿不到任何資料，所以沒有風險）。
+    let roles=null;
+    const who=await api('whoami',{});
+    if(who&&who.status==='success'){
+      applyRoster(who.roster);
+      roles=who.roles||[];
+      CUR_EMAIL=who.email||email;
+      CUR=who.name||nameForEmail(email);
+    }else if(who&&who.code==='AUTH'){
+      try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
+      await window.__fb.clearAuthResidue();
+      toast('此帳號尚未開通使用權限：'+email, true); return;
+    }else{
+      // 後端暫時連不上（網路問題／GAS 部署中）：用本機名冊先讓畫面出來，
+      // 但任何資料請求仍然會被後端擋下，不會造成權限外洩。
+      roles=rolesForEmail(email);
+      CUR_EMAIL=email; CUR=nameForEmail(email);
+      if(roles.length) toast('目前無法連線到伺服器，資料可能無法載入',true);
+    }
+    if(!roles||!roles.length){
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
       await window.__fb.clearAuthResidue();
       toast('此帳號尚未開通使用權限：'+email, true); return;
     }
-    CUR_EMAIL=email; CUR=nameForEmail(email);
     if(roles.length===1){ proceedLogin(roles[0]); return; }
     const remembered=localStorage.getItem('lastRole:'+email);
     if(remembered && roles.includes(remembered)){ proceedLogin(remembered); return; }
