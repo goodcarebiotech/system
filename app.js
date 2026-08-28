@@ -525,53 +525,58 @@ function busy(btn,on,label){
 }
 function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.classList.toggle('bad',!!bad);t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
-// mk()：欄位有值時，除了標記已填之外，也讓外層 .fw 帶上 has-val，
-// 供 CSS 顯示右側的清除叉叉（見 .fw-clear）。
+// ── 欄位狀態與清除鈕 ────────────────────────────────────────
+// mk()：欄位有值就標記已填（左側細線變色）並顯示清除鈕。
 function mk(el){
   const w=el.closest('.fw');
   const v=!!(el.value&&el.value.trim()!=='');
   el.classList.toggle('on',v);
-  if(w){
-    w.classList.toggle('ok',v);
-    const host=w.closest('.fg')||w;
-    host.classList.toggle('has-val',v);
-    ensureClearBtn(w,el);
-  }
+  if(w){ w.classList.toggle('ok',v); w.classList.toggle('has-val',v); ensureClearBtn(w,el); }
   fillCount();
 }
-// 在每個文字／日期欄位右側動態加上一顆清除鈕。用動態插入而不是逐一改 HTML，
-// 是因為欄位分散在登記、編輯、批次編輯、行政快速建立好幾個區塊，逐一加太容易漏。
+// 清除鈕做成 iOS 輸入框裡那種小圓叉：貼齊欄位內緣、垂直置中、灰底白叉，
+// 不畫外框、不加陰影。之前那版掛在欄位右上角、又跟原生日曆圖示疊在一起，
+// 點下去會先觸發日曆而不是清除——現在按鈕是欄位的兄弟節點且蓋在最上層（z-index），
+// 點擊完全不會傳到輸入框，日期欄按下去就是純粹清空。
 function ensureClearBtn(w,el){
-  if(el.tagName!=='INPUT') return;
-  // 掛在外層的 .fg（欄位群組）而不是 .fw（輸入框本體）：叉叉會落在「標籤那一行的右端」，
-  // 完全不會壓到輸入的文字，日期欄位也不會跟原生的日曆圖示打架。
-  const host=w.closest('.fg')||w;
-  if(host.querySelector('.fw-clear')) return;
+  if(!w||el.tagName!=='INPUT')return;
+  if(w.querySelector(':scope > .fw-clear'))return;
   const b=document.createElement('button');
-  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除'); b.textContent='✕';
-  b.addEventListener('click',function(ev){
+  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除欄位'); b.tabIndex=-1;
+  b.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.4 6.4l7.2 7.2M13.6 6.4l-7.2 7.2"/></svg>';
+  const clear=function(ev){
     ev.preventDefault(); ev.stopPropagation();
-    el.value=''; mk(el); el.focus();
-  });
-  host.appendChild(b);
+    el.value=''; mk(el);
+  };
+  // pointerdown 先攔一次：日期欄在某些瀏覽器上按下去（還沒放開）就會叫出日曆，
+  // 等到 click 才處理已經來不及了。
+  b.addEventListener('pointerdown',clear);
+  b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();});
+  w.appendChild(b);
 }
-// 頁面載入後，先幫所有既有欄位補上清除鈕（之後 mk() 也會補）
+// 下拉選擇欄位（客戶／品項／科別／賣備樣／批號）的清除鈕，樣式與行為完全一致
+function ensurePkClearBtn(fw,k){
+  if(!fw||fw.querySelector(':scope > .fw-clear'))return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除欄位'); b.tabIndex=-1;
+  b.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.4 6.4l7.2 7.2M13.6 6.4l-7.2 7.2"/></svg>';
+  const clear=function(ev){ ev.preventDefault(); ev.stopPropagation(); clearPk(k); };
+  b.addEventListener('pointerdown',clear);
+  b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();});
+  fw.appendChild(b);
+}
+// 頁面載入後先幫所有既有欄位備好清除鈕（預設隱藏，有值才出現），
+// 並讓日期欄位「點欄位本身就開日曆」——因為原生的日曆小圖示已經在 CSS 裡拿掉了
+// （它跟清除鈕搶同一塊位置，而且各家瀏覽器長得都不一樣，是畫面最不一致的來源之一）。
 window.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('.fw > input.fb').forEach(el=>ensureClearBtn(el.closest('.fw'),el));
+  document.querySelectorAll('input[type="date"].fb').forEach(el=>{
+    el.addEventListener('click',()=>{ try{ el.showPicker&&el.showPicker(); }catch(e){} });
+  });
+  document.querySelectorAll('.fw > button.pkb').forEach(b=>{
+    const m=b.id&&b.id.replace(/^pk-/,''); if(m) ensurePkClearBtn(b.closest('.fw'),m);
+  });
 });
-function fillCount(){const el=document.getElementById('fCnt');if(el)el.textContent=document.querySelectorAll('#pg-reg .fw.ok').length;}
-function qd(id,off){
-  const d=new Date();d.setDate(d.getDate()+off);
-  const el=document.getElementById(id);
-  const m=String(d.getMonth()+1).padStart(2,'0');
-  const dd=String(d.getDate()).padStart(2,'0');
-  el.value=`${d.getFullYear()}-${m}-${dd}`;
-  mk(el);
-}
-function bq(d){BQ=Math.max(1,Math.min(50,BQ+d));document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
-function bqSetLive(v){document.getElementById('bqBtnN').textContent=(parseInt(v)||0);}
-function bqSet(v){let n=parseInt(v);if(isNaN(n)||n<1)n=1;if(n>50)n=50;BQ=n;document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
-function aq(d){AQ=Math.max(1,Math.min(50,AQ+d));document.getElementById('aqV').textContent=AQ;}
 function val(id){return document.getElementById(id).value.trim();}
 
 function myHistory(field){const s=new Set();DB.records.forEach(x=>{if(x.sales===CUR&&x[field])s.add(x[field]);});return[...s].sort((a,b)=>a.localeCompare(b,'zh-TW'));}
@@ -657,14 +662,13 @@ function ensurePkClearBtn(fw,k){
 }
 function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
   s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');
-  const fw=b.closest('.fw'); fw.classList.remove('ok');
-  const host=fw.closest('.fg')||fw; host.classList.remove('has-val');
+  const fw=b.closest('.fw'); fw.classList.remove('ok'); fw.classList.remove('has-val');
   fillCount();}
 // 開啟編輯／批次編輯視窗時，把既有值塞回下拉按鈕上
 function setPk(k,v){
   const b=document.getElementById('pk-'+k); if(!b)return;
-  const fw=b.closest('.fw'); const host=fw&&(fw.closest('.fg')||fw);
-  if(host){ host.classList.toggle('has-val',!!v); if(v) ensurePkClearBtn(fw,k); }
+  const fw=b.closest('.fw');
+  if(fw){ fw.classList.toggle('has-val',!!v); ensurePkClearBtn(fw,k); }
   PKV[k]=v||'';
   const sp=b.querySelector('.v');
   if(v){ sp.textContent=dispItem(v); sp.classList.remove('ph'); b.classList.add('on'); b.closest('.fw').classList.add('ok'); }
@@ -959,7 +963,7 @@ function renderRec(){
   // 改成先比 createdAt（建立時間），沒有 createdAt 的舊資料才退回備貨日期。
   if(RSORT) rows.sort(sortCompare(RSORT.col,RSORT.dir));
   else rows.sort(byNewestFirst);
-  if(!rows.length)el.innerHTML=`<div class="emp"><div class="emp-i">＋</div><div class="emp-t">本月尚無備貨紀錄</div><div class="emp-s">前往「備貨登記」新增第一筆</div></div>`;
+  if(!rows.length)el.innerHTML=`<div class="emp"><div class="emp-t">本月尚無備貨紀錄</div><div class="emp-s">前往「備貨登記」新增第一筆</div></div>`;
   else if(VIEW==='list'){
     el.innerHTML=dateSections(rows).map(sec=>(sec.date===null?'':`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`)+
       sec.rows.map(x=>{const fam=familyOf(x.item);
@@ -1165,8 +1169,8 @@ function renderPend(){
   document.getElementById('pAlert').style.display=n?'flex':'none';
   document.getElementById('pDot').style.display=n?'inline-block':'none';
   const el=document.getElementById('pendList');
-  if(!n){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-i">✓</div><div class="emp-t">目前沒有待補齊項目</div><div class="emp-s">所有資料都已完整</div></div></div>`;return;}
-  if(!rows.length){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-i">—</div><div class="emp-t">這個品項目前沒有待補齊項目</div><div class="emp-s">請切換上方的品項篩選</div></div></div>`;return;}
+  if(!n){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-t">目前沒有待補齊項目</div><div class="emp-s">所有資料都已完整</div></div></div>`;return;}
+  if(!rows.length){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-t">這個品項目前沒有待補齊項目</div><div class="emp-s">請切換上方的品項篩選</div></div></div>`;return;}
 
   rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||'')
     ||byItemOrder(a.item||'',b.item||'')||String(a.batch||'').localeCompare(String(b.batch||'')));
@@ -1244,7 +1248,7 @@ function logHtml(l, i){
   
   const dotClass = !l.ok ? 'fail' : (hasDiffs ? 'edit' : 'create');
   const errHtml = (!l.ok && l.err) ? `<div class="log-err">失敗原因：${esc(l.err)}</div>` : '';
-  const detailBtn = hasDiffs ? `<button type="button" class="log-detail-link" onclick="openLogDetail(${i})">查看前後對照明細 ➔</button>` : '';
+  const detailBtn = hasDiffs ? `<button type="button" class="log-detail-link" onclick="openLogDetail(${i})">查看前後對照明細</button>` : '';
 
   return `<div class="timeline-item">
     <div class="timeline-time">${esc(l.t.replace(' ','<br>'))}</div>
@@ -1252,12 +1256,12 @@ function logHtml(l, i){
     <div class="timeline-content">
       <div class="log-top">
         <span class="log-act ${l.ok?'':'fail'}">${esc(l.act)}${l.ok?'':'（失敗）'}</span>
-        ${ROLE==='admin' ? `<span class="log-actor">👤 ${esc(l.actor)}</span>` : `<span class="log-actor">${l.rid ? '#'+l.rid.slice(-5).toUpperCase() : ''}</span>`}
+        ${ROLE==='admin' ? `<span class="log-actor">${esc(l.actor)}</span>` : `<span class="log-actor">${l.rid ? '#'+l.rid.slice(-5).toUpperCase() : ''}</span>`}
       </div>
       <div class="log-summary">${summary}</div>
       ${errHtml}
       <div class="log-foot">
-        <span class="log-src">📍 ${esc(l.src||'')}</span>
+        <span class="log-src">${esc(l.src||'')}</span>
         ${detailBtn}
       </div>
     </div>
@@ -1275,12 +1279,12 @@ function openLogDetail(i){
   let body='';
   if(l.diffs && l.diffs.length){
     body = `<table class="diff-table">
-      <thead><tr><th width="30%">異動欄位</th><th>變更內容 (舊 ➔ 新)</th></tr></thead>
+      <thead><tr><th width="30%">異動欄位</th><th>變更內容　舊 → 新</th></tr></thead>
       <tbody>` + l.diffs.map(d=>
         `<tr>
           <td style="font-weight:600;color:var(--tx-2);">${esc(d.label)}</td>
           <td>
-            ${d.before ? `<span class="diff-del">${esc(d.before)}</span> <span class="diff-arrow">➔</span> ` : `<span class="diff-arrow" style="margin-left:0">➔</span> `}
+            ${d.before ? `<span class="diff-del">${esc(d.before)}</span> <span class="diff-arrow">→</span> ` : `<span class="diff-arrow" style="margin-left:0">→</span> `}
             ${d.after ? `<span class="diff-add">${esc(d.after)}</span>` : `<span class="diff-add" style="color:var(--tx-3);font-style:italic">（清除）</span>`}
           </td>
         </tr>`
@@ -1288,7 +1292,7 @@ function openLogDetail(i){
   } else {
     body = `<div class="detail-pre">${esc(l.desc||'（無其他說明）')}</div>`;
   }
-  if(!l.ok && l.err) body += `<div style="margin-top:15px;color:var(--bad);font-weight:600;">❌ 失敗原因：${esc(l.err)}</div>`;
+  if(!l.ok && l.err) body += `<div class="detail-err">失敗原因：${esc(l.err)}</div>`;
   
   document.getElementById('logDetailBody').innerHTML = body;
   document.getElementById('logDetailMv').classList.add('on');
@@ -1298,7 +1302,7 @@ function copyLogDetails() {
     const el = document.getElementById('logDetailBody');
     const text = el.innerText || el.textContent;
     navigator.clipboard.writeText(text).then(()=>{
-        toast('✅ 內容已複製到剪貼簿');
+        toast('內容已複製到剪貼簿');
     }).catch(()=>{
         toast('複製失敗，請手動圈選複製', true);
     });
@@ -1731,7 +1735,7 @@ async function changeMgrStockMonth(delta){
   }catch(err){ toast('讀取失敗：'+err.message,true); return; }
   renderNameGrid(); renderMgrStockProgress();
   if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
-  else document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會讀取該業務在 ${monthLabel(MGR_STOCK_YM)} 的庫存明細</div></div>`;
+  else document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會讀取該業務在 ${monthLabel(MGR_STOCK_YM)} 的庫存明細</div></div>`;
 }
 function renderMgrStockProgress(){
   const settledSet=new Set(MGR_REPORT.items.filter(it=>it.thisEnding!==null).map(it=>it.sales));
@@ -1755,7 +1759,7 @@ function initManagerScreen(){
   renderMgrOverview();
   renderNameGrid();
   renderMgrStockProgress();
-  document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會開始讀取該業務的庫存明細</div></div>`;
+  document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會開始讀取該業務的庫存明細</div></div>`;
   loadManagerData();
 }
 // 【效能】原本這裡呼叫 managerInit：後端會把整張「備貨紀錄」表讀進來，
@@ -1845,7 +1849,7 @@ function renderMgrDetailBody(){
   const area=document.getElementById('mgrDetailArea');
   const items=MGR_DETAIL_ITEMS;
   if(!items.length){
-    area.innerHTML=`<div class="emp"><div class="emp-i">—</div><div class="emp-t">${esc(MGR_DETAIL_SALES)} 在 ${MGR_DETAIL_ML} 沒有任何庫存資料</div><div class="emp-s">「庫存資料」試算表裡找不到這個人這個月份的任何一列</div></div>`;
+    area.innerHTML=`<div class="emp"><div class="emp-t">${esc(MGR_DETAIL_SALES)} 在 ${MGR_DETAIL_ML} 沒有任何庫存資料</div><div class="emp-s">「庫存資料」試算表裡找不到這個人這個月份的任何一列</div></div>`;
     return;
   }
   // 品項分群 chips：全部品項 + 各品牌家族，點下去只篩選下方表格，數字是各分類的本月庫存小計
@@ -1897,10 +1901,6 @@ function renderMgrDetailBody(){
 
   area.innerHTML=`<div class="mgr-detail-head"><span class="mgr-detail-name">${esc(MGR_DETAIL_SALES)}</span></div>
     <div class="grp-strip">${stripHtml}</div>
-    <div class="stkr-toolbar">
-      <div><p class="stkr-formula-title">月份庫存計算</p>
-        <p class="stkr-formula">${MGR_DETAIL_PML}庫存 － ${MGR_DETAIL_ML}出貨 ＋ ${MGR_DETAIL_ML}庫存增加 ＝ ${MGR_DETAIL_ML}庫存</p></div>
-    </div>
     <div class="stkr-legend">
       <span><i class="stock"></i>本月庫存</span><span><i class="ship"></i>本月出貨</span>
       <span class="stkr-scale-note">共同數量尺度：0–${nf(scaleMax)}</span>
