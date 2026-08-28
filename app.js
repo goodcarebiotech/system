@@ -73,7 +73,9 @@ async function refreshLogs(){
 let ROLE='sales',CUR='王大明',CUR_EMAIL='',VIEW='group',BQ=1,AQ=1,PKT=null,PKV={},EDID=null,GROUPS=[],GEDI=null;
 
 function renderModeBadges(){
-  const html = `<div class="bar-out ico" id="__REFRESH__" title="重新整理" aria-label="重新整理">↻</div><div class="bar-out" onclick="logout()">登出</div>`;
+  // ↻ 用獨立的 span 包起來，忙碌時直接讓這個字轉圈（見 .is-busy .ico-glyph），
+  // 不再另外插入一顆白色的 loading 圈——手機上按鈕小，多一顆圈看起來就是「旁邊多一塊白白的」。
+  const html = `<div class="bar-out ico" id="__REFRESH__" title="重新整理" aria-label="重新整理"><span class="ico-glyph">↻</span></div><div class="bar-out" onclick="logout()">登出</div>`;
   const slot1 = document.getElementById('modeBadgeSlot1');
   const slot2 = document.getElementById('modeBadgeSlot2');
   const slot3 = document.getElementById('modeBadgeSlot3');
@@ -101,7 +103,7 @@ const ROSTERS={
     {name:'李佩盈',email:'patty@goodcare-biotech.com.tw'},{name:'徐純慧',email:'una@goodcare-biotech.com.tw'},
     {name:'許智評',email:'deva@goodcare-biotech.com.tw'},{name:'陳文嬛',email:'renee@goodcare-biotech.com.tw'},
     {name:'涂宇萱',email:'hannah@goodcare-biotech.com.tw'},{name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'},
-    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'},{name:'盧語璇',email:'zoe@goodcare-biotech.com.tw'}
+    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
   ],
   admin:[
     {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},{name:'顧晨馨',email:'chenhsin@goodcare-biotech.com.tw'},
@@ -451,7 +453,32 @@ function busy(btn,on,label){
 }
 function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.classList.toggle('bad',!!bad);t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
-function mk(el){const w=el.closest('.fw');const v=el.value&&el.value.trim()!=='';el.classList.toggle('on',v);if(w)w.classList.toggle('ok',v);fillCount();}
+// mk()：欄位有值時，除了標記已填之外，也讓外層 .fw 帶上 has-val，
+// 供 CSS 顯示右側的清除叉叉（見 .fw-clear）。
+function mk(el){
+  const w=el.closest('.fw');
+  const v=!!(el.value&&el.value.trim()!=='');
+  el.classList.toggle('on',v);
+  if(w){ w.classList.toggle('ok',v); w.classList.toggle('has-val',v); ensureClearBtn(w,el); }
+  fillCount();
+}
+// 在每個文字／日期欄位右側動態加上一顆清除鈕。用動態插入而不是逐一改 HTML，
+// 是因為欄位分散在登記、編輯、批次編輯、行政快速建立好幾個區塊，逐一加太容易漏。
+function ensureClearBtn(w,el){
+  if(el.tagName!=='INPUT') return;
+  if(w.querySelector('.fw-clear')) return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除'); b.textContent='✕';
+  b.addEventListener('click',function(ev){
+    ev.preventDefault(); ev.stopPropagation();
+    el.value=''; mk(el); el.focus();
+  });
+  w.appendChild(b);
+}
+// 頁面載入後，先幫所有既有欄位補上清除鈕（之後 mk() 也會補）
+window.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.fw > input.fb').forEach(el=>ensureClearBtn(el.closest('.fw'),el));
+});
 function fillCount(){const el=document.getElementById('fCnt');if(el)el.textContent=document.querySelectorAll('#pg-reg .fw.ok').length;}
 function qd(id,off){
   const d=new Date();d.setDate(d.getDate()+off);
@@ -476,10 +503,10 @@ const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l
   'e-it':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   'e-ca':{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
   'e-ty':{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
-  'g-cu':{t:'選擇客戶名稱',ph:'留白＝不變更',l:()=>myHistory('customer')},
-  'g-it':{t:'選擇品項',ph:'留白＝不變更',l:()=>ITEM_CATALOG},
-  'g-ca':{t:'選擇科別',ph:'留白＝不變更',l:()=>myHistory('category')},
-  'g-ty':{t:'選擇賣/備/樣',ph:'留白＝不變更',l:()=>myHistory('type')},
+  'g-cu':{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l:()=>myHistory('customer')},
+  'g-it':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
+  'g-ca':{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
+  'g-ty':{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
   'ac-item':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   'ac-sales':{t:'選擇業務',ph:'請選擇業務',l:()=>SALES_NAMES},
   'admin-sales-filter':{t:'篩選業務',ph:'',l:()=>SALES_NAMES},
@@ -487,11 +514,41 @@ const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l
 function openPk(k){PKT=k;document.getElementById('pkT').textContent=PK[k].t;document.getElementById('pkS').value='';
   document.getElementById('pkBg').classList.add('on');renderPk();setTimeout(()=>document.getElementById('pkS').focus(),80);}
 function closePk(){document.getElementById('pkBg').classList.remove('on');}
-function renderPk(){const all=PK[PKT].l(),q=document.getElementById('pkS').value.trim(),cur=PKV[PKT]||'';
-  const f=q?all.filter(v=>v.includes(q)):all;let h='';
-  if(!f.length&&!q)h+=`<div class="pk-e">尚無歷史紀錄，請直接輸入後按右上角「確認」</div>`;
-  h+=f.map(v=>`<div class="pk-it ${v===cur?'on':''}" onclick="pickV('${jse(v)}')">${esc(v)}${v===cur?'<span>✓</span>':''}</div>`).join('');
-  document.getElementById('pkL').innerHTML=h;}
+// ── 選擇器的即時篩選 ─────────────────────────────────────────
+// 舊版：輸入的字如果一個都沒對到，清單會整個變成空的，選單高度瞬間縮到 0，
+// 手機上鍵盤跟著重新定位，欄位就從畫面中間跳到最下面被鍵盤擋住。
+// 新版三個修正：
+//   1) 清單容器有固定的最小高度（CSS .pk-l），永遠不會塌掉，版面不會跳。
+//   2) 一輸入就把「使用你打的這個字」放在第一列，隨時可以直接按下去建立新值。
+//   3) 比對改成不分大小寫、且優先顯示「開頭符合」的項目，打第一個字就會帶出關鍵字。
+function renderPk(){
+  const all=PK[PKT].l(), q=document.getElementById('pkS').value.trim(), cur=PKV[PKT]||'';
+  const lq=q.toLowerCase();
+  let f=all;
+  if(q){
+    f=all.filter(v=>String(v).toLowerCase().includes(lq));
+    f.sort((a,b)=>{
+      const as=String(a).toLowerCase().indexOf(lq), bs=String(b).toLowerCase().indexOf(lq);
+      return as-bs || String(a).localeCompare(String(b),'zh-TW');
+    });
+  }
+  let h='';
+  if(q && !all.some(v=>String(v)===q)){
+    h+=`<div class="pk-it pk-new" onclick="pickV('${jse(q)}')"><span>使用「<b>${esc(q)}</b>」</span><span class="pk-new-tag">新增</span></div>`;
+  }
+  h+=f.map(v=>{
+    // 把符合的片段標亮，一眼看得出來為什麼這一列被留下來
+    let label=esc(v);
+    if(q){
+      const i=String(v).toLowerCase().indexOf(lq);
+      if(i>=0) label=esc(String(v).slice(0,i))+'<mark>'+esc(String(v).slice(i,i+q.length))+'</mark>'+esc(String(v).slice(i+q.length));
+    }
+    return `<div class="pk-it ${v===cur?'on':''}" onclick="pickV('${jse(v)}')">${label}${v===cur?'<span>✓</span>':''}</div>`;
+  }).join('');
+  if(!f.length && !q) h+=`<div class="pk-e">尚無歷史紀錄，請直接輸入後按右上角「確認」</div>`;
+  if(!f.length && q)  h+=`<div class="pk-e">沒有符合「${esc(q)}」的既有紀錄，可直接使用上方新增</div>`;
+  document.getElementById('pkL').innerHTML=h;
+}
 function confirmCustomPk(){
   const v=document.getElementById('pkS').value.trim();
   if(!v){toast('請先輸入內容',true);return;}
@@ -501,12 +558,26 @@ function pickV(v){
   if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
   if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
-  s.textContent=v;s.classList.remove('ph');b.classList.add('on');b.closest('.fw').classList.add('ok');closePk();fillCount();}
+  s.textContent=v;s.classList.remove('ph');b.classList.add('on');
+  const fw=b.closest('.fw'); fw.classList.add('ok'); fw.classList.add('has-val');
+  ensurePkClearBtn(fw,PKT);
+  closePk();fillCount();}
+// 已選好的下拉欄位，右側一樣給一顆清除鈕
+function ensurePkClearBtn(fw,k){
+  if(!fw||fw.querySelector('.fw-clear'))return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除'); b.textContent='✕';
+  b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); clearPk(k); });
+  fw.appendChild(b);
+}
 function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
-  s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');b.closest('.fw').classList.remove('ok');fillCount();}
+  s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');
+  const fw=b.closest('.fw'); fw.classList.remove('ok'); fw.classList.remove('has-val');
+  fillCount();}
 // 開啟編輯／批次編輯視窗時，把既有值塞回下拉按鈕上
 function setPk(k,v){
   const b=document.getElementById('pk-'+k); if(!b)return;
+  const fw=b.closest('.fw'); if(fw) fw.classList.toggle('has-val',!!v);
   PKV[k]=v||'';
   const sp=b.querySelector('.v');
   if(v){ sp.textContent=v; sp.classList.remove('ph'); b.classList.add('on'); b.closest('.fw').classList.add('ok'); }
@@ -646,10 +717,107 @@ function setExactTableWidth(tableId,cols,store,onlyVisible,extra){
   cols.forEach(c=>{ if(onlyVisible!==undefined && c.role==='a' && !onlyVisible) return; total+=colW(store,c); });
   table.style.width=(total+(extra||0))+'px';
 }
-function recRowHtml(x){
-  return `<tr onclick="openEd('${x.recordId}')" style="cursor:pointer">`+COLS.map(c=>
-    `<td class="pad ${(c.k==='stockDate'||c.k==='shipDate'||c.k==='invoiceDate'||c.k==='orderNo'||c.k==='invoiceNo'||c.k==='batch')?'mn':''} ${c.role==='a'&&!RECFULL?'colhide':''}">${esc(x[c.k]||'—')}</td>`).join('')+
-    `<td class="pad"><span class="sm ${shipStatus(x)==='sh'?'g':'h'}">${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span></td></tr>`;
+// ── 電腦版清單：可直接編輯儲存格、可從 Excel 整塊貼上 ─────────────
+// 跟行政總表同一套操作邏輯（REDITS 暫存未送出的變更，送出前跳確認視窗）。
+// 只有業務可以填的欄位（role='s'）是輸入框，發票／ERP／借出單等行政欄位維持唯讀，
+// 避免業務誤改行政的資料。分組檢視的表格維持唯讀（點列開編輯視窗）。
+let REDITS={}, REC_LIST_ROWS=[];
+const MONO_COLS=['stockDate','shipDate','invoiceDate','orderNo','invoiceNo','batch'];
+function recRowHtml(x,editable){
+  const cells=COLS.map(c=>{
+    const hide=(c.role==='a'&&!RECFULL)?'colhide':'';
+    const mono=MONO_COLS.includes(c.k)?'mn':'';
+    if(editable&&c.role==='s'){
+      const ek=x.recordId+'::'+c.k, ed=REDITS[ek]!==undefined, v=ed?REDITS[ek]:(x[c.k]||'');
+      return `<td class="${hide}"><input class="cel ${ed?'ed':''} ${mono}" data-rid="${esc(x.recordId)}" data-col="${c.k}" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(v)}" oninput="recCellEdit(this)" onpaste="recCellPaste(event,this)"></td>`;
+    }
+    return `<td class="pad ${mono} ${hide}">${esc(x[c.k]||'—')}</td>`;
+  }).join('');
+  const open=editable?'<tr>':`<tr onclick="openEd('${x.recordId}')" style="cursor:pointer">`;
+  return open+cells+`<td class="pad"><span class="sm ${shipStatus(x)==='sh'?'g':'h'}">${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span></td></tr>`;
+}
+function recEffVal(x,k){const ek=x.recordId+'::'+k;return REDITS[ek]!==undefined?REDITS[ek]:x[k];}
+function recCellEdit(el){
+  const rid=el.dataset.rid,col=el.dataset.col,ek=rid+'::'+col;
+  const rec=DB.records.find(x=>x.recordId===rid); if(!rec)return;
+  if(String(el.value||'')===String(rec[col]||'')){delete REDITS[ek];el.classList.remove('ed');}
+  else{REDITS[ek]=el.value;el.classList.add('ed');}
+  updRecEditBar();
+}
+function recCellPaste(e,el){
+  const txt=(e.clipboardData||window.clipboardData).getData('text');
+  if(!txt||(!txt.includes('\t')&&!txt.includes('\n')))return; // 單格貼上交給瀏覽器預設行為
+  e.preventDefault();
+  const rows=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(r=>r.split('\t'));
+  const ri=REC_LIST_ROWS.findIndex(x=>x.recordId===el.dataset.rid), ci=COLS.findIndex(c=>c.k===el.dataset.col);
+  let n=0;
+  rows.forEach((cells,dr)=>{
+    const rec=REC_LIST_ROWS[ri+dr]; if(!rec)return;
+    cells.forEach((v,dc)=>{
+      const col=COLS[ci+dc]; if(!col||col.role!=='s')return; // 行政欄位不接受貼上
+      const ek=rec.recordId+'::'+col.k, vv=v.trim();
+      if(String(rec[col.k]||'')===vv)delete REDITS[ek];else{REDITS[ek]=vv;n++;}
+    });
+  });
+  renderRec();toast(`已貼上 ${n} 格資料，請確認後送出`);
+}
+function updRecEditBar(){
+  const n=Object.keys(REDITS).length;
+  const el=document.getElementById('rEditN'); if(el)el.textContent=n;
+  const box=document.getElementById('rEdit'); if(box)box.style.display=n?'inline':'none';
+  const btn=document.getElementById('btnSubmitRec'); if(btn)btn.disabled=!n;
+}
+function revertRecGrid(){
+  const n=Object.keys(REDITS).length;
+  if(!n){toast('目前沒有未送出的變更');return;}
+  REDITS={};renderRec();toast(`已還原 ${n} 格變更`);
+}
+function buildRecDiffs(){
+  const by={};
+  Object.keys(REDITS).forEach(ek=>{
+    const i=ek.indexOf('::'),rid=ek.slice(0,i),col=ek.slice(i+2);
+    const rec=DB.records.find(x=>x.recordId===rid);if(!rec)return;
+    (by[rid]=by[rid]||{rec,list:[]}).list.push({key:col,label:LBL[col],before:rec[col]||'',after:REDITS[ek]||''});
+  });
+  return by;
+}
+function openRecDiff(){
+  const by=buildRecDiffs(),ks=Object.keys(by);if(!ks.length)return;
+  DIFF_CTX='rec';
+  let cells=0;ks.forEach(k=>cells+=by[k].list.length);
+  document.getElementById('dfCount').textContent=`${ks.length} 筆資料 · ${cells} 個欄位`;
+  document.getElementById('dfBody').innerHTML=
+    `<div style="font-size:12px;color:var(--tx-2);margin-bottom:14px;line-height:1.75">以下變更將寫入試算表，請確認「舊值 → 新值」無誤後送出。送出結果都會完整記錄於操作紀錄。</div>`+
+    ks.map(rid=>{const{rec,list}=by[rid];
+      return `<div class="df"><div class="df-h"><span>${esc(rec.customer||'（未填客戶）')} ${esc(rec.item||'（未填品項）')}</span><span class="m">${esc(rid)}</span></div>
+      ${list.map(d=>`<div class="df-r"><span class="df-k">${esc(d.label)}</span>
+        <span class="df-v"><span class="dl">${esc(d.before||'（空白）')}</span> <span style="color:var(--tx-3)">→</span> <span class="nw">${esc(d.after||'（空白）')}</span></span></div>`).join('')}</div>`;}).join('');
+  document.getElementById('dfMv').classList.add('on');
+}
+// 送出前確認視窗由行政總表與業務清單共用，用 DIFF_CTX 決定要送出哪一份變更
+let DIFF_CTX='admin';
+function commitDiff(btn){ return DIFF_CTX==='rec'?commitRecGrid(btn):commitGrid(btn); }
+async function commitRecGrid(btn){
+  if(btn&&btn.disabled)return;
+  const by=buildRecDiffs(),ks=Object.keys(by);
+  if(!ks.length){closeDiff();return;}
+  const updates=ks.map(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);return{recordId:rid,changes:ch};});
+  busy(btn,true);
+  // 樂觀更新：先套用到本機並關閉視窗，網路在背景完成
+  const before=ks.map(rid=>{const o={};by[rid].list.forEach(d=>o[d.key]=by[rid].rec[d.key]);return{rec:by[rid].rec,o};});
+  updates.forEach((u,i)=>Object.assign(by[ks[i]].rec,u.changes));
+  REDITS={};closeDiff();renderRec();renderStats();renderPend();
+  const res=await api('batchUpdate',{updates,actor:CUR,source:'業務端網頁（清單批次）'});
+  busy(btn,false);
+  if(res.status==='success'){
+    toast(`已更新 ${ks.length} 筆資料，操作已記錄`);
+    queueSalesSync();
+  }else{
+    before.forEach(b=>Object.assign(b.rec,b.o));
+    renderRec();renderStats();renderPend();
+    ks.forEach(rid=>addLog({act:'修改紀錄',ok:false,rid,diffs:by[rid].list,err:res.message||'未知錯誤',src:'業務端網頁（清單批次）'}));
+    renderLogs();toast('送出失敗，已還原：'+(res.message||'未知錯誤'),true);
+  }
 }
 // 一筆紀錄是否「資料齊全」：業務端該填的八個欄位都有值。
 // 分組展開後每一筆的「編輯」按鈕會依此顯示綠色（齊全）或紅色（有缺），
@@ -717,7 +885,10 @@ function renderRec(){
   }
 
   if(VIEW==='list'){
-    document.getElementById('recTB').innerHTML=rows.map(recRowHtml).join('');
+    REC_LIST_ROWS=rows;
+    document.getElementById('recTB').innerHTML=rows.map(x=>recRowHtml(x,true)).join('');
+    const rc=document.getElementById('rCnt'); if(rc)rc.textContent=rows.length;
+    updRecEditBar();
   }else{
     const g={};rows.forEach(x=>{const k=x.stockDate+'|'+x.customer+'|'+x.item;(g[k]=g[k]||[]).push(x)});
     const totalCols=COLS.length+1;
@@ -1102,25 +1273,51 @@ async function submitReg(btn){
   if(!item.customer||!item.item){
     addLog({act:'新增紀錄',ok:false,desc:'嘗試新增備貨紀錄',err:'必填欄位未完成（客戶名稱／品項）'});
     renderLogs();toast('請填寫客戶名稱與品項',true);return;}
-  busy(btn,true,'送出中…');
-  const res=await api('createRecords',{item,qty:BQ,actor:CUR});
+  // ── 樂觀更新（optimistic update）─────────────────────────────
+  // 舊版是「按下送出 → 等 Apps Script 回應 → 才清空表單、才跳到我的紀錄」。
+  // Apps Script 本身就有冷啟動＋讀寫試算表的延遲，手機網路又慢，使用者就是盯著
+  // 轉圈等好幾秒，完全不知道到底成功了沒。
+  //
+  // 現在改成：先用暫時編號把資料放進畫面（立刻看得到、可以繼續下一筆），
+  // 網路請求在背景進行；成功後把暫時編號換成伺服器回傳的正式編號，
+  // 失敗則把這幾筆從畫面收回並提示。暫時編號的紀錄會標記 _tmp，
+  // 在正式編號回來之前不允許編輯（openEd 會擋下並提示），避免改到不存在的資料。
+  const n=BQ;
+  const tmpIds=[];
+  for(let k=0;k<n;k++){
+    const tid='TMP-'+Date.now()+'-'+k;
+    tmpIds.push(tid);
+    DB.records.push({recordId:tid,...item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:CUR,updatedAt:new Date().toISOString(),_tmp:true});
+  }
+  ['f-batch','f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
+  ['customer','item','category','type'].forEach(clearPk);BQ=1;bq(0);
+  renderMChips();renderIChips();renderRec();renderStats();renderPend();
+  tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
+  busy(btn,false);
+  toast(`已送出 ${n} 筆，儲存中…`);
+
+  const res=await api('createRecords',{item,qty:n,actor:CUR});
   if(res.status==='success'){
+    (res.ids||[]).forEach((realId,k)=>{
+      const rec=DB.records.find(r=>r.recordId===tmpIds[k]);
+      if(rec){ rec.recordId=realId; delete rec._tmp; }
+    });
+    // 伺服器回傳的筆數若比暫存少（極少見），把多出來的暫存收回
+    DB.records=DB.records.filter(r=>!(r._tmp&&tmpIds.includes(r.recordId)));
+    renderRec();renderStats();renderPend();
     toast(`已建立 ${res.createdCount} 筆備貨紀錄`);
-    ['f-batch','f-hd','f-on','f-rm'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
-    ['customer','item','category','type'].forEach(clearPk);BQ=1;bq(0);
-    (res.ids||[]).forEach(id=>DB.records.push({recordId:id,...item,invoiceDate:'',invoiceNo:'',erp:'',loanReturn:'',loanOut:'',note:'',sales:CUR,updatedAt:new Date().toISOString()}));
-    renderMChips();renderIChips();renderRec();renderStats();renderPend();
-    tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
-    busy(btn,false);
-    queueSalesSync(); 
+    queueSalesSync();
   }else{
+    DB.records=DB.records.filter(r=>!tmpIds.includes(r.recordId));
+    renderMChips();renderIChips();renderRec();renderStats();renderPend();
     addLog({act:'新增紀錄',ok:false,desc:`嘗試新增客戶「${item.customer}」備貨紀錄`,err:res.message||'未知錯誤'});
-    renderLogs();toast('送出失敗：'+(res.message||'未知錯誤'),true);
-    busy(btn,false);
+    renderLogs();toast('送出失敗，資料已收回：'+(res.message||'未知錯誤'),true);
   }
 }
 function fillDatalist(dlId,values){const dl=document.getElementById(dlId);if(dl)dl.innerHTML=values.map(v=>`<option value="${esc(v)}">`).join('');}
-function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;EDID=id;
+function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;
+  if(x._tmp){toast('這筆資料還在儲存中，請稍候幾秒再編輯');return;}
+  EDID=id;
   document.getElementById('edRef').textContent='REC / '+id;
   // 客戶／品項／科別／賣備樣改用跟「備貨登記」同一套的下拉選擇器（可搜尋、可直接輸入新值），
   // 不再是看起來像純文字框的 datalist——手機上根本看不出來可以點開選單。
@@ -1215,16 +1412,20 @@ async function doGroupEdit(btn){
   const changes=GED_PENDING.changes, targets=GED_PENDING.targets;
   busy(btn,true,'套用中…');
   const updates=targets.map(x=>({recordId:x.recordId,changes:changes}));
+  // 樂觀更新：先套用到畫面並關閉視窗，網路在背景送出，失敗再還原
+  const before=targets.map(x=>{const o={};Object.keys(changes).forEach(k=>o[k]=x[k]);return o;});
+  targets.forEach(x=>Object.assign(x,changes));
+  const n=targets.length;
+  closeGroupConfirm();closeGroupEdit();
+  renderRec();renderStats();renderPend();
   const res=await api('batchUpdate',{updates:updates,actor:CUR,source:'業務端網頁（整組批次）'});
   busy(btn,false);
   if(res.status==='success'){
-    targets.forEach(x=>Object.assign(x,changes));
-    const n=targets.length;
-    closeGroupConfirm();closeGroupEdit();
-    renderRec();renderStats();renderPend();
     toast(`已套用到 ${n} 筆紀錄`);
     queueSalesSync();
   }else{
+    targets.forEach((x,i)=>Object.assign(x,before[i]));
+    renderRec();renderStats();renderPend();
     targets.forEach(x=>{
       const diffs=Object.keys(changes).map(k=>({label:LBL[k],before:x[k]||'',after:changes[k]}));
       addLog({act:'批次修改',ok:false,rid:x.recordId,diffs:diffs,err:res.message||'未知錯誤',src:'業務端網頁（整組批次）'});
@@ -1239,41 +1440,53 @@ async function saveEd(btn){
     stockDate:val('e-sd'),shipDate:val('e-hd'),batch:val('e-ba'),orderNo:val('e-on'),remark:val('e-rm')};
   const diffs=[];Object.keys(nv).forEach(k=>{if(String(x[k]||'')!==String(nv[k]||''))diffs.push({label:LBL[k],before:x[k],after:nv[k]});});
   if(!diffs.length){toast('沒有任何變更');closeEd();return;}
-  busy(btn,true,'儲存中…');
-  const res=await api('updateRecord',{recordId:EDID,changes:nv,actor:CUR,expectedUpdatedAt:x.updatedAt});
+
+  // 樂觀更新：視窗立刻關閉、畫面立刻套用新值，網路請求在背景送出。
+  // 失敗（含版本衝突）時再把畫面改回原值並提示，不讓使用者對著轉圈乾等。
+  const before={}; Object.keys(nv).forEach(k=>before[k]=x[k]);
+  const rid=EDID, prevUpdatedAt=x.updatedAt;
+  Object.assign(x,nv);
+  closeEd();
+  if(ROLE==='admin'){renderGrid();}else{renderIChips();renderRec();renderStats();renderPend();}
+  toast('已儲存修改');
+
+  const res=await api('updateRecord',{recordId:rid,changes:nv,actor:CUR,expectedUpdatedAt:prevUpdatedAt});
   if(res.status==='success'){
-    Object.assign(x,nv);
-    closeEd();
-    if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
-    toast('已儲存修改，操作已記錄');
-    busy(btn,false);
-    if(ROLE==='admin')queueAdminSync();else queueSalesSync(); 
-  }else if(res.status==='conflict'){
-    addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:'版本衝突：這筆資料已被他人修改'});
-    renderLogs();toast('這筆資料剛剛被其他人改過，已為您載入最新版本，請重新確認後再儲存',true);
-    busy(btn,false);closeEd();
-    if(ROLE==='admin')loadAdminData();else loadSalesData();
+    if(res.updatedAt) x.updatedAt=res.updatedAt;
+    if(ROLE==='admin')queueAdminSync();else queueSalesSync();
   }else{
-    addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:res.message||'未知錯誤'});
-    renderLogs();toast('儲存失敗：'+(res.message||'未知錯誤'),true);
-    busy(btn,false);
-  }}
+    Object.assign(x,before); // 還原
+    if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
+    if(res.status==='conflict'){
+      addLog({act:'修改紀錄',ok:false,rid:rid,diffs,err:'版本衝突：這筆資料已被他人修改'});
+      toast('這筆資料剛剛被其他人改過，您的修改未儲存，已載入最新版本，請重新確認',true);
+      if(ROLE==='admin')loadAdminData();else loadSalesData(true);
+    }else{
+      addLog({act:'修改紀錄',ok:false,rid:rid,diffs,err:res.message||'未知錯誤'});
+      toast('儲存失敗，已還原：'+(res.message||'未知錯誤'),true);
+    }
+    renderLogs();
+  }
+}
 async function delRec(btn){
   if(btn&&btn.disabled)return;
   const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
-  busy(btn,true,'刪除中…');
-  const res=await api('deleteRecord',{recordId:EDID,actor:CUR});
+  // 同樣採樂觀更新：先從畫面移除，失敗再放回去
+  const rid=EDID, idx=DB.records.indexOf(x);
+  DB.records.splice(idx,1);
+  closeEd();
+  if(ROLE==='admin'){renderGrid();}else{renderIChips();renderRec();renderStats();renderPend();}
+  toast('已刪除此筆紀錄');
+  const res=await api('deleteRecord',{recordId:rid,actor:CUR});
   if(res.status==='success'){
-    DB.records=DB.records.filter(v=>v.recordId!==EDID); 
-    closeEd();
-    if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
-    toast('已刪除此筆紀錄');
-    busy(btn,false);
     if(ROLE==='admin')queueAdminSync();else queueSalesSync();
   }else{
-    addLog({act:'刪除紀錄',ok:false,rid:EDID,err:res.message||'未知錯誤'});renderLogs();toast('刪除失敗',true);
-    busy(btn,false);
-  }}
+    DB.records.splice(idx,0,x);
+    if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
+    addLog({act:'刪除紀錄',ok:false,rid:rid,err:res.message||'未知錯誤'});renderLogs();
+    toast('刪除失敗，資料已還原',true);
+  }
+}
 
 /* ── ADMIN ── */
 function initAdmin(){renderAChips();renderGrid();renderALog();}
@@ -1926,6 +2139,7 @@ function buildDiffs(){const by={};
     (by[rid]=by[rid]||{rec,list:[]}).list.push({key:col,label:LBL[col],before:rec[col]||'',after:EDITS[ek]||''});});
   return by;}
 function openDiff(){const by=buildDiffs(),ks=Object.keys(by);if(!ks.length)return;
+  DIFF_CTX='admin';
   let cells=0;ks.forEach(k=>cells+=by[k].list.length);
   document.getElementById('dfCount').textContent=`${ks.length} 筆資料 · ${cells} 個欄位`;
   document.getElementById('dfBody').innerHTML=
