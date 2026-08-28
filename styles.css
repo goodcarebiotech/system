@@ -854,17 +854,7 @@ table.dt td.pad{padding:5px 9px;line-height:1.5}
 .bar-out.ico.is-busy .ico-glyph{animation:spin .8s linear infinite}
 .bar-out.ico .btn-spin{display:none}
 
-/* ── 3. 欄位右側的清除叉叉（有值才出現）── */
-.fw{position:relative}
-.fw .fw-clear{display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);
-  width:24px;height:24px;padding:0;border:0;border-radius:50%;background:var(--line);color:var(--tx-2);
-  font-size:11px;line-height:1;cursor:pointer;align-items:center;justify-content:center;z-index:2;transition:.15s var(--e)}
-.fw.has-val .fw-clear{display:flex}
-.fw .fw-clear:hover{background:var(--tx-2);color:#fff}
-.fw.has-val .fb{padding-right:36px}
-/* 日期欄位有原生的日曆圖示，叉叉往左讓開一點 */
-.fw.has-val input[type="date"]{padding-right:56px}
-.fw.has-val input[type="date"]~.fw-clear{right:30px}
+/* （第 4 輪的清除鈕樣式已由第 6 輪的版本取代，整段移除以免規則互相打架） */
 
 /* ── 4. 選擇器：清單高度固定，輸入時版面不跳；新增值放第一列 ── */
 .pk-l{min-height:52vh}
@@ -882,17 +872,8 @@ table.dt td.pad{padding:5px 9px;line-height:1.5}
 
 /* ═════════ Round 5 追加 ═════════ */
 
-/* ── 1. 清除叉叉移到欄位右上角、加大，完全不壓到輸入的文字 ── */
+/* （第 5 輪的清除鈕樣式同樣由第 6 輪取代） */
 .fg{position:relative}
-.fg .fw-clear,.fw .fw-clear{display:none;position:absolute;top:-3px;right:0;
-  width:26px;height:26px;padding:0;border:1px solid var(--line-2);border-radius:50%;
-  background:var(--paper);color:var(--tx-2);font-size:12px;line-height:1;cursor:pointer;
-  align-items:center;justify-content:center;z-index:5;transition:.15s var(--e)}
-.fg.has-val > .fw-clear,.fw.has-val > .fw-clear{display:flex}
-.fg .fw-clear:hover,.fw .fw-clear:hover{background:var(--bad);border-color:var(--bad);color:#fff}
-/* 舊版把叉叉塞在輸入框裡面，這兩條要取消，否則文字會被擠掉 */
-.fw.has-val .fb{padding-right:14px}
-.fw.has-val input[type="date"]{padding-right:14px}
 
 /* ── 8. 日期欄位維持與其他欄位相同的高度，不因為空值而縮小 ── */
 input[type="date"].fb{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;
@@ -944,3 +925,135 @@ input[type="date"].fb::-webkit-calendar-picker-indicator{opacity:.45;cursor:poin
 #pg-pend .chip{padding:5px 11px;font-size:11px;border-radius:16px}
 #pg-pend .chip .n{font-size:9.5px;margin-left:4px}
 #pg-pend .cf-h{font-size:10px}
+
+/* ══════════════════════════════════════════════════════════════
+   Round 6 — 設計系統統整層
+   前幾輪為了快速回應個別需求，一直往檔案尾端追加樣式，累積下來出現了
+   七種圓角（5/6/8/10/12/14/16/20px）、三套陰影配方、以及三種數字字體
+   （襯線體／等寬體／內文體）混用。單看每一塊都還好，整體看就是「一頁一個樣」，
+   那正是套版感的來源。這一層把這些收斂成一組真正的規則，並移除純裝飾的元素。
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  /* 圓角只有三階：貼齊資料的 0、元件的 10px、膠囊的 999px */
+  --r:10px; --r-s:6px; --r-pill:999px;
+  /* 陰影只有兩階，而且都極淺——高級感來自留白與對齊，不是來自陰影 */
+  --sh-1:0 1px 2px rgba(16,23,32,.04);
+  --sh-2:0 1px 2px rgba(16,23,32,.04), 0 8px 24px rgba(16,23,32,.06);
+  --gut:20px;
+}
+
+/* ── 數字：全站統一用等寬體 + tabular-nums，襯線體只保留給品牌字樣 ──
+   混用襯線數字與等寬數字時，同一欄的數字寬度會忽寬忽窄、基線也對不齊，
+   這是排版精準度最容易破功的地方。 */
+.st-u .v,.fam-card-total,.fam-spec-cell .fsv,.al-c,.ov-total-v,.mgr-month-label{
+  font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;font-weight:600}
+.fam-name,.mgr-detail-name{font-family:'Noto Sans TC',sans-serif;letter-spacing:.02em}
+.mgr-month-label{font-size:14px}
+
+/* ── 面板：統一圓角與陰影，去掉重複的邊框線 ── */
+.pn{border-radius:var(--r);box-shadow:var(--sh-1);border:1px solid var(--line);margin-bottom:var(--gut)}
+.pn.elevated{box-shadow:var(--sh-2)}
+.pn-h{border-radius:var(--r) var(--r) 0 0;padding:16px 20px}
+.pn-t{font-size:14px;letter-spacing:.04em}
+.pn-b{padding:20px}
+.sec-label{margin:30px 0 12px}
+
+/* ── 統計數字帶：去掉頂端的彩色小條，改用文字本身的顏色做層級 ── */
+.st-u::before{display:none}
+.st-u{padding:18px 8px 16px}
+.st-u .v{font-size:24px}
+.st-u .k{font-size:10px;margin-top:9px;letter-spacing:.08em;color:var(--tx-3)}
+
+/* ── 待補齊提示條：移除 hover 位移與雙重陰影 ── */
+.al{border-radius:var(--r);box-shadow:none;border-color:rgba(138,93,11,.28)}
+.al:hover{box-shadow:none;transform:none;background:var(--warn-tint)}
+.al-c{font-size:22px}
+
+/* ── 空狀態：拿掉巨大的裝飾符號，改用純文字層級 ── */
+.emp{padding:44px 20px;text-align:center}
+.emp-t{font-size:13.5px;font-weight:600;color:var(--tx-2);letter-spacing:.02em}
+.emp-s{font-size:11.5px;color:var(--tx-3);margin-top:6px;line-height:1.7}
+
+/* ── 膠囊按鈕：全站同一種形狀與高度 ── */
+.chip,.ov-sort-btn,.mgr-month-btn,.filter-ico-btn,.ym-btn,.grp-chip{
+  border-radius:var(--r-pill);font-weight:500}
+.ov-item-btn,.mgr-name-btn,.btn-d,.btn-g,.sv,.fb,.fw,.cel{border-radius:var(--r-s)}
+.bar-out,.bar-out.ico{border-radius:var(--r-pill)}
+
+/* ── 品牌家族卡：移除頂端色條＋外框＋陰影三重裝飾，只留一種 ── */
+.fam-card{border-radius:var(--r);box-shadow:none;border:1px solid var(--line)}
+.fam-card::before{display:none}
+.fam-card:hover{transform:none;box-shadow:var(--sh-1)}
+.fam-card-total{font-size:36px;padding:4px 18px 14px}
+.fam-spec-cell:hover{background:transparent}
+.fam-block{border-radius:0 var(--r-s) var(--r-s) 0;box-shadow:none}
+
+/* ── 操作紀錄：移除 emoji 之後的排版微調 ── */
+.log-actor,.log-src{font-size:10.5px;color:var(--tx-3);letter-spacing:.02em}
+.detail-err{margin-top:15px;padding:11px 13px;background:var(--bad-tint);
+  border-left:3px solid var(--bad);border-radius:0 var(--r-s) var(--r-s) 0;
+  color:var(--bad);font-size:12px;line-height:1.7}
+.diff-arrow{color:var(--tx-3);margin:0 6px}
+
+/* ══ 清除鈕：iOS 輸入框那種小圓叉 ══
+   貼齊欄位內緣、垂直置中、灰底白叉、無外框無陰影。
+   z-index 蓋在原生日期控制項之上，且 pointerdown 就攔截，
+   所以按下去只會清空欄位，不會叫出日曆。 */
+.fw{position:relative}
+.fw > .fw-clear{
+  display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  width:20px;height:20px;padding:0;border:0;border-radius:50%;
+  background:rgba(60,60,67,.28);color:#fff;cursor:pointer;z-index:6;
+  align-items:center;justify-content:center;transition:background .15s var(--e)}
+.fw.has-val > .fw-clear{display:flex}
+.fw > .fw-clear:hover{background:rgba(60,60,67,.5)}
+.fw > .fw-clear:active{background:rgba(60,60,67,.62)}
+.fw > .fw-clear svg{width:14px;height:14px;display:block;
+  stroke:#fff;stroke-width:2;stroke-linecap:round;fill:none}
+.fw.has-val .fb{padding-right:38px}
+/* 原生日曆圖示整個拿掉：它跟清除鈕搶同一塊位置，而且各瀏覽器長得都不一樣。
+   要開日曆直接點欄位本身即可（見 app.js 綁定的 showPicker）。 */
+input[type="date"].fb::-webkit-calendar-picker-indicator{display:none;-webkit-appearance:none}
+input[type="date"].fb{padding-right:38px}
+/* 舊版把清除鈕掛在 .fg 右上角的定位規則，改成不再套用。
+   注意不能用 .fg .fw-clear{display:none} 去蓋——新的清除鈕本來就在 .fg 裡面，會被一起關掉。 */
+.fg > .fw-clear{display:none}
+
+/* ══════════════════════════════════════════════════════════════
+   手機版：重新安排閱讀順序與節奏，而不只是把桌機版縮小
+   ══════════════════════════════════════════════════════════════ */
+@media(max-width:560px){
+  :root{--gut:14px}
+  body{font-size:13.5px}
+  .wrap,.pg{padding-left:16px;padding-right:16px}
+  .pn{margin-bottom:14px;border-radius:var(--r)}
+  .pn-h{padding:14px 16px}
+  .pn-b{padding:16px}
+  .pn-t{font-size:13.5px}
+  .sec-label{margin:24px 0 10px;font-size:12px}
+
+  /* 統計帶：手機上四欄擠成一排會讓數字小到看不清，改成兩欄兩列 */
+  .st{display:grid;grid-template-columns:1fr 1fr}
+  .st-u{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 6px 14px}
+  .st-u:nth-child(2n){border-right:none}
+  .st-u:nth-child(n+3){border-bottom:none}
+  .st-u .v{font-size:26px}
+
+  /* 篩選列：標籤與膠囊同一行，不再各佔一行浪費垂直空間 */
+  .cf-r{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;overflow-x:auto;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .cf-r::-webkit-scrollbar{display:none}
+  .cf-r .cf-h{flex:none}
+  .cf-r .chips{display:flex;gap:6px;flex-wrap:nowrap}
+  .chip{white-space:nowrap}
+
+  /* 表單：標籤與欄位的節奏拉開，避免整頁都是等距的灰塊 */
+  .fg{margin-bottom:16px}
+  .fl{font-size:10.5px;letter-spacing:.1em;margin-bottom:6px;color:var(--tx-3)}
+  .fr{gap:10px}
+
+  /* 卡片：去掉多層巢狀的圓角與陰影，資料列直接貼齊左右內緣 */
+  .rc{border-radius:var(--r-s);box-shadow:none;border:1px solid var(--line)}
+  .rc-date-sec{margin:18px 0 8px;font-size:10.5px;letter-spacing:.12em;color:var(--tx-3)}
+}
