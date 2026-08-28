@@ -846,3 +846,36 @@ table.dt td.pad{padding:5px 9px;line-height:1.5}
 .bar-out.ico:hover{background:#fff;color:var(--nav);border-color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.18)}
 .bar-out.ico:active{transform:translateY(1px)}
 @media(max-width:560px){.bar-out.ico{padding:6px 11px}.bar-out.ico::after{display:none}}
+
+/* ═════════ Round 4 追加 ═════════ */
+
+/* ── 1. 更新鈕：直接讓 ↻ 這個字轉圈，不再另外插一顆白色 loading 圈 ── */
+.bar-out.ico .ico-glyph{display:inline-block;line-height:1}
+.bar-out.ico.is-busy .ico-glyph{animation:spin .8s linear infinite}
+.bar-out.ico .btn-spin{display:none}
+
+/* ── 3. 欄位右側的清除叉叉（有值才出現）── */
+.fw{position:relative}
+.fw .fw-clear{display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:24px;height:24px;padding:0;border:0;border-radius:50%;background:var(--line);color:var(--tx-2);
+  font-size:11px;line-height:1;cursor:pointer;align-items:center;justify-content:center;z-index:2;transition:.15s var(--e)}
+.fw.has-val .fw-clear{display:flex}
+.fw .fw-clear:hover{background:var(--tx-2);color:#fff}
+.fw.has-val .fb{padding-right:36px}
+/* 日期欄位有原生的日曆圖示，叉叉往左讓開一點 */
+.fw.has-val input[type="date"]{padding-right:56px}
+.fw.has-val input[type="date"]~.fw-clear{right:30px}
+
+/* ── 4. 選擇器：清單高度固定，輸入時版面不跳；新增值放第一列 ── */
+.pk-l{min-height:52vh}
+@media(min-width:1000px){.pk-l{min-height:320px}}
+.pk-it mark{background:#FFF0B8;color:inherit;border-radius:2px;padding:0 1px}
+.pk-it.pk-new{background:var(--nav-tint);color:var(--nav);font-weight:600}
+.pk-it.pk-new:hover{background:#E0EBF7}
+.pk-new-tag{flex:none;font-size:10px;font-weight:700;letter-spacing:.06em;color:#fff;background:var(--nav);padding:3px 9px;border-radius:12px}
+/* 搜尋框固定在最上方，滑動清單時不會被推走 */
+.pk-h{position:sticky;top:0;background:var(--paper);z-index:2}
+
+/* ── 5. 業務清單的批次編輯列 ── */
+#recEditBar{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#recTableWrap .cel{width:100%}
