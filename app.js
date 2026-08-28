@@ -122,6 +122,13 @@ function nameForEmail(email){
 }
 
 let FIREBASE_READY=false, FIREBASE_USER=null;
+// SIGNIN_BUSY：登入流程進行中（含清理殘留狀態、等彈窗）。防止使用者連點兩下按鈕
+// 讓兩個 OAuth 請求同時進行——這是另一個會讓 Google 回 400 的常見原因。
+// LOGGING_OUT：登出流程進行中，這段期間 onAuthStateChanged 不要做任何事。
+// AUTH_HANDLING：避免 signInWithPopup 的回傳值與 onAuthStateChanged 同時觸發、
+// 導致 handleAuthedUser 被跑兩次（會出現畫面閃兩下、角色選單彈兩次）。
+let SIGNIN_BUSY=false, LOGGING_OUT=false, AUTH_HANDLING=false;
+
 window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
   // 已改為純彈窗登入，不再有 getRedirectResult 這一段（見 firebase-init.js 的說明）。
@@ -129,29 +136,60 @@ window.addEventListener('firebase-ready', ()=>{
   // 使用者不用每次開網頁都重新登入一次。
   window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
     FIREBASE_USER=user;
+    if(LOGGING_OUT||SIGNIN_BUSY||AUTH_HANDLING) return;
     if(user && document.getElementById('login').style.display!=='none'){ handleAuthedUser(user); }
   });
 });
 
 function isInAppBrowser(){ return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent||''); }
 function isMobile(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'') || window.innerWidth<900; }
+
+function setGoogleBtnText(t){ const e=document.getElementById('googleBtnText'); if(e)e.textContent=t; }
+
+// ───────────────────────────────────────────────────────────
+// 【登出後再登入會出現 400 malformed 的修正重點，共三件事】
+//
+// (1) 每次登入都用「全新的 provider」（window.__fb.makeProvider()），不再共用一個被前一次
+//     登入用過、身上還留著參數的單例物件。詳細原因寫在 firebase-init.js。
+//
+// (2) 登入前先確定「上一個 session 真的清乾淨了」：舊版的 logout() 呼叫 signOut() 之後
+//     沒有 await 就直接把登入畫面秀出來，使用者在手機上動作快一點，等於在 signOut 還沒
+//     跑完的狀態下就按了登入 —— Firebase 這時的內部狀態是半舊半新，組出來的 OAuth 請求
+//     就可能帶著殘留的 state/login_hint，Google 收到後直接回 400。
+//     現在 logout() 會 await signOut() 並清掉瀏覽器裡的殘留鍵，登入按鈕在清乾淨之前是
+//     停用的；googleSignIn() 進來時也會再確認一次 currentUser 已經是空的。
+//
+// (3) 整個登入流程加上 SIGNIN_BUSY 鎖，避免連點造成兩個 OAuth 請求互相覆蓋。
+//
+// 如果做完這三件事之後，某些裝置上仍偶發 400，請依序檢查 Firebase 主控台設定
+// （這部分是後台設定、程式無法代勞）：
+//   ・Authentication → Settings → 授權網域，要包含實際開啟網站的網域。
+//   ・Google Cloud → API 和服務 → 憑證 → OAuth 2.0 用戶端，「已授權的重新導向 URI」
+//     必須包含 https://goodcare-c4cd3.firebaseapp.com/__/auth/handler。
+// ───────────────────────────────────────────────────────────
 async function googleSignIn(btn){
-  if(btn.disabled)return;
+  if(SIGNIN_BUSY) return;
+  if(btn && btn.disabled) return;
   if(!FIREBASE_READY){toast('Google 登入服務準備中，請稍後再試',true);return;}
   if(isInAppBrowser()){ document.getElementById('inAppWarn').style.display='block'; return; }
-  const orig=document.getElementById('googleBtnText').textContent;
-  btn.disabled=true;document.getElementById('googleBtnText').textContent='登入中…';
-  // 只用 signInWithPopup，不再保留 signInWithRedirect 這條退路。
-  // signInWithRedirect 會先把「登入中繼狀態」寫進 sessionStorage，整頁跳去 Google 再跳回來，
-  // 但現在的手機瀏覽器（iOS Safari、Android Chrome 的無痕／隱私模式、以及所有做了
-  // storage partitioning 的環境）常常在跳轉回來後就讀不到那份中繼狀態，Firebase 就會丟出
-  // 「Unable to process request due to missing initial state」——這正是手機登入不了的原因。
-  // 彈窗登入全程都在同一個分頁的同一個 session 裡，沒有這個問題，所以一律走彈窗。
+
+  SIGNIN_BUSY=true;
+  if(btn)btn.disabled=true;
+  setGoogleBtnText('登入中…');
   try{
-    const result=await window.__fb.signInWithPopup(window.__fb.auth, window.__fb.provider);
+    await window.__fb.persistenceReady;
+    // 保險：如果因為任何原因上一個帳號還掛在 auth 上，先徹底登出再開始，
+    // 確保這次 OAuth 請求是從乾淨狀態組起來的。
+    if(window.__fb.auth.currentUser){
+      try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
+      await window.__fb.clearAuthResidue();
+    }
+    const provider = window.__fb.makeProvider(); // 每次都是全新的 provider
+    const result = await window.__fb.signInWithPopup(window.__fb.auth, provider);
     await handleAuthedUser(result.user);
   }catch(err){
-    const code=err&&err.code||'';
+    const code=(err&&err.code)||'';
+    const msg=(err&&err.message)||'';
     if(code==='auth/popup-closed-by-user' || code==='auth/cancelled-popup-request'){
       // 使用者自己關掉彈窗，不算錯誤，安靜結束就好
     }else if(code==='auth/popup-blocked'){
@@ -160,21 +198,37 @@ async function googleSignIn(btn){
       toast('這個網域尚未加入 Firebase 授權清單，請聯絡系統管理員',true);
     }else if(code==='auth/network-request-failed'){
       toast('網路連線不穩，請確認網路後再試一次',true);
+    }else if(code==='auth/internal-error' || /malformed|400/i.test(msg)){
+      // 這是 400 malformed 會落到的分支：把殘留狀態清掉，讓使用者「再按一次」就能成功，
+      // 不用自己去清瀏覽器資料。
+      await window.__fb.clearAuthResidue();
+      toast('登入連線異常，已重設登入狀態，請再按一次登入',true);
     }else{
-      toast('Google 登入失敗：'+(err.message||code||'未知錯誤'),true);
+      toast('Google 登入失敗：'+(msg||code||'未知錯誤'),true);
     }
+  }finally{
+    SIGNIN_BUSY=false;
+    if(btn)btn.disabled=false;
+    setGoogleBtnText('使用 Google 帳號登入');
   }
-  btn.disabled=false;document.getElementById('googleBtnText').textContent=orig;
 }
 async function handleAuthedUser(user){
-  const email=user.email||'';
-  const roles=rolesForEmail(email);
-  if(!roles.length){ await window.__fb.signOut(window.__fb.auth); toast('此帳號尚未開通使用權限：'+email, true); return; }
-  CUR_EMAIL=email; CUR=nameForEmail(email);
-  if(roles.length===1){ proceedLogin(roles[0]); return; }
-  const remembered=localStorage.getItem('lastRole:'+email);
-  if(remembered && roles.includes(remembered)){ proceedLogin(remembered); return; }
-  showRoleChooser(roles);
+  if(AUTH_HANDLING) return;
+  AUTH_HANDLING=true;
+  try{
+    const email=user.email||'';
+    const roles=rolesForEmail(email);
+    if(!roles.length){
+      try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
+      await window.__fb.clearAuthResidue();
+      toast('此帳號尚未開通使用權限：'+email, true); return;
+    }
+    CUR_EMAIL=email; CUR=nameForEmail(email);
+    if(roles.length===1){ proceedLogin(roles[0]); return; }
+    const remembered=localStorage.getItem('lastRole:'+email);
+    if(remembered && roles.includes(remembered)){ proceedLogin(remembered); return; }
+    showRoleChooser(roles);
+  }finally{ AUTH_HANDLING=false; }
 }
 function showRoleChooser(roles){
   const box=document.getElementById('roleChooserOptions');
@@ -214,15 +268,32 @@ function setupRoleSwitcher(slotId){
     el.innerHTML=roles.map(r=>`<button onclick="proceedLogin('${r}')">${ROLE_LABEL[r]}</button>`).join('');
   }else{ el.style.display='none'; el.innerHTML=''; }
 }
-function logout(){
-  if(window.__fb && window.__fb.auth) window.__fb.signOut(window.__fb.auth).catch(()=>{});
+// 登出改為非同步，而且「登入按鈕在殘留狀態清乾淨之前是停用的」。
+// 舊版沒有等 signOut 完成就把登入畫面秀出來，使用者馬上按登入 → Firebase 內部狀態
+// 半舊半新 → OAuth 請求格式錯誤 → Google 回 400 malformed，正是手機上遇到的情況。
+async function logout(){
+  LOGGING_OUT=true;
   document.getElementById('login').style.display='flex';
   document.getElementById('googleStep').style.display='block';
   document.getElementById('roleChooser').style.display='none';
   document.getElementById('salesApp').style.display='none';
   document.getElementById('adminApp').style.display='none';
   document.getElementById('managerApp').style.display='none';
-  const gb=document.getElementById('googleBtn');if(gb){gb.disabled=false;document.getElementById('googleBtnText').textContent='使用 Google 帳號登入';}
+  const gb=document.getElementById('googleBtn');
+  if(gb){ gb.disabled=true; }
+  setGoogleBtnText('登出中…');
+  try{
+    if(window.__fb && window.__fb.auth) await window.__fb.signOut(window.__fb.auth);
+  }catch(e){}
+  try{ await window.__fb.clearAuthResidue(); }catch(e){}
+  // 清掉本機快取的資料，避免下一個人登入時短暫看到上一個人的畫面
+  DB={records:[],logs:[],stock:{items:[]}};
+  CUR_EMAIL=''; EDITS={}; RF={}; HF={}; RSORT=null; ASORT=null;
+  SALES_LOGS_LOADED=false; ADMIN_LOGS_LOADED=false;
+  Object.keys(STOCK_RPT_CACHE).forEach(k=>delete STOCK_RPT_CACHE[k]);
+  LOGGING_OUT=false;
+  if(gb){ gb.disabled=false; }
+  setGoogleBtnText('使用 Google 帳號登入');
 }
 
 // ── 資料讀取 ──
@@ -241,6 +312,24 @@ async function loadSalesData(silent){
     if(!silent) toast('連線失敗，暫時顯示上次的資料：'+err.message, true);
     initSales();
   }finally{ if(!silent) hideLoad(); }
+}
+// ── 寫入成功之後的資料同步策略 ───────────────────────────────
+// 舊版：每次新增／修改／刪除成功後，本機資料其實已經同步更新過了，卻又立刻呼叫
+// loadSalesData()（沒有帶 silent），於是又跳一次全螢幕的「讀取資料中…」遮罩、
+// 再把整份備貨紀錄重抓一次。使用者的感受就是「明明只改一個欄位，卻要等兩次」。
+//
+// 新版：畫面用本機資料立刻更新（使用者馬上就看到結果），真正的重抓改成背景靜默進行，
+// 而且做 debounce ——連續操作好幾筆時只會在最後同步一次，不會每筆都打一次 API。
+// 靜默同步不顯示遮罩、不擋操作，完成後只把庫存等衍生數字補正。
+let _salesSyncTimer=null, _salesSyncing=false;
+function queueSalesSync(delay){
+  clearTimeout(_salesSyncTimer);
+  _salesSyncTimer=setTimeout(async()=>{
+    if(_salesSyncing)return;
+    _salesSyncing=true;
+    try{ await loadSalesData(true); }catch(e){}
+    _salesSyncing=false;
+  }, delay||1200);
 }
 async function refreshSales(){
   const btn=document.getElementById('salesRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
@@ -391,7 +480,7 @@ function renderMChips(){
     `<button type="button" class="chip wo ${FShip==='hd'?'on':''}" onclick="toggleShipFilter('hd')">未送貨</button>`+
     `<button type="button" class="chip wo ${FShip==='sh'?'on':''}" onclick="toggleShipFilter('sh')">已送貨</button>`+
     `<button type="button" class="filter-ico-btn ${activeCols.length?'on':''}" onclick="openFilterModal('rec')" title="篩選">${filterIconSvg()}篩選${activeCols.length?' ('+activeCols.length+')':''}</button>`;
-  document.getElementById('activeFilterChips').innerHTML=activeCols.map(c=>
+  document.getElementById('activeFilterChips').innerHTML=sortChipHtml(RSORT,'rec')+activeCols.map(c=>
     `<span class="af-chip" onclick="openFilterModal('rec','${c.k}')">${c.n}<span class="af-x" onclick="event.stopPropagation();quickClearFilter('${c.k}')">✕</span></span>`).join('');
 }
 function quickClearFilter(col){ delete RF[col]; renderMChips(); renderRecHead(); renderRec(); }
@@ -428,8 +517,11 @@ function fmtDateShort(d){
   const wd=['日','一','二','三','四','五','六'][new Date(d).getDay()];
   return `${+p[1]}/${+p[2]}（週${wd}）`;
 }
-// 依備貨日期分段，新到舊；同一天內的資料維持原本順序
+// 依備貨日期分段，新到舊；同一天內的資料維持原本順序。
+// 但只要使用者自己設了排序（RSORT），就不再依日期分段——否則日期分段會把使用者
+// 指定的順序整個打散，看起來像排序沒生效。這時回傳單一區段、不顯示日期標題。
 function dateSections(rows){
+  if(RSORT) return [{date:null,rows:rows}];
   const order=[],by={};
   rows.forEach(x=>{const d=x.stockDate||'';if(!by[d]){by[d]=[];order.push(d);}by[d].push(x);});
   order.sort((a,b)=>b.localeCompare(a));
@@ -481,7 +573,7 @@ function renderRecHead(){
   document.getElementById('recHead').innerHTML=COLS.map(c=>{
     const active=hfActive(RF,c.k);
     const thCls=[c.role==='a'&&!RECFULL?'colhide':'','th-f',active?'th-f-on':''].filter(Boolean).join(' ');
-    return `<th class="${thCls}" onclick="openHeaderFilter(event,'rec','${c.k}')">${c.n}<span class="th-fico">▾</span><span class="col-rs" data-col="${c.k}"></span></th>`;
+    return `<th class="${thCls}" onclick="openHeaderFilter(event,'rec','${c.k}')">${c.n}${sortIcon(RSORT,c.k)}<span class="th-fico">▾</span><span class="col-rs" data-col="${c.k}"></span></th>`;
   }).join('')
     +`<th class="th-status">狀態<button type="button" class="th-toggle" onclick="event.stopPropagation();toggleRecFull()" title="${RECFULL?'收合發票～業務欄位':'展開發票～業務欄位'}">${RECFULL?'－':'＋'}</button></th>`;
   attachColResize('recHead','recCol',REC_COL_W);
@@ -501,10 +593,12 @@ function recRowHtml(x){
 }
 function renderRec(){
   const rows=myRecs(),el=document.getElementById('recCards'),showItem=!FI;
-  rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||'')); // 依備貨日期新到舊排序
+  // 有自訂排序就用自訂排序，否則維持預設的「備貨日期新到舊」
+  if(RSORT) rows.sort(sortCompare(RSORT.col,RSORT.dir));
+  else rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||''));
   if(!rows.length)el.innerHTML=`<div class="emp"><div class="emp-i">＋</div><div class="emp-t">本月尚無備貨紀錄</div><div class="emp-s">前往「備貨登記」新增第一筆</div></div>`;
   else if(VIEW==='list'){
-    el.innerHTML=dateSections(rows).map(sec=>`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`+
+    el.innerHTML=dateSections(rows).map(sec=>(sec.date===null?'':`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`)+
       sec.rows.map(x=>{const fam=familyOf(x.item);
         return `<div class="rc" onclick="openEd('${x.recordId}')"><div class="rc-s" style="background:${fam.color}"></div>
         <div class="rc-b"><div class="rc-t"><span class="rc-c">${esc(x.customer||'（未填）')}<span class="rc-cat">${esc(x.category||'—')}</span></span><span class="bg ${shipStatus(x)}">${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span></div>
@@ -520,12 +614,9 @@ function renderRec(){
         <div class="rc-t"><span class="rc-c">${esc(f.customer||'（未填）')}<span class="rc-cat">${esc(f.category||'—')}</span><span class="rc-q">×${its.length}</span></span><span class="bg ${shipStatus(f)}">${shipStatus(f)==='sh'?'已送貨':'未送貨'}</span></div>
         <div class="rc-m">${showItem?`<span style="color:${fam.color};font-weight:500">${esc(f.item||'（未填）')}</span>`:''}</div>
         <div class="rc-sub" id="g${i}">${its.map(x=>`<div class="rc-sr" onclick="event.stopPropagation();openEd('${x.recordId}')">${typeBadge(x.type)}<span style="flex:1">單號 ${esc(x.orderNo||'—')} ${shipStatus(x)==='sh'?'已送貨':'未送貨'}</span><span>編輯 ›</span></div>`).join('')}</div>
-        </div><div class="rc-a rc-a-split">
-          <div class="rc-a-top" onclick="event.stopPropagation();openGroupEdit(${i})" title="批次編輯">✎</div>
-          <div class="rc-a-bot" onclick="event.stopPropagation();tg(${i})" title="展開／收合">▾</div>
-        </div></div>`;
+        </div><div class="rc-a rc-a-edit" onclick="event.stopPropagation();openGroupEdit(${i})" title="批次編輯">✎</div></div>`;
       }).join('');
-      return `<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`+cards;
+      return (sec.date===null?'':`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`)+cards;
     }).join('');
   }
 
@@ -861,7 +952,7 @@ async function submitReg(btn){
     renderMChips();renderIChips();renderRec();renderStats();renderPend();
     tab('rec',document.querySelectorAll('#salesApp .nav-b')[1]);
     busy(btn,false);
-    loadSalesData(); 
+    queueSalesSync(); 
   }else{
     addLog({act:'新增紀錄',ok:false,desc:`嘗試新增客戶「${item.customer}」備貨紀錄`,err:res.message||'未知錯誤'});
     renderLogs();toast('送出失敗：'+(res.message||'未知錯誤'),true);
@@ -879,16 +970,33 @@ function openEd(id){const x=DB.records.find(v=>v.recordId===id);if(!x)return;EDI
   document.getElementById('edMv').classList.add('on');}
 function set(id,v){const e=document.getElementById(id);e.value=v||'';mk(e);}
 function closeEd(){document.getElementById('edMv').classList.remove('on');}
+// ── 批次編輯 ──────────────────────────────────────────────
+// 「組內目前完整資料」改成不需要左右拖曳的三排式排版（原本是一張要橫向捲動的表格，
+// 手機上根本看不完）：
+//   第一排：備貨日期／品項／批號／送貨日期
+//   第二排：客戶名稱／科別／賣備樣／訂購單號
+//   第三排：備註（整排）
+// 排版緊湊，一次就能檢閱完整組資料。
+const GED_ROW1=['stockDate','item','batch','shipDate'];
+const GED_ROW2=['customer','category','type','orderNo'];
+function gedCell(x,k){
+  const v=x[k];
+  const mono=(k==='stockDate'||k==='shipDate'||k==='batch'||k==='orderNo')?' mn':'';
+  return `<div class="gsum-f"><span class="gsum-k">${esc(LBL[k])}</span><span class="gsum-v${mono}${(v===undefined||v===null||v==='')?' empty':''}">${esc(v||'—')}</span></div>`;
+}
 function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
   document.getElementById('gEdRef').textContent=its.length+' 筆';
-  document.getElementById('gEdCount').textContent=its.length;
   ['g-ca','g-ty','g-ba','g-hd'].forEach(id=>{const e=document.getElementById(id);e.value='';mk(e);});
 
-  const previewCols=COLS.filter(c=>c.k!=='stockDate'&&c.k!=='customer'&&c.k!=='item'); 
-  const head='<tr><th>單號</th>'+previewCols.map(c=>`<th>${c.n}</th>`).join('')+'</tr>';
-  const body=its.map((x,ri)=>`<tr><td class="mn">#${ri+1} ${esc(x.orderNo||x.recordId)}</td>`+
-    previewCols.map(c=>`<td class="${c.k==='remark'?'':'mn'}">${esc(x[c.k]||'—')}</td>`).join('')+'</tr>').join('');
-  document.getElementById('gEdPreview').innerHTML=head+body;
+  document.getElementById('gEdPreview').innerHTML=its.map((x,ri)=>
+    `<div class="gsum-it">
+       <div class="gsum-no mn">#${ri+1}</div>
+       <div class="gsum-grid">
+         ${GED_ROW1.map(k=>gedCell(x,k)).join('')}
+         ${GED_ROW2.map(k=>gedCell(x,k)).join('')}
+         <div class="gsum-f gsum-wide"><span class="gsum-k">備註</span><span class="gsum-v${x.remark?'':' empty'}">${esc(x.remark||'—')}</span></div>
+       </div>
+     </div>`).join('');
 
   const fields=[['category','科別'],['type','賣/備/樣'],['batch','批號'],['shipDate','送貨日期']];
   let warn='';
@@ -900,28 +1008,62 @@ function openGroupEdit(i){GEDI=i;const its=GROUPS[i];if(!its)return;
   document.getElementById('gEdWarn').innerHTML=warn?`<div class="gwarn-box">此組別部分欄位原本就填得不一樣，套用後將全部覆蓋為您輸入的新值：${warn}</div>`:'';
   document.getElementById('gEdMv').classList.add('on');}
 function closeGroupEdit(){document.getElementById('gEdMv').classList.remove('on');}
-async function saveGroupEdit(btn){
-  if(btn&&btn.disabled)return;
-  const its=GROUPS[GEDI];if(!its)return;
+
+function collectGroupChanges(){
   const changes={};
   const ca=val('g-ca'),ty=val('g-ty'),ba=val('g-ba'),hd=val('g-hd');
   if(ca)changes.category=ca;if(ty)changes.type=ty;if(ba)changes.batch=ba;if(hd)changes.shipDate=hd;
-  if(!Object.keys(changes).length){toast('請至少填寫一個要套用的欄位');return;}
+  return changes;
+}
+// 按「套用」不再直接寫入，而是先跳出確認視窗說明會變更哪些欄位、會影響幾筆，
+// 由使用者按「確認套用」或「取消」。原本按下去按鈕文字會整個不見，是因為
+// busy() 在關閉視窗的同時改了按鈕文字、視窗又被關掉，看起來就像文字消失了。
+let GED_PENDING=null;
+function openGroupConfirm(){
+  const its=GROUPS[GEDI];if(!its)return;
+  const changes=collectGroupChanges();
+  if(!Object.keys(changes).length){toast('請至少填寫一個要套用的欄位',true);return;}
+  const targets=its.filter(x=>Object.keys(changes).some(k=>String(x[k]||'')!==String(changes[k])));
+  if(!targets.length){toast('組內資料已與輸入值相同，沒有需要變更的紀錄');return;}
+  GED_PENDING={changes:changes,targets:targets,total:its.length};
+  document.getElementById('gCfRef').textContent=`本組共 ${its.length} 筆`;
+  document.getElementById('gCfBody').innerHTML=
+    `<div class="gcf-lead">以下欄位將被覆寫為新值：</div>`+
+    Object.keys(changes).map(k=>
+      `<div class="gcf-row"><span class="gcf-k">${esc(LBL[k])}</span><span class="gcf-arrow">→</span><span class="gcf-v mn">${esc(changes[k])}</span></div>`).join('')+
+    `<div class="gcf-note">將會更新 <b>${targets.length}</b> 筆資料`+
+      (targets.length<its.length?`（其餘 ${its.length-targets.length} 筆內容已相同，不會變更）`:'')+`。</div>`;
+  document.getElementById('gCfMv').classList.add('on');
+}
+function closeGroupConfirm(){document.getElementById('gCfMv').classList.remove('on');GED_PENDING=null;}
+
+// ── 送出效能 ────────────────────────────────────────────────
+// 舊版是 for 迴圈「一筆一筆」呼叫 updateRecord：一組 8 筆就是 8 次來回的網路請求，
+// 而且是排隊逐一等待，每次 Apps Script 都要重新讀一遍整張試算表 —— 這就是「明明只是
+// 很簡單的欄位卻卡很久」的原因。改成呼叫既有的 batchUpdate，不論幾筆都只送一次請求，
+// 後端也只讀一次試算表、LOG 一次寫入。送出後直接更新本機資料重繪，背景再靜默同步。
+async function doGroupEdit(btn){
+  if(btn&&btn.disabled)return;
+  if(!GED_PENDING)return;
+  const changes=GED_PENDING.changes, targets=GED_PENDING.targets;
   busy(btn,true,'套用中…');
-  let okAll=true,applied=0;
-  for(const x of its){
-    const diffs=[];Object.keys(changes).forEach(k=>{if(String(x[k]||'')!==String(changes[k]))diffs.push({label:LBL[k],before:x[k],after:changes[k]});});
-    if(!diffs.length)continue;
-    const res=await api('updateRecord',{recordId:x.recordId,changes,actor:CUR,source:'業務端網頁（整組批次）'});
-    if(res.status==='success'){applied++;Object.assign(x,changes);}
-    else{okAll=false;addLog({act:'批次修改',ok:false,rid:x.recordId,diffs,err:res.message||'未知錯誤',src:'業務端網頁（整組批次）'});}
-  }
-  closeGroupEdit();
-  renderRec();renderStats();renderPend();
+  const updates=targets.map(x=>({recordId:x.recordId,changes:changes}));
+  const res=await api('batchUpdate',{updates:updates,actor:CUR,source:'業務端網頁（整組批次）'});
   busy(btn,false);
-  if(applied===0)toast('組內資料已與輸入值相同，沒有變更');
-  else toast(okAll?`已套用到 ${applied} 筆紀錄`:'部分紀錄更新失敗，請查看操作紀錄',!okAll);
-  loadSalesData(); 
+  if(res.status==='success'){
+    targets.forEach(x=>Object.assign(x,changes));
+    const n=targets.length;
+    closeGroupConfirm();closeGroupEdit();
+    renderRec();renderStats();renderPend();
+    toast(`已套用到 ${n} 筆紀錄`);
+    queueSalesSync();
+  }else{
+    targets.forEach(x=>{
+      const diffs=Object.keys(changes).map(k=>({label:LBL[k],before:x[k]||'',after:changes[k]}));
+      addLog({act:'批次修改',ok:false,rid:x.recordId,diffs:diffs,err:res.message||'未知錯誤',src:'業務端網頁（整組批次）'});
+    });
+    toast('套用失敗：'+(res.message||'未知錯誤'),true);
+  }
 }
 async function saveEd(btn){
   if(btn&&btn.disabled)return;
@@ -937,7 +1079,7 @@ async function saveEd(btn){
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
     toast('已儲存修改，操作已記錄');
     busy(btn,false);
-    if(ROLE==='admin')loadAdminData();else loadSalesData(); 
+    if(ROLE==='admin')loadAdminData();else queueSalesSync(); 
   }else if(res.status==='conflict'){
     addLog({act:'修改紀錄',ok:false,rid:EDID,diffs,err:'版本衝突：這筆資料已被他人修改'});
     renderLogs();toast('這筆資料剛剛被其他人改過，已為您載入最新版本，請重新確認後再儲存',true);
@@ -959,7 +1101,7 @@ async function delRec(btn){
     if(ROLE==='admin'){renderGrid();renderALog();}else{renderIChips();renderRec();renderStats();renderPend();}
     toast('已刪除此筆紀錄');
     busy(btn,false);
-    if(ROLE==='admin')loadAdminData();else loadSalesData();
+    if(ROLE==='admin')loadAdminData();else queueSalesSync();
   }else{
     addLog({act:'刪除紀錄',ok:false,rid:EDID,err:res.message||'未知錯誤'});renderLogs();toast('刪除失敗',true);
     busy(btn,false);
@@ -973,64 +1115,171 @@ function initAdmin(){renderAChips();renderGrid();renderALog();}
 // 三個欄位都可能是 null：settled=false 代表這個月系統還沒結算（要等下個月 1 號），
 // prevEnding=null 代表上個月沒有月底庫存基準（尚未在庫存資料試算表填過起算基準）。
 let MGR_REPORT={yearMonth:'',prevYearMonth:'',items:[]};
-// 後端算好的全公司彙總（見 gas.js managerInit_），只有幾十個數字，不再是整份備貨記錄
-let MGR_AGG={stats:{cur:{total:0,ship:0,hold:0},prev:{total:0,ship:0,hold:0},pending:0},trend:[],byItem:[],bySales:[]};
 let MGR_LOADED=false; // 尚未載入完成時，各面板顯示「讀取中」而不是「本月尚無資料」，避免看起來像壞掉
+
+// ── 庫存報表快取 ───────────────────────────────────────────
+// 主管畫面的每一塊資料（產品備貨數量、品牌家族出貨量、業務庫存明細、留存排行）
+// 全部來自同一支 getStockReport（＝「庫存資料」試算表）。同一個月份只會真的去抓一次，
+// 之後切來切去都是瞬間切換，不會每按一次月份就重打一次 API。
+const STOCK_RPT_CACHE={};
+async function fetchStockReport(ym){
+  if(STOCK_RPT_CACHE[ym]) return STOCK_RPT_CACHE[ym];
+  const res=await api('getStockReport',{yearMonth:ym});
+  if(res.status!=='success') throw new Error(res.message||'讀取失敗');
+  STOCK_RPT_CACHE[ym]=res;
+  return res;
+}
 function monthLabel(ym){ return ym?ym.slice(0,4)+'年'+(+ym.slice(5))+'月':''; }
 function shiftYM(ym,delta){
   let[y,m]=ym.split('-').map(Number); m+=delta;
   while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
   return y+'-'+String(m).padStart(2,'0');
 }
+
+/* ══════════ 一、本月備貨概況 ══════════
+   資料來源：「庫存資料」試算表。
+   ・產品備貨數量 → 該月份／該品項的「月底庫存」，依業務列出，最上方是全業務加總。
+   ・品牌家族本月出貨量 → 該月份的「月出貨」，依品牌家族加總。
+   兩塊共用同一份 getStockReport 結果，所以切月份只會有一次讀取。            */
+const MGR_OV_ITEMS=(function(){ const first='速原10ml-2級';
+  return [first].concat(ITEM_CATALOG.filter(i=>i!==first)); })();
+let MGR_OV_YM='', MGR_OV_ITEM=MGR_OV_ITEMS[0], MGR_OV_RPT=null, MGR_OV_BUSY=false;
+
+async function changeMgrOvMonth(delta){
+  if(MGR_OV_BUSY)return;
+  MGR_OV_YM=shiftYM(MGR_OV_YM,delta);
+  await loadMgrOverview();
+}
+async function loadMgrOverview(){
+  MGR_OV_BUSY=true;
+  document.getElementById('mgrOvMonthLabel').textContent=monthLabel(MGR_OV_YM);
+  if(!STOCK_RPT_CACHE[MGR_OV_YM]) document.getElementById('mgrOvList').innerHTML=`<div class="emp-s">讀取 ${monthLabel(MGR_OV_YM)} 庫存資料中…</div>`;
+  try{
+    MGR_OV_RPT=await fetchStockReport(MGR_OV_YM);
+  }catch(err){
+    MGR_OV_RPT=null;
+    toast('讀取失敗：'+err.message,true);
+  }
+  MGR_OV_BUSY=false;
+  renderMgrOverview();
+}
+function setMgrOvItem(it){ MGR_OV_ITEM=it; renderMgrOverview(); }
+function renderMgrOverview(){
+  // 品項切換按鈕（速原10ml-2級 固定排第一個）
+  document.getElementById('mgrOvItems').innerHTML=MGR_OV_ITEMS.map(it=>
+    `<button type="button" class="ov-item-btn ${MGR_OV_ITEM===it?'on':''}" onclick="setMgrOvItem('${jse(it)}')">${esc(it)}</button>`).join('');
+
+  const by={};
+  ((MGR_OV_RPT&&MGR_OV_RPT.items)||[]).forEach(it=>{
+    if(it.item!==MGR_OV_ITEM)return;
+    if(it.thisEnding===null)return;
+    by[it.sales]=(by[it.sales]||0)+Math.max(0,it.thisEnding);
+  });
+  const list=ROSTERS.sales.map(p=>({name:p.name,qty:(by[p.name]!==undefined?by[p.name]:null)}));
+  // 名冊以外、但試算表裡有資料的業務也一併列出，避免資料被默默漏掉
+  Object.keys(by).forEach(n=>{ if(!ROSTERS.sales.some(p=>p.name===n)) list.push({name:n,qty:by[n]}); });
+  list.sort((x,y)=>(y.qty||0)-(x.qty||0)||x.name.localeCompare(y.name,'zh-TW'));
+
+  const total=list.reduce((sum,x)=>sum+(x.qty||0),0);
+  document.getElementById('mgrOvTotalV').textContent=nf(total);
+  document.getElementById('mgrOvTotalK').textContent=`${monthLabel(MGR_OV_YM)}　${MGR_OV_ITEM}　全業務月底庫存加總`;
+
+  const rows=Math.max(1,Math.ceil(list.length/2)); // 左右各一欄，一欄約十位業務
+  document.getElementById('mgrOvList').innerHTML=list.length
+    ? `<div class="ov-grid" style="grid-template-rows:repeat(${rows},auto)">`+list.map(x=>
+        `<div class="ov-row ${x.qty===null?'nodata':''}"><span class="ov-name">${esc(x.name)}</span><span class="ov-qty mn">${x.qty===null?'—':nf(x.qty)}</span></div>`).join('')+`</div>`
+    : `<div class="emp-s">${MGR_LOADED?'這個月份的「庫存資料」表裡找不到這個品項的月底庫存':'讀取中…'}</div>`;
+
+  renderMgrFamilyShipment();
+}
+// 品牌家族本月出貨量：直接讀「庫存資料」表的「月出貨」，依所選月份加總，
+// 不再從備貨紀錄逐筆統計（原本的做法要掃整張備貨紀錄表，是主管畫面最慢的一段）。
+function renderMgrFamilyShipment(){
+  const byItem={};
+  ((MGR_OV_RPT&&MGR_OV_RPT.items)||[]).forEach(it=>{
+    if(it.shipment===null||it.shipment===undefined)return;
+    byItem[it.item]=(byItem[it.item]||0)+Math.max(0,it.shipment);
+  });
+  const fam={};
+  Object.keys(byItem).forEach(item=>{
+    const f=familyOf(item);
+    fam[f.key]=fam[f.key]||{name:f.name,color:f.color,ship:0};
+    fam[f.key].ship+=byItem[item];
+  });
+  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
+  const famMax=famList.length?Math.max(...famList.map(f=>f.ship),1):1;
+  document.getElementById('mgrFamilyNote').textContent=monthLabel(MGR_OV_YM)+'（來源：庫存資料表 · 月出貨）';
+  document.getElementById('mgrFamily').innerHTML=famList.length?famList.map(f=>`
+    <div class="fam-block" style="border-left-color:${f.color}">
+      <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
+        <span class="fam-total">出貨 <b class="mn" style="color:${f.color};font-size:14px">${nf(f.ship)}</b></span></div>
+      <div class="stk"><div class="a" style="width:${Math.round(f.ship/famMax*100)}%;background:${f.color}"></div><div class="b"></div></div>
+    </div>`).join('') : `<div class="emp-s">${MGR_LOADED?'這個月份尚無月出貨資料':'讀取中…'}</div>`;
+}
+
+/* ══════════ 二、庫存結算報表 ══════════ */
 // 主管報表看的月份：預設是「上個月」（系統每月 1 號才會把上個月的月出貨／月底庫存結算
-// 寫進「庫存資料」表），但可以用上一月／下一月按鈕自由往前後翻，單純讀表、不做任何即時試算——
-// 跟業務登入自己看「本月即時庫存」是兩種不同用途，故意分開。
+// 寫進「庫存資料」表），但可以用上一月／下一月按鈕自由往前後翻，單純讀表、不做即時試算。
 let MGR_STOCK_YM='';
-// 切月份只影響「庫存報表」這一塊，上方的全公司彙總（本月備貨、六個月趨勢、績效排行）
-// 看的都是當下月份、不會變，所以這裡只重讀小小的 getStockReport，不要整包重新載入，
-// 切月份才會即時、不用再等一次全公司資料。
 async function changeMgrStockMonth(delta){
   MGR_STOCK_YM=shiftYM(MGR_STOCK_YM,delta);
   document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
-  const res=await api('getStockReport',{yearMonth:MGR_STOCK_YM});
-  if(res.status==='success'){
-    MGR_REPORT=res;
-    renderNameGrid(); renderMgrStockHealth(); renderMgrTopHolders();
-    document.getElementById('mgrStockProgN').textContent=
-      monthLabel(MGR_REPORT.yearMonth)+'份　'+new Set(res.items.filter(it=>it.thisEnding!==null).map(it=>it.sales)).size+' / '+ROSTERS.sales.length+' 人已有庫存資料';
-  }else toast('讀取失敗：'+(res.message||'未知錯誤'),true);
+  try{
+    MGR_REPORT=await fetchStockReport(MGR_STOCK_YM);
+  }catch(err){ toast('讀取失敗：'+err.message,true); return; }
+  renderNameGrid(); renderMgrTopHolders(); renderMgrStockProgress();
   if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
   else document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會讀取該業務在 ${monthLabel(MGR_STOCK_YM)} 的庫存明細</div></div>`;
 }
-// 一進主管畫面就先把整個畫面畫出來（姓名格子、面板骨架都不需要等資料），
-// 全公司彙總資料（近六個月備貨量、業務績效排行、庫存健康度…）在背景載入，不擋畫面、
-// 也不會自動幫你選人——業務庫存明細要點了姓名才會真的去抓那個人的資料（見 selectMgrPerson）。
+function renderMgrStockProgress(){
+  const settledSet=new Set(MGR_REPORT.items.filter(it=>it.thisEnding!==null).map(it=>it.sales));
+  const totalN=ROSTERS.sales.length, settledN=settledSet.size;
+  document.getElementById('mgrStockProgN').textContent=MGR_LOADED
+    ?(monthLabel(MGR_REPORT.yearMonth)+'份　'+settledN+' / '+totalN+' 人已有庫存資料')
+    :'讀取庫存資料中…';
+  document.getElementById('mgrStockProgBar').style.width=(MGR_LOADED&&totalN?Math.round(settledN/totalN*100):0)+'%';
+}
+
+// 一進主管畫面就先把骨架畫出來，再去抓資料。
+// 兩個區塊預設都看「上個月」，因為系統每月 1 號才結算上個月的月出貨／月底庫存，
+// 看當月會全部是空的。兩區共用同一份快取，所以開場只需要一次讀取。
 function initManagerScreen(){
   MGR_STOCK_YM=shiftYM(CURRENT_YM,-1);
+  MGR_OV_YM=MGR_STOCK_YM;
+  MGR_OV_ITEM=MGR_OV_ITEMS[0];
   document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
+  document.getElementById('mgrOvMonthLabel').textContent=monthLabel(MGR_OV_YM);
   MGR_LOADED=false; MGR_SELECTED=null;
-  renderManagerDashboard();
-  document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會開始讀取該業務的庫存明細，不用等全公司資料load完</div></div>`;
+  renderMgrOverview();
+  renderNameGrid();
+  renderMgrStockProgress();
+  document.getElementById('mgrDetailArea').innerHTML=`<div class="emp"><div class="emp-i">☰</div><div class="emp-t">請從上方點選一位業務</div><div class="emp-s">點下去才會開始讀取該業務的庫存明細</div></div>`;
   loadManagerData();
 }
+// 【效能】原本這裡呼叫 managerInit：後端會把整張「備貨紀錄」表讀進來，
+// 逐筆統計四個大數字、六個月趨勢、各業務績效排行。現在這些區塊都已移除，
+// 需要的資料全部來自「庫存資料」表，所以改成只打一次 getStockReport ——
+// 讀取量從整張備貨紀錄縮到只剩庫存表，主管畫面開啟速度差很多。
 async function loadManagerData(){
   try{
-    const res=await api('managerInit', {yearMonth:MGR_STOCK_YM});
-    if(res.status==='success'){
-      MGR_AGG={stats:res.stats,trend:res.trend,byItem:res.byItem,bySales:res.bySales};
-      MGR_REPORT = res.report || {yearMonth:MGR_STOCK_YM,prevYearMonth:'',items:[]};
-    }else toast('讀取資料失敗：'+(res.message||'未知錯誤'), true);
+    MGR_REPORT=await fetchStockReport(MGR_STOCK_YM);
+    MGR_OV_RPT=(MGR_OV_YM===MGR_STOCK_YM)?MGR_REPORT:await fetchStockReport(MGR_OV_YM);
   }catch(err){
-    toast('連線失敗：'+err.message, true);
+    toast('讀取資料失敗：'+err.message, true);
   }finally{
     MGR_LOADED=true;
-    renderManagerDashboard();
+    renderMgrOverview();
+    renderNameGrid();
+    renderMgrTopHolders();
+    renderMgrStockProgress();
     if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
   }
 }
 async function refreshManager(){
   const btn=document.getElementById('mgrRefreshBtn');const old=btn.textContent;btn.textContent='↻ 更新中…';
   MGR_LOADED=false;
+  Object.keys(STOCK_RPT_CACHE).forEach(k=>delete STOCK_RPT_CACHE[k]); // 手動重新整理才清快取
+  MGR_DETAIL_CACHE={};
   await loadManagerData();
   btn.textContent=old;toast('已更新為最新資料');
 }
@@ -1039,7 +1288,7 @@ function monthsBack(ym,n){
   for(let i=n-1;i>=0;i--){let mm=m-i,yy=y;while(mm<1){mm+=12;yy--;}arr.push(yy+'-'+String(mm).padStart(2,'0'));}
   return arr;
 }
-let MGR_SELECTED=null, MGR_SELECT_TOKEN=0;
+let MGR_SELECTED=null, MGR_SELECT_TOKEN=0, MGR_DETAIL_CACHE={};
 function renderNameGrid(){
   // 灰點／亮點代表這位業務在目前檢視的月份是否已經有月結算資料（純讀表，不即時試算）
   const settledSet=new Set(MGR_REPORT.items.filter(it=>it.thisEnding!==null).map(it=>it.sales));
@@ -1048,21 +1297,26 @@ function renderNameGrid(){
       <span class="rpt-dot ${settledSet.has(p.name)?'reported':''}"></span>${esc(p.name)}
     </button>`).join('');
 }
-// 點選業務姓名：不依賴 loadManagerData 是否已經跑完，獨立打一個小範圍的 getStockReport
-// 請求（只查這一個人、目前選定的月份），點下去才開始讀，畫面反應快，也不會被全公司資料拖住。
-// 不帶 live 參數＝後端純讀「庫存資料」表，不會去掃備貨紀錄表做即時試算。
+// 點選業務姓名：整份月份報表其實已經在 MGR_REPORT 裡了，直接就地篩出這個人的資料即可，
+// 不必再為了「看一個人」多打一次 API（舊版每點一個人就是一次網路來回，點得越快等越久）。
 async function selectMgrPerson(salesName){
   MGR_SELECTED=salesName;
   renderNameGrid();
-  const token=++MGR_SELECT_TOKEN; // 快速連續點好幾個人（或切月份）時，只有最後一次的結果會顯示
   const area=document.getElementById('mgrDetailArea');
   area.scrollIntoView({behavior:'smooth',block:'nearest'});
-  area.innerHTML=`<div class="emp-s">讀取 ${esc(salesName)} 的庫存資料中…</div>`;
-  const yearMonth=MGR_STOCK_YM;
-  const res=await api('getStockReport',{yearMonth,salesName});
-  if(token!==MGR_SELECT_TOKEN) return; // 使用者已經點了別人或切了月份，這次結果作廢
-  if(res.status!=='success'){ area.innerHTML=`<div class="emp-s">讀取失敗：${esc(res.message||'未知錯誤')}</div>`; return; }
-  renderMgrDetail(salesName, res);
+  const token=++MGR_SELECT_TOKEN;
+  let rpt=MGR_REPORT;
+  if(!rpt || rpt.yearMonth!==MGR_STOCK_YM){
+    area.innerHTML=`<div class="emp-s">讀取 ${esc(salesName)} 的庫存資料中…</div>`;
+    try{ rpt=await fetchStockReport(MGR_STOCK_YM); }
+    catch(err){ area.innerHTML=`<div class="emp-s">讀取失敗：${esc(err.message)}</div>`; return; }
+    if(token!==MGR_SELECT_TOKEN) return;
+    MGR_REPORT=rpt;
+  }
+  renderMgrDetail(salesName, {
+    yearMonth:rpt.yearMonth, prevYearMonth:rpt.prevYearMonth,
+    items:rpt.items.filter(it=>it.sales===salesName)
+  });
 }
 let MGR_DETAIL_SALES='', MGR_DETAIL_ITEMS=[], MGR_DETAIL_ML='', MGR_DETAIL_PML='';
 let MGR_DETAIL_GROUP='ALL', MGR_DETAIL_VIEW='absolute';
@@ -1099,9 +1353,7 @@ function renderMgrDetailBody(){
     </button>`).join('');
 
   const filtered=MGR_DETAIL_GROUP==='ALL'?items:items.filter(it=>familyOf(it.item).key===MGR_DETAIL_GROUP);
-  // 尺度必須涵蓋「庫存＋出貨」整根堆疊長條，不能只看上月庫存——
-  // 當月庫存增加會讓本月庫存大於上月庫存（例：上月50、本月53），若尺度只取50，
-  // 庫存段就會算出106%、把後面的出貨段擠成負數而整段消失（灰色線不見的原因）。
+  // 尺度必須涵蓋「庫存＋出貨」整根堆疊長條，不能只看上月庫存
   const scaleMax=niceCeil_(Math.max(1,...filtered.map(it=>
     Math.max(it.prevEnding||0, Math.max(0,it.thisEnding||0)+Math.max(0,it.shipment||0)))));
 
@@ -1111,7 +1363,6 @@ function renderMgrDetailBody(){
     const rate=(it.prevEnding&&it.thisEnding!==null)?Math.round(shipment/it.prevEnding*1000)/10:null;
     let stockPct,shipPct;
     if(MGR_DETAIL_VIEW==='ratio'){
-      // 出貨比例：以「本月庫存＋本月出貨」為 100%，看這個月的量有多少比例被出掉
       const base=ending+shipment;
       stockPct=base>0?ending/base*100:0;
       shipPct=base>0?shipment/base*100:0;
@@ -1124,19 +1375,25 @@ function renderMgrDetailBody(){
     const axisMax=MGR_DETAIL_VIEW==='ratio'?'100%':nf(scaleMax);
     const axisHalf=MGR_DETAIL_VIEW==='ratio'?'50%':nf(Math.round(scaleMax/2));
     const noData=it.thisEnding===null;
+    // 欄位順序調整為：本月庫存 → 庫存結構 → 本月出貨 → 出貨率 → 上月庫存，
+    // 讓「出貨率」緊接在「本月出貨」後面（手機版更直覺）。
+    // 手機版會隱藏刻度軸（0／250／500）與左側大數字，改把本月庫存數放在長條的尾巴。
     return `<div class="stkr-row">
       <div class="stkr-name">${esc(it.item)}</div>
       <div class="stkr-num stkr-main">${noData?'—':nf(ending)}</div>
       <div class="stkr-bar">
         <div class="stkr-axis"><span>0</span><span>${axisHalf}</span><span>${axisMax}</span></div>
-        <div class="stkr-track">
-          <span class="stkr-seg stock" style="width:${noData?0:stockPct}%"></span>
-          <span class="stkr-seg ship" style="width:${noData?0:shipPct}%;left:${noData?0:stockPct}%"></span>
+        <div class="stkr-trackline">
+          <div class="stkr-track">
+            <span class="stkr-seg stock" style="width:${noData?0:stockPct}%"></span>
+            <span class="stkr-seg ship" style="width:${noData?0:shipPct}%;left:${noData?0:stockPct}%"></span>
+          </div>
+          <span class="stkr-endv mn">${noData?'—':nf(ending)}</span>
         </div>
       </div>
       <div class="stkr-num c-ship" data-label="本月出貨">${it.shipment===null?'—':nf(it.shipment)}</div>
-      <div class="stkr-num c-prev" data-label="上月庫存">${it.prevEnding===null?'—':nf(it.prevEnding)}</div>
       <div class="stkr-num c-rate" data-label="出貨率">${rate===null?'—':rate+'%'}</div>
+      <div class="stkr-num c-prev" data-label="上月庫存">${it.prevEnding===null?'—':nf(it.prevEnding)}</div>
     </div>`;
   }).join(''):`<div class="empty-state">這個分類目前沒有品項資料。</div>`;
 
@@ -1158,103 +1415,9 @@ function renderMgrDetailBody(){
       <span class="stkr-scale-note">${MGR_DETAIL_VIEW==='ratio'?'每列以「本月庫存＋本月出貨」為 100%':'共同數量尺度：0–'+nf(scaleMax)}</span>
     </div>
     <div class="stkr-table">
-      <div class="stkr-head"><span>品項</span><span>本月庫存</span><span>庫存結構</span><span>本月出貨</span><span>上月庫存</span><span>出貨率</span></div>
+      <div class="stkr-head"><span>品項</span><span>本月庫存</span><span>庫存結構</span><span>本月出貨</span><span>出貨率</span><span>上月庫存</span></div>
       ${rowsHtml}
     </div>`;
-}
-function renderManagerDashboard(){
-  const A=MGR_AGG;
-  document.getElementById('mgrYM').textContent=CURRENT_YM;
-  const cur=A.stats.cur, prev=A.stats.prev, cPend=A.stats.pending;
-  document.getElementById('m1').textContent=cur.total;
-  document.getElementById('m2').textContent=cur.ship;
-  document.getElementById('m3').textContent=cur.hold;
-  document.getElementById('m4').textContent=cPend;
-  pctDelta('m1d',cur.total,prev.total);
-  pctDelta('m2d',cur.ship,prev.ship);
-  pctDelta('m3d',cur.hold,prev.hold);
-  document.getElementById('m4d').textContent=cPend?'需要追蹤':'目前無積壓';
-  document.getElementById('m4d').className='dlt'+(cPend?' down':' up');
-
-  const counts=A.trend.map(t=>t.count);
-  const mx=Math.max(...counts,1);
-  document.getElementById('mgrChart').innerHTML=counts.map((n,i)=>
-    `<div class="ch-c"><div class="ch-b ${i===counts.length-1?'now':''}" style="height:${Math.round(n/mx*100)}%"><span class="ch-v">${n}</span></div></div>`).join('');
-  document.getElementById('mgrChartX').innerHTML=A.trend.map(t=>`<span>${+t.yearMonth.slice(5)}月</span>`).join('');
-
-  // 後端只回傳「各品項」的數字，這裡再依前端的品牌家族設定歸類，資料量極小
-  const fam={};
-  A.byItem.forEach(x=>{const f=familyOf(x.item);
-    fam[f.key]=fam[f.key]||{name:f.name,color:f.color,total:0,ship:0};
-    fam[f.key].total+=x.total; fam[f.key].ship+=x.ship;});
-  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]).filter(Boolean);
-  const famMax=famList.length?Math.max(...famList.map(f=>f.total)):1;
-  document.getElementById('mgrFamily').innerHTML=famList.length?famList.map(f=>`
-    <div class="fam-block" style="border-left-color:${f.color}">
-      <div class="fam-head"><span class="fam-dot" style="background:${f.color}"></span><span class="fam-name">${esc(f.name)}</span>
-        <span class="fam-total">已出貨 <b class="mn" style="color:${f.color};font-size:13px">${f.ship}</b> ／ 本月共 <b class="mn">${f.total}</b> 筆</span></div>
-      <div class="stk"><div class="a" style="width:${Math.round(f.total/famMax*100)}%;background:${f.color}"></div><div class="b"></div></div>
-    </div>`).join('') : `<div class="emp-s">${MGR_LOADED?'本月尚無資料':'讀取中…'}</div>`;
-
-  const bySales={};
-  ROSTERS.sales.forEach(p=>{bySales[p.name]={stock:0,ship:0,hold:0,pend:0};});
-  A.bySales.forEach(s=>{bySales[s.name]={stock:s.stock,ship:s.ship,hold:s.hold,pend:s.pend};});
-  const rankArr=Object.entries(bySales).map(([name,v])=>({name,...v,rate:v.stock?Math.round(v.ship/v.stock*100):0}));
-  rankArr.sort((a,b)=>b.stock-a.stock);
-  document.getElementById('mgrRankBody').innerHTML=rankArr.map(r=>`
-    <tr class="rank-clickable" onclick="selectMgrPerson('${jse(r.name)}')"><td class="pad">${esc(r.name)}</td><td class="pad mn">${r.stock}</td>
-    <td class="pad mn" style="color:var(--ok)">${r.ship}</td><td class="pad mn">${r.hold}</td>
-    <td class="pad mn" style="color:${r.pend>0?'var(--bad)':'var(--tx-3)'}">${r.pend}</td>
-    <td class="pad mn">${r.stock?r.rate+'%':'—'}</td></tr>`).join('');
-
-  const settledSet=new Set(MGR_REPORT.items.filter(it=>it.thisEnding!==null).map(it=>it.sales));
-  const totalN=ROSTERS.sales.length, settledN=settledSet.size;
-  document.getElementById('mgrStockProgN').textContent=MGR_LOADED
-    ?(monthLabel(MGR_REPORT.yearMonth)+'份　'+settledN+' / '+totalN+' 人已有庫存資料')
-    :'背景讀取全公司彙總資料中…';
-  document.getElementById('mgrStockProgBar').style.width=(MGR_LOADED&&totalN?Math.round(settledN/totalN*100):0)+'%';
-  renderNameGrid();
-  renderMgrStockHealth();
-  renderMgrTopHolders();
-}
-// ── 業務庫存健康度：每個業務的 上月月底庫存－本月出貨＋本月庫存增加＝本月月底庫存，
-// 依週轉率排序，週轉率越低代表這個月實際出貨占身上庫存的比例越小，可能備貨過量 ──
-function computePersonStockHealth(){
-  const map={};
-  MGR_REPORT.items.forEach(it=>{
-    if(!map[it.sales]) map[it.sales]={sales:it.sales,opening:0,shipped:0,increase:0,remaining:0};
-    const m=map[it.sales];
-    if(it.prevEnding!==null) m.opening+=it.prevEnding;
-    m.shipped+=it.shipment||0;
-    m.increase+=it.increase||0;
-    if(it.thisEnding!==null) m.remaining+=Math.max(0,it.thisEnding);
-  });
-  return Object.values(map).map(m=>({...m,turnover:m.opening>0?Math.round(m.shipped/m.opening*100):null}));
-}
-function renderMgrStockHealth(){
-  const health=computePersonStockHealth().sort((a,b)=>(a.turnover===null?999:a.turnover)-(b.turnover===null?999:b.turnover));
-  let totalOpening=0,totalShipped=0,totalIncrease=0,totalRemaining=0;
-  health.forEach(h=>{totalOpening+=h.opening;totalShipped+=h.shipped;totalIncrease+=h.increase;totalRemaining+=h.remaining;});
-  document.getElementById('mgrStockFormula').textContent=`${monthLabel(MGR_REPORT.yearMonth)}全公司庫存健康度`;
-  document.getElementById('mgrStockSummary').innerHTML=
-    `<div class="sf-num"><div class="v">${totalOpening}</div><div class="k">上月總庫存</div></div>`+
-    `<div class="sf-arrow">－</div>`+
-    `<div class="sf-num"><div class="v" style="color:var(--bad)">${totalShipped}</div><div class="k">本月總出貨</div></div>`+
-    `<div class="sf-arrow">＋</div>`+
-    `<div class="sf-num"><div class="v" style="color:var(--nav-3)">${totalIncrease}</div><div class="k">本月庫存增加</div></div>`+
-    `<div class="sf-arrow">＝</div>`+
-    `<div class="sf-num"><div class="v" style="color:var(--ok)">${totalRemaining}</div><div class="k">本月月底庫存</div></div>`;
-  const el=document.getElementById('mgrStockRanking');
-  if(!health.length){ el.innerHTML=`<div class="emp-s">${MGR_LOADED?'本月尚無庫存資料':'讀取中…'}</div>`; return; }
-  el.innerHTML=`<div style="font-size:11px;color:var(--tx-3);margin-bottom:14px;line-height:1.7">依「週轉率」由低到高排序——週轉率越低，代表業務身上的庫存這個月實際出貨的比例越小，可能備貨過量，值得了解原因。</div>`+
-    health.map(h=>{
-      const low=h.turnover!==null&&h.turnover<20;
-      const base=Math.max(h.opening,h.shipped,1);
-      return `<div class="wf-row" style="cursor:pointer" onclick="selectMgrPerson('${jse(h.sales)}')">
-        <div class="wf-top"><span class="wf-name">${esc(h.sales)}</span><span class="wf-nums">${h.opening} － ${h.shipped} ＋ ${h.increase} ＝ ${h.remaining}　週轉率 <b class="${low?'low':''}">${h.turnover===null?'—':h.turnover+'%'}</b></span></div>
-        <div class="wf-bar"><div class="wf-seg wf-remain ${low?'low':''}" style="width:${Math.round(h.remaining/base*100)}%"></div><div class="wf-seg wf-used" style="width:${Math.round(h.shipped/base*100)}%"></div></div>
-      </div>`;
-    }).join('');
 }
 // ── 品項庫存留存排行：依「業務＋品項」目前月底庫存排名，看誰身上囤了最多哪個品項 ──
 function topStockHolders(){
@@ -1294,7 +1457,7 @@ function renderGridHead(stats){
     // 不整格反白，看起來才不會很突兀。
     const active=hfActive(HF,c.k);
     const thCls=[c.role==='a'?'g2':'', 'th-f', active?'th-f-on':''].filter(Boolean).join(' ');
-    return `<th class="${thCls}" onclick="openHeaderFilter(event,'admin','${c.k}')">${c.n}<span class="th-fico">▾</span>${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
+    return `<th class="${thCls}" onclick="openHeaderFilter(event,'admin','${c.k}')">${c.n}${sortIcon(ASORT,c.k)}<span class="th-fico">▾</span>${badge}<span class="col-rs" data-col="${c.k}"></span></th>`;
   }).join('');
   attachColResize('gridHead','gridCol',GRID_COL_W);
   setExactTableWidth('gridTableEl',COLS,GRID_COL_W,undefined,0);
@@ -1310,7 +1473,7 @@ function renderAChips(){
     ITEM_CATALOG.filter(i=>ic[i]).map(i=>`<button class="chip ${AItem===i?'on':''}" onclick="AItem='${jse(i)}';renderAChips();renderGrid()">${esc(i)}<span class="n">${ic[i]}</span></button>`).join('');
   document.getElementById('aEmptyChips').innerHTML=EMPTY_F.map(f=>`<button class="chip wo ${AEmpty.has(f.k)?'on':''}" onclick="tglEmpty('${f.k}')">${f.n}</button>`).join('');
   const activeCols=COLS.filter(c=>hfActive(HF,c.k));
-  document.getElementById('adminActiveFilterChips').innerHTML=activeCols.map(c=>
+  document.getElementById('adminActiveFilterChips').innerHTML=sortChipHtml(ASORT,'admin')+activeCols.map(c=>
     `<span class="af-chip" onclick="openFilterModal('admin','${c.k}')">${c.n}<span class="af-x" onclick="event.stopPropagation();quickClearAdminFilter('${c.k}')">✕</span></span>`).join('');
 }
 function quickClearAdminFilter(col){ delete HF[col]; renderAChips(); renderGrid(); }
@@ -1322,11 +1485,52 @@ function quickClearAdminFilter(col){ delete HF[col]; renderAChips(); renderGrid(
 let HF={},RF={};
 function hfActive(state,col){return !!(state[col] && state[col].size);}
 
+// ── 排序狀態（Excel 自動篩選裡的「排序」）──────────────────────────
+// RSORT＝業務「我的紀錄」的排序，ASORT＝行政總表的排序，格式 {col:'stockDate',dir:'asc'|'desc'}。
+// null＝沒有排序，維持各畫面原本的預設順序。
+let RSORT=null, ASORT=null;
+function sortStateFor(ctx){ return ctx==='rec'?RSORT:ASORT; }
+function setSortState(ctx,v){ if(ctx==='rec')RSORT=v; else ASORT=v; }
+const DATE_RE=/^\d{4}-\d{1,2}-\d{1,2}$/;
+// 一個欄位裡可能混著日期、數字、文字，所以比較函式要自己判斷型別：
+// 日期（yyyy-mm-dd）與純數字用真正的大小比，其餘用中文語系比較（localeCompare 帶 numeric，
+// 讓「批號2」排在「批號10」前面）。空白值一律排在最後，不管升冪降冪，
+// 因為「沒填」排在最前面通常不是使用者要的結果。
+function sortCompare(col,dir){
+  const s=dir==='desc'?-1:1;
+  return (a,b)=>{
+    const av=(a[col]==null?'':String(a[col]).trim());
+    const bv=(b[col]==null?'':String(b[col]).trim());
+    if(av===''&&bv==='')return 0;
+    if(av==='')return 1;
+    if(bv==='')return -1;
+    if(!DATE_RE.test(av)&&!DATE_RE.test(bv)){
+      const an=Number(av.replace(/,/g,'')), bn=Number(bv.replace(/,/g,''));
+      if(av!==''&&bv!==''&&isFinite(an)&&isFinite(bn)&&/^-?[\d,.]+$/.test(av)&&/^-?[\d,.]+$/.test(bv)) return (an-bn)*s;
+    }
+    return av.localeCompare(bv,'zh-TW',{numeric:true})*s;
+  };
+}
+function sortLabels(col){
+  return /Date$/.test(col) ? {asc:'舊 → 新',desc:'新 → 舊'} : {asc:'小 → 大 / A → Z',desc:'大 → 小 / Z → A'};
+}
+function sortIcon(state,col){
+  if(!state||state.col!==col)return '';
+  return `<span class="th-sico">${state.dir==='asc'?'▲':'▼'}</span>`;
+}
+function sortChipHtml(state,ctx){
+  if(!state)return '';
+  const clear = ctx==='rec' ? 'clearRecSort()' : 'clearAdminSort()';
+  return `<span class="af-chip af-sort" onclick="openFilterModal('${ctx}','${state.col}')">排序：${esc(LBL[state.col]||state.col)} ${state.dir==='asc'?'↑':'↓'}<span class="af-x" onclick="event.stopPropagation();${clear}">✕</span></span>`;
+}
+function clearRecSort(){ RSORT=null; renderMChips(); renderRecHead(); renderRec(); }
+function clearAdminSort(){ ASORT=null; renderAChips(); renderGrid(); }
+
 // ── 篩選 Modal：點表頭（電腦版）或「篩選」按鈕（手機版）都會開同一個視窗，
 // 左邊選欄位、右邊勾選值，可以切換好幾個欄位設定條件，最後按「確定套用」才會真的套用。
 // 改用置中的 Modal（跟站內其他彈窗共用同一套穩定機制），比原本用 JS 算座標浮動在按鈕旁邊的
 // 彈出視窗更可靠：不會有位置算錯、跑出畫面外、或在手機上點不到的問題。
-let FCTX=null,FSTAGE=null,FFIELD=null;
+let FCTX=null,FSTAGE=null,FFIELD=null,FSORT=null;
 function filterRowsFor(ctx){ return ctx==='rec' ? DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(FM)) : DB.records; }
 function filterStateFor(ctx){ return ctx==='rec' ? RF : HF; }
 function filterColValues(col){
@@ -1349,20 +1553,36 @@ function openFilterModal(ctx,field){
   FCTX=ctx;
   const src=filterStateFor(ctx);
   FSTAGE={}; Object.keys(src).forEach(k=>{ if(src[k]&&src[k].size) FSTAGE[k]=new Set(src[k]); });
+  const curSort=sortStateFor(ctx);
+  FSORT=curSort?{col:curSort.col,dir:curSort.dir}:null;
   FFIELD=field||COLS[0].k;
   document.getElementById('filterModalTitle').textContent = ctx==='admin' ? '篩選 · 行政總表' : '篩選 · 我的紀錄';
   document.getElementById('filterValueSearch').value='';
   renderFilterModal();
   document.getElementById('filterMv').classList.add('on');
 }
-function closeFilterModal(){ document.getElementById('filterMv').classList.remove('on'); FCTX=null;FSTAGE=null;FFIELD=null; }
+function closeFilterModal(){ document.getElementById('filterMv').classList.remove('on'); FCTX=null;FSTAGE=null;FFIELD=null;FSORT=null; }
 function renderFilterModal(){
   document.getElementById('filterFieldList').innerHTML=COLS.map(c=>{
     const active=FSTAGE[c.k]&&FSTAGE[c.k].size;
     return `<div class="ff-it ${FFIELD===c.k?'on':''}" onclick="selectFilterField('${c.k}')">${c.n}${active?'<span class="ff-dot"></span>':''}</div>`;
   }).join('');
+  renderFilterSortBar();
   renderFilterValueList();
 }
+// 排序區塊：跟 Excel 的自動篩選一樣，點欄位後上方就能直接選由小到大／由大到小。
+// 整份清單同時只會有一個排序欄位（跟 Excel 一致），選了新的就會取代舊的。
+function renderFilterSortBar(){
+  const bar=document.getElementById('filterSortBar'); if(!bar)return;
+  const col=FFIELD; const c=COLS.find(x=>x.k===col)||{n:''};
+  const cur=(FSORT&&FSORT.col===col)?FSORT.dir:'';
+  const lb=sortLabels(col);
+  bar.innerHTML=`<span class="fs-lb">排序 · ${esc(c.n)}</span>`+
+    `<button type="button" class="${cur==='asc'?'on':''}" onclick="setFilterSort('asc')">↑ ${lb.asc}</button>`+
+    `<button type="button" class="${cur==='desc'?'on':''}" onclick="setFilterSort('desc')">↓ ${lb.desc}</button>`+
+    (FSORT?`<button type="button" class="fs-clear" onclick="setFilterSort('')">清除排序${FSORT.col!==col?`（目前：${esc(LBL[FSORT.col]||'')}）`:''}</button>`:'');
+}
+function setFilterSort(dir){ FSORT=dir?{col:FFIELD,dir:dir}:null; renderFilterModal(); }
 function selectFilterField(k){ FFIELD=k; document.getElementById('filterValueSearch').value=''; renderFilterModal(); }
 function renderFilterValueList(){
   const col=FFIELD; if(!col)return;
@@ -1384,12 +1604,13 @@ function toggleFilterVal(v,checked){
 }
 function filterSelectAllField(){ delete FSTAGE[FFIELD]; renderFilterModal(); }
 function filterClearField(){ FSTAGE[FFIELD]=new Set(filterColValues(FFIELD).map(([v])=>v)); renderFilterModal(); }
-function resetAllFilters(){ FSTAGE={}; renderFilterModal(); }
+function resetAllFilters(){ FSTAGE={}; FSORT=null; renderFilterModal(); }
 function applyFilterModal(){
   const state=filterStateFor(FCTX);
   Object.keys(state).forEach(k=>delete state[k]);
   Object.keys(FSTAGE).forEach(k=>{ if(FSTAGE[k]&&FSTAGE[k].size) state[k]=new Set(FSTAGE[k]); });
-  if(FCTX==='admin'){ renderAChips();renderGrid(); } else { renderMChips();renderRecHead(); renderRec(); }
+  setSortState(FCTX, FSORT?{col:FSORT.col,dir:FSORT.dir}:null);
+  if(FCTX==='admin'){ renderAChips();renderGridAsync(); } else { renderMChips();renderRecHead(); renderRec(); }
   closeFilterModal();
 }
 function clearAdminFilter(which){
@@ -1423,10 +1644,14 @@ function gridRows(){let rows=DB.records.slice();
 const LOAN_GROUP_COLS = ['stockDate','batch','loanOut']; // 借出單／備貨日期／批號
 const LOAN_COLOR_N = 6; // 底色循環使用幾種顏色
 let _gridRenderTimer = null;
+function renderGridAsync(){ renderGrid(); }
 function renderGrid(){
   GRID=gridRows();
   // 有填「借出單」的資料，依借出單分組排在一起（組內再依備貨日期/品項/業務排序）；
   // 沒有借出單的資料維持原本排序邏輯，統一排在最後。
+  if(ASORT){
+    GRID.sort(sortCompare(ASORT.col,ASORT.dir));
+  }else
   GRID.sort((a,b)=>{
     const la=effVal(a,'loanOut')||'', lb=effVal(b,'loanOut')||'';
     if(la!==lb){
