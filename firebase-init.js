@@ -48,6 +48,19 @@ function makeProvider() {
   return p;
 }
 
+// 【重要修正】這支函式原本會刪掉 IndexedDB 的 firebaseLocalStorageDb，
+// 以及 localStorage 裡 firebase:authUser 開頭的鍵。實測發現這是個錯誤的做法：
+// Firebase Auth 在執行期間一直握著那個資料庫的連線，從外面把它砍掉會讓 SDK 的
+// 內部狀態變成半毀，下一次 signInWithPopup 就會丟出
+//   "Unable to process request due to missing initial state..."
+// 也就是登出後再登入完全登不進去。
+//
+// 400 malformed 的真正解法是另外兩件事：每次登入都用全新的 provider（makeProvider），
+// 以及登出時確實 await signOut()。清資料庫原本只是多餘的保險，結果保險本身變成故障點。
+//
+// 現在這支函式只清除「redirect 流程留下來的孤兒鍵」——那是舊版用 signInWithRedirect
+// 時代的殘骸，現行的彈窗流程根本不會用到，刪掉不會影響任何進行中的登入狀態。
+// 登入狀態本身一律交給 signOut() 依 SDK 正規流程處理。
 async function clearAuthResidue() {
   try {
     [localStorage, sessionStorage].forEach(store => {
@@ -55,23 +68,12 @@ async function clearAuthResidue() {
       const kill = [];
       for (let i = 0; i < store.length; i++) {
         const k = store.key(i);
-        if (k && (k.indexOf('firebase:authUser') === 0 || k.indexOf('firebase:redirectEvent') === 0)) kill.push(k);
+        // 只動 redirect 的殘留，絕不碰 firebase:authUser 與 IndexedDB
+        if (k && (k.indexOf('firebase:redirectEvent') === 0 || k.indexOf('firebase:pendingRedirect') === 0)) kill.push(k);
       }
       kill.forEach(k => store.removeItem(k));
     });
   } catch (e) { /* 隱私模式下 storage 可能整個被停用，忽略即可 */ }
-
-  // IndexedDB 刪除是非同步的，若還有連線沒關會卡在 blocked，
-  // 因此最多等 1.2 秒就放行，絕不讓清理動作把登入流程卡死。
-  await new Promise(resolve => {
-    let done = false;
-    const finish = () => { if (!done) { done = true; resolve(); } };
-    setTimeout(finish, 1200);
-    try {
-      const req = indexedDB.deleteDatabase('firebaseLocalStorageDb');
-      req.onsuccess = finish; req.onerror = finish; req.onblocked = finish;
-    } catch (e) { finish(); }
-  });
 }
 
 window.__fb = { auth, makeProvider, clearAuthResidue, signInWithPopup, signOut, onAuthStateChanged };
