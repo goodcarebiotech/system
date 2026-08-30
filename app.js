@@ -1,5 +1,5 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
-const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
+const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
 const COLS=[
@@ -239,8 +239,10 @@ async function googleSignIn(btn){
     // 保險：如果因為任何原因上一個帳號還掛在 auth 上，先徹底登出再開始，
     // 確保這次 OAuth 請求是從乾淨狀態組起來的。
     if(window.__fb.auth.currentUser){
+      // 只做正規的 signOut，不再去刪瀏覽器裡的登入狀態——
+      // 硬刪 IndexedDB 會讓 Firebase 內部狀態半毀，反而導致
+      // "Unable to process request due to missing initial state"。
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
-      await window.__fb.clearAuthResidue();
     }
     const provider = window.__fb.makeProvider(); // 每次都是全新的 provider
     const result = await window.__fb.signInWithPopup(window.__fb.auth, provider);
@@ -256,11 +258,20 @@ async function googleSignIn(btn){
       toast('這個網域尚未加入 Firebase 授權清單，請聯絡系統管理員',true);
     }else if(code==='auth/network-request-failed'){
       toast('網路連線不穩，請確認網路後再試一次',true);
+    }else if(/missing initial state/i.test(msg)){
+      // 瀏覽器把彈窗與主頁的儲存空間隔離了（iOS Safari 的防追蹤、無痕模式、
+      // 或從 LINE／FB 的內建瀏覽器開啟時最常見）。這種情況不是程式能修的，
+      // 要請使用者換一個環境開啟。
+      showLoginDiag('瀏覽器阻擋了登入視窗存取本機儲存空間。\n請改用以下任一方式：\n'+
+        '1. 用 Safari 或 Chrome 直接開啟（不要從 LINE、Facebook 等 App 內建瀏覽器點連結）\n'+
+        '2. 關閉無痕／私密瀏覽模式\n'+
+        '3. iPhone：設定 → Safari → 關閉「阻擋所有 Cookie」\n'+
+        '4. 若剛才更新過網站，請先清除本網站資料再試一次');
+      toast('瀏覽器阻擋了登入視窗，請見下方說明',true);
     }else if(code==='auth/internal-error' || /malformed|400/i.test(msg)){
-      // 這是 400 malformed 會落到的分支：把殘留狀態清掉，讓使用者「再按一次」就能成功，
-      // 不用自己去清瀏覽器資料。
       await window.__fb.clearAuthResidue();
-      toast('登入連線異常，已重設登入狀態，請再按一次登入',true);
+      toast('登入連線異常，請再按一次登入',true);
+      showLoginDiag('登入連線異常（'+(code||'internal-error')+'）\n'+(msg||''));
     }else{
       toast('Google 登入失敗：'+(msg||code||'未知錯誤'),true);
     }
@@ -289,7 +300,6 @@ async function handleAuthedUser(user){
       //   NOT_IN_ROSTER → 真的不在 gas.js 的名冊上
       //   其他（FETCH_FAILED / TOKEN_REJECTED…）→ 伺服器端的設定或授權問題
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
-      await window.__fb.clearAuthResidue();
       if(who.reason==='NOT_IN_ROSTER'){
         toast('此帳號尚未開通使用權限：'+email, true);
         showLoginDiag('此帳號（'+email+'）通過了 Google 驗證，但不在 gas.js 的 ROSTERS 名冊中。');
@@ -310,7 +320,6 @@ async function handleAuthedUser(user){
     }
     if(!roles||!roles.length){
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
-      await window.__fb.clearAuthResidue();
       toast('此帳號尚未開通使用權限：'+email, true); return;
     }
     if(roles.length===1){ proceedLogin(roles[0]); return; }
@@ -394,7 +403,7 @@ async function logout(){
   try{
     if(window.__fb && window.__fb.auth) await window.__fb.signOut(window.__fb.auth);
   }catch(e){}
-  try{ await window.__fb.clearAuthResidue(); }catch(e){}
+  try{ await window.__fb.clearAuthResidue(); }catch(e){} // 現在只清 redirect 殘留，不碰登入狀態
   // 清掉本機快取的資料，避免下一個人登入時短暫看到上一個人的畫面
   DB={records:[],logs:[],stock:{items:[]}};
   CUR_EMAIL=''; EDITS={}; RF={}; HF={}; RSORT=null; ASORT=null;
