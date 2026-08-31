@@ -11,13 +11,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;600;700&family=Noto+Serif+TC:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
-<script type="module" src="firebase-init.js?v=7"></script>
+<script type="module" src="firebase-init.js?v=8"></script>
 
 <body>
 
 <!-- ══ LOGIN ══ -->
+<!-- 開場遮罩：在確認登入狀態之前先蓋住畫面，避免「登入頁閃一下」或「進去又被彈出來」 -->
+<div id="bootMask" class="boot-mask"><div class="boot-dot"></div></div>
+
 <div class="login-wrap" id="login">
   <div class="login-card">
     <div class="lg-mark sf">備</div>
@@ -502,6 +505,6 @@
   </div>
 </div>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
