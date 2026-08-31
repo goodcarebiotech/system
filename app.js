@@ -823,11 +823,15 @@ function tab(n,b){document.querySelectorAll('#salesApp .pg').forEach(p=>p.classL
   if(n==='logs')ensureSalesLogsLoaded();}
 function setView(v){VIEW=v;document.getElementById('vL').classList.toggle('on',v==='list');
   document.getElementById('vG').classList.toggle('on',v==='group');renderRec();}
+// 月份選擇器移到面板標題列（原本「紀錄總覽」那一行），
+// 已送貨／未送貨／篩選維持在原本的位置，不要一起搬上去——
+// 那三個是常態切換的操作，跟檢視模式放在同一行會太擠。
 function renderMChips(){
   const activeCols=COLS.filter(c=>hfActive(RF,c.k));
   document.getElementById('mChips').innerHTML=
     `<div class="ym-wrap"><button type="button" class="ym-btn" tabindex="-1">${FM.slice(0,4)}年${+FM.slice(5)}月<span class="ym-ico">▾</span></button>
-      <input type="month" id="ymPicker" value="${FM}" class="ym-native-overlay" onchange="pickYm(this.value)"></div>`+
+      <input type="month" id="ymPicker" value="${FM}" class="ym-native-overlay" onchange="pickYm(this.value)"></div>`;
+  document.getElementById('shipChips').innerHTML=
     `<button type="button" class="chip wo ${FShip==='hd'?'on':''}" onclick="toggleShipFilter('hd')">未送貨</button>`+
     `<button type="button" class="chip wo ${FShip==='sh'?'on':''}" onclick="toggleShipFilter('sh')">已送貨</button>`+
     `<button type="button" class="filter-ico-btn ${activeCols.length?'on':''}" onclick="openFilterModal('rec')" title="篩選">${filterIconSvg()}篩選${activeCols.length?' ('+activeCols.length+')':''}</button>`;
@@ -1160,6 +1164,17 @@ function typeBadge(t){if(!t)return'';const cls=TYPE_COLOR[t];const label=cls?t:'
 function tgT(i){document.querySelectorAll(`#tgt-${i}`).forEach(r=>{r.style.display=r.style.display==='none'?'table-row':'none';});}
 function keyHtml(){return `<div class="key"><span><i style="background:var(--ok)"></i>已送貨</span><span><i style="background:var(--nav-3)"></i>未送貨</span></div>`;}
 // 「品項分佈」面板已移除：上方的品項膠囊已經帶出每個品項的筆數，資訊重複。
+// pctDelta 上一輪被我連帶刪掉了（移除 renderIB 時用正則抓區間，範圍多吃了一段）。
+// 它是統計卡下方「▲ 12% 較上月」那一行的渲染函式，被 renderStats 呼叫；
+// 少了它會丟 ReferenceError，整個業務端的渲染會在那一行全部停住 ——
+// 「連線失敗，暫時顯示上次的資料」和「電腦版變成手機版排版」都是這個錯誤的連鎖反應。
+function pctDelta(elId,cur,prev){
+  const el=document.getElementById(elId);if(!el)return;
+  if(!prev){el.textContent=cur>0?'首次紀錄':'—';el.className='dlt';return;}
+  const pct=Math.round((cur-prev)/prev*100),up=pct>=0;
+  el.innerHTML=(up?'▲ ':'▼ ')+Math.abs(pct)+'% 較上月';
+  el.className='dlt '+(up?'up':'down');
+}
 
 function getPrevYM() {
   const [y, m] = CURRENT_YM.split('-').map(Number);
@@ -1772,9 +1787,26 @@ async function changeMgrOvMonth(delta){
   MGR_OV_YM=shiftYM(MGR_OV_YM,delta);
   await loadMgrOverview();
 }
+// 點中間的年月文字：叫出系統原生的月份選擇器，可以直接跳到任何一個月，
+// 不必按十幾下「上一月」。上下月按鈕保留，快速前後翻仍然比開選單快。
+async function pickMgrOvMonth(v){
+  if(!v||MGR_OV_BUSY)return;
+  MGR_OV_YM=v;
+  await loadMgrOverview();
+}
+async function pickMgrStockMonth(v){
+  if(!v)return;
+  MGR_STOCK_YM=v;
+  document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
+  try{ MGR_REPORT=await fetchStockReport(MGR_STOCK_YM); }
+  catch(err){ toast('讀取失敗：'+err.message,true); return; }
+  renderNameGrid(); renderMgrStockProgress();
+  if(MGR_SELECTED) selectMgrPerson(MGR_SELECTED);
+}
 async function loadMgrOverview(){
   MGR_OV_BUSY=true;
   document.getElementById('mgrOvMonthLabel').textContent=monthLabel(MGR_OV_YM);
+  const ovPick=document.getElementById('mgrOvMonthPicker'); if(ovPick)ovPick.value=MGR_OV_YM;
   if(!STOCK_RPT_CACHE[MGR_OV_YM]) document.getElementById('mgrOvList').innerHTML=`<div class="emp-s">讀取 ${monthLabel(MGR_OV_YM)} 庫存資料中…</div>`;
   try{
     MGR_OV_RPT=await fetchStockReport(MGR_OV_YM);
@@ -1849,6 +1881,7 @@ let MGR_STOCK_YM='';
 async function changeMgrStockMonth(delta){
   MGR_STOCK_YM=shiftYM(MGR_STOCK_YM,delta);
   document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
+  const skPick=document.getElementById('mgrStockMonthPicker'); if(skPick)skPick.value=MGR_STOCK_YM;
   try{
     MGR_REPORT=await fetchStockReport(MGR_STOCK_YM);
   }catch(err){ toast('讀取失敗：'+err.message,true); return; }
@@ -1874,6 +1907,8 @@ function initManagerScreen(){
   MGR_OV_ITEM=MGR_OV_ITEMS[0];
   document.getElementById('mgrStockMonthLabel').textContent=monthLabel(MGR_STOCK_YM);
   document.getElementById('mgrOvMonthLabel').textContent=monthLabel(MGR_OV_YM);
+  const p1=document.getElementById('mgrStockMonthPicker'); if(p1)p1.value=MGR_STOCK_YM;
+  const p2=document.getElementById('mgrOvMonthPicker'); if(p2)p2.value=MGR_OV_YM;
   MGR_LOADED=false; MGR_SELECTED=null;
   renderMgrOverview();
   renderNameGrid();
