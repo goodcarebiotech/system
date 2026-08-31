@@ -1295,3 +1295,25 @@ body{padding-left:0;padding-right:0}
 @media(max-width:560px){
   .rc-date-sec{font-size:13.5px;margin:18px 0 9px;letter-spacing:.03em}
 }
+
+/* ═════════ Round 13 ═════════ */
+
+/* ── 1. 日期標題列：右側加上整天批次編輯 ── */
+.rc-date-sec.rc-date-sec-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.rc-date-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-date-bulk{flex:none;padding:5px 12px;border:1px solid var(--nav-3);border-radius:var(--r-pill);
+  background:var(--paper);color:var(--nav-2);font-size:11px;font-weight:600;cursor:pointer;
+  white-space:nowrap;transition:.16s var(--e)}
+.rc-date-bulk:hover{background:var(--nav);border-color:var(--nav);color:#fff}
+@media(max-width:560px){
+  .rc-date-bulk{padding:4px 10px;font-size:10.5px}
+}
+
+/* ── 2. 編輯／確認類視窗要疊在近效期提醒之上 ── */
+#expMv{z-index:200}
+#edMv,#gEdMv,#gCfMv,#dfMv{z-index:260}
+/* 下拉選擇器要疊在所有視窗之上（它是在編輯視窗裡被叫出來的） */
+#pkBg{z-index:320}
+
+/* ── 4. 提醒文案：紅色那句獨立成一行 ── */
+.exp-lead-cta{display:block;margin-top:6px;color:var(--bad);font-weight:600}
