@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;600;700&family=Noto+Serif+TC:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
-<script type="module" src="firebase-init.js?v=12"></script>
+<script type="module" src="firebase-init.js?v=13"></script>
 
 <body>
 
@@ -181,6 +181,10 @@
   <section class="pg" id="pg-pend">
     <div class="pn" style="margin-bottom:14px"><div class="pn-b" style="padding:14px 16px">
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.75;font-weight:300">行政人員已建立資料，但尚未有完整的備貨明細。依備貨日期分組，點卡片展開看明細；右側 ✎ 可整組批次補齊，展開後也能單筆編輯。</div></div></div>
+    <div class="cf-r" style="margin-bottom:10px">
+      <span class="cf-h">效期</span>
+      <div class="chips" id="pendNearChips"></div>
+    </div>
     <div class="cf-r" style="margin-bottom:14px">
       <span class="cf-h">品項</span>
       <div class="chips" id="pendItemChips"></div>
@@ -437,6 +441,15 @@
   </div>
 </div>
 
+<!-- ══ 近效期提醒 ══ -->
+<div class="mv" id="expMv">
+  <div class="mb">
+    <div class="mh"><span class="mh-t">近效期提醒</span><span class="mh-r" id="expRef"></span></div>
+    <div class="mbd" id="expBody"></div>
+    <div class="ma"><button onclick="closeExpiryAlert()">知道了</button><button class="sv" onclick="goPendNearExpiry()">前往待補齊查看</button></div>
+  </div>
+</div>
+
 <!-- ══ GROUP BATCH EDIT ══ -->
 <div class="mv" id="gEdMv">
   <div class="mb lg2">
@@ -507,6 +520,6 @@
   </div>
 </div>
 
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>
