@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;600;700&family=Noto+Serif+TC:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=9">
+<link rel="stylesheet" href="styles.css?v=10">
 </head>
-<script type="module" src="firebase-init.js?v=9"></script>
+<script type="module" src="firebase-init.js?v=10"></script>
 
 <body>
 
@@ -128,7 +128,7 @@
       <div class="pn-h pn-h-tools">
         <div class="cf-r" id="mChips"></div>
         <div class="seg"><button class="on" id="vG" onclick="setView('group')">依日期分組</button><button id="vL" onclick="setView('list')">清單</button></div></div>
-      <div class="af-chips" id="activeFilterChips" style="padding:0 16px"></div>
+      <div class="cf"><div class="cf-r" id="shipChips"></div><div class="af-chips" id="activeFilterChips"></div></div>
       <div class="cf"><div class="cf-h">品項</div><div class="cf-r" id="iChips"></div></div>
       <div id="recCards" style="padding:16px"></div>
       <div id="recTableWrap">
@@ -333,7 +333,8 @@
       <div class="pn-b">
         <div class="mgr-month-nav">
           <button type="button" class="mgr-month-btn" onclick="changeMgrOvMonth(-1)">‹ 上一月</button>
-          <span class="mgr-month-label" id="mgrOvMonthLabel">—</span>
+          <span class="mgr-month-pick"><span class="mgr-month-label" id="mgrOvMonthLabel">—</span><span class="mgr-month-ico">▾</span>
+            <input type="month" id="mgrOvMonthPicker" class="ym-native-overlay" onchange="pickMgrOvMonth(this.value)"></span>
           <button type="button" class="mgr-month-btn" onclick="changeMgrOvMonth(1)">下一月 ›</button>
         </div>
         <div class="ov-items" id="mgrOvItems"></div>
@@ -360,7 +361,8 @@
       <div class="pn-b" style="padding-bottom:16px">
         <div class="mgr-month-nav">
           <button type="button" class="mgr-month-btn" onclick="changeMgrStockMonth(-1)">‹ 上一月</button>
-          <span class="mgr-month-label" id="mgrStockMonthLabel">—</span>
+          <span class="mgr-month-pick"><span class="mgr-month-label" id="mgrStockMonthLabel">—</span><span class="mgr-month-ico">▾</span>
+            <input type="month" id="mgrStockMonthPicker" class="ym-native-overlay" onchange="pickMgrStockMonth(this.value)"></span>
           <button type="button" class="mgr-month-btn" onclick="changeMgrStockMonth(1)">下一月 ›</button>
         </div>
         <div class="stk" style="height:6px;margin-bottom:16px"><div class="a" id="mgrStockProgBar" style="width:0%;background:var(--nav)"></div><div class="b"></div></div>
@@ -505,6 +507,6 @@
   </div>
 </div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
