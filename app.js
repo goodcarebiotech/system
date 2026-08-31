@@ -828,7 +828,8 @@ function maybeShowExpiryAlert(){
   const today=new Date().toISOString().slice(0,10);
   document.getElementById('expRef').textContent=`${rows.length} 筆`;
   document.getElementById('expBody').innerHTML=
-    `<div class="exp-lead">以下備貨尚未送貨，有效日期在 ${NEAR_EXPIRY_MONTHS} 個月內。<b>請與醫院確認先進先出貨況。</b></div>`+
+    `<div class="exp-lead">以下備貨尚未送貨，有效日期在 ${NEAR_EXPIRY_MONTHS} 個月內。
+      <b class="exp-lead-cta">請與醫院確認先進先出貨況。</b></div>`+
     rows.map(x=>{
       const expired=String(x.expiryDate)<today;
       return `<div class="exp-row" data-editrid="${esc(x.recordId)}">
@@ -1153,6 +1154,9 @@ function renderRec(){
     ).join('');
   }else{
     el.innerHTML=dateSections(rows).map(sec=>{
+      // 把「這一天的全部紀錄」也註冊成一個群組，讓日期標題右側可以一次批次編輯整天。
+      // 沿用同一套 GROUPS／批次編輯視窗，不需要另一份程式。
+      const secIdx=GROUPS.push(sec.rows)-1;
       const g={};sec.rows.forEach(x=>{const k=x.customer+'|'+x.item;(g[k]=g[k]||[]).push(x)});
       const cards=Object.values(g).map(its=>{const i=GROUPS.push(its)-1,f=its[0],fam=familyOf(f.item);
         return `<div class="rc" onclick="tg(${i})"><div class="rc-s" style="background:${fam.color}"></div><div class="rc-b">
@@ -1161,7 +1165,12 @@ function renderRec(){
         <div class="rc-sub" id="g${i}">${its.map(recSubRow).join('')}</div>
         </div><div class="rc-a rc-a-edit" onclick="event.stopPropagation();openGroupEdit(${i})" title="批次編輯">✎</div></div>`;
       }).join('');
-      return (sec.date===null?'':`<div class="rc-date-sec">${fmtDateShort(sec.date)}</div>`)+cards;
+      const secHead=(sec.date===null)?'':
+        `<div class="rc-date-sec rc-date-sec-row">
+           <span class="rc-date-t">${fmtDateShort(sec.date)}</span>
+           <button type="button" class="rc-date-bulk" onclick="openGroupEdit(${secIdx})">✎ 批次編輯這天 ${sec.rows.length} 筆</button>
+         </div>`;
+      return secHead+cards;
     }).join('');
   }
 
@@ -1199,6 +1208,10 @@ document.addEventListener('click', function(e){
   const t=e.target.closest&&e.target.closest('[data-editrid]');
   if(!t)return;
   e.stopPropagation(); e.preventDefault();
+  // 從近效期提醒視窗點進來時，先把提醒收起來，否則編輯視窗會被壓在它後面看不到。
+  // 收起來之後 EXPIRY_ALERT_SHOWN 仍是 true，這次開網頁不會再重複跳出。
+  const inExpiry=t.closest('#expMv');
+  if(inExpiry) closeExpiryAlert();
   openEd(t.getAttribute('data-editrid'));
 }, true);
 const ITEM_PALETTE=['#16304C','#166B47','#8C6E32','#7A3B69','#2C6B6B','#8A5D0B','#5A4FA0','#B5342C'];
@@ -1334,8 +1347,8 @@ function togglePendNear(){ PF_NEAR=!PF_NEAR; renderPend(); }
 function renderPendNearChip(){
   const el=document.getElementById('pendNearChips'); if(!el)return;
   const n=pendRecs().filter(x=>isNearExpiry(x.expiryDate)).length;
-  el.innerHTML=`<button class="chip ${PF_NEAR?'on':''} chip-near" onclick="togglePendNear()">近效期（${NEAR_EXPIRY_MONTHS} 個月內）<span class="n">${n}</span></button>`+
-    (PF_NEAR?`<button class="chip" onclick="togglePendNear()">顯示全部</button>`:'');
+  // 只留一顆可切換的膠囊：已選取時再點一次就是取消篩選，不需要額外的「顯示全部」。
+  el.innerHTML=`<button class="chip ${PF_NEAR?'on':''} chip-near" onclick="togglePendNear()">近效期（${NEAR_EXPIRY_MONTHS} 個月內）<span class="n">${n}</span></button>`;
 }
 function renderPendItemChips(){
   const el=document.getElementById('pendItemChips'); if(!el)return;
