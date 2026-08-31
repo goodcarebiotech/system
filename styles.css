@@ -1078,3 +1078,65 @@ input[type="date"].fb{padding-right:38px}
   box-shadow:0 2px 12px rgba(16,23,32,.2)}
 .session-bar:hover{background:#000}
 .session-bar.fatal{background:var(--bad)}
+
+/* ═════════ Round 8 ═════════ */
+
+/* ── 1. 四個統計數字維持一排，不換行 ── */
+.st{display:flex}
+@media(max-width:560px){
+  .st{display:flex}
+  .st-u{flex:1;min-width:0;padding:14px 2px 12px;border-right:1px solid var(--line);border-bottom:none}
+  .st-u:last-child{border-right:none}
+  .st-u .v{font-size:20px}
+  .st-u .k{font-size:9px;margin-top:5px;letter-spacing:.02em;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;padding:0 2px}
+}
+
+/* ── 3. 清除鈕：欄位標籤那一行的最右邊 ──
+   輸入框內部已經有原生日曆圖示、下拉箭頭和使用者的文字在搶空間，疊上去一定會擋到。
+   標籤那一行本來是空的，把清除鈕放這裡不遮任何內容，點擊區也做到 30px 好按。 */
+.fg{position:relative}
+.fg > .fw-clear{
+  display:none!important;position:absolute;top:-4px;right:-4px;
+  width:30px;height:30px;padding:0;border:0;background:transparent;
+  cursor:pointer;z-index:6;align-items:center;justify-content:center}
+.fg.has-val > .fw-clear{display:flex!important}
+.fg > .fw-clear::before{content:'';position:absolute;width:20px;height:20px;
+  border-radius:50%;background:var(--line);transition:background .15s var(--e)}
+.fg > .fw-clear svg{position:relative;width:11px;height:11px;display:block;
+  stroke:var(--tx-2);stroke-width:2.2;stroke-linecap:round;fill:none;transition:stroke .15s var(--e)}
+.fg > .fw-clear:hover::before{background:var(--bad)}
+.fg > .fw-clear:hover svg{stroke:#fff}
+.fg > .fw-clear:active::before{transform:scale(.9)}
+/* 欄位內部不再需要為清除鈕讓出空間 */
+.fw.has-val .fb,input[type="date"].fb{padding-right:14px}
+.fw > .fw-clear{display:none!important}
+
+/* ── 4. 紀錄總覽：月份列與檢視切換同一行 ── */
+.pn-h.pn-h-tools{gap:10px;flex-wrap:nowrap}
+.pn-h-tools .cf-r{flex:1;min-width:0;display:flex;align-items:center;gap:6px;
+  overflow-x:auto;scrollbar-width:none}
+.pn-h-tools .cf-r::-webkit-scrollbar{display:none}
+.pn-h-tools .seg{flex:none}
+
+/* ── 4b. 批次編輯鉛筆鈕：展開時維持原本高度，不隨明細一起拉長 ── */
+.rc{align-items:flex-start}
+.rc .rc-a.rc-a-edit{align-self:flex-start;height:54px;flex:none}
+
+/* ── 5. 待補齊明細：編輯鈕與「賣／客戶／待補齊」同一行的最右邊 ── */
+.rc-sr.rc-sr-stack{display:block}
+.rc-sr.rc-sr-stack .sr-head{display:flex;align-items:center;gap:8px}
+.rc-sr.rc-sr-stack .sr-head .sr-ed{margin-left:auto}
+
+/* ── 6. 左右留白收窄，把空間還給資料 ── */
+.wrap,.bar-in,.nav-in{max-width:720px}
+.pg{max-width:720px;padding:16px 14px 40px}
+.pk-s{max-width:720px}
+@media(max-width:560px){
+  .wrap,.bar-in,.nav-in,.pg{max-width:none}
+  .pg{padding:14px 10px 40px}
+  .pn-b{padding:14px 12px}
+  .pn-h{padding:12px 12px}
+  #recCards{padding:12px!important}
+  .af-chips{padding:0 12px!important}
+}
