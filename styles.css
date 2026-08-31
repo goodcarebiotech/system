@@ -1285,3 +1285,13 @@ body{padding-left:0;padding-right:0}
   color:var(--tx-3);font-family:'IBM Plex Mono',monospace;flex:none}
 .sr-exp.near{background:var(--bad-tint);color:var(--bad);font-weight:600}
 .chip.chip-near.on{background:var(--bad);border-color:var(--bad)}
+
+/* ═════════ Round 12 ═════════ */
+
+/* ── 依日期分組：日期標題放大，作為主要的視覺分段 ── */
+.rc-date-sec{font-size:14px;font-weight:600;color:var(--ink);letter-spacing:.04em;
+  margin:22px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+.rc-date-sec:first-child{margin-top:2px}
+@media(max-width:560px){
+  .rc-date-sec{font-size:13.5px;margin:18px 0 9px;letter-spacing:.03em}
+}
