@@ -562,6 +562,30 @@ function busy(btn,on,label){
 }
 function toast(m,bad){const t=document.getElementById('tst');t.textContent=m;t.classList.toggle('bad',!!bad);t.classList.add('on');
   clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
+// ── 第 6 輪誤刪、此處補回 ────────────────────────────────────
+// 這六支是全站共用的小工具函式。第 6 輪改寫清除鈕時，我用「從 mk() 到 val()」
+// 這個區間做整段替換，沒注意到它們正好夾在中間，於是被一起刪掉了。
+// 少了它們，index.html 裡的 onclick 會丟出 ReferenceError，
+// 而 JS 一報錯後面所有渲染就全部停住 —— 篩選鈕消失、資料出不來、
+// 更新鈕一直轉圈，全都是這一個錯誤的連鎖反應。
+function fillCount(){const el=document.getElementById('fCnt');if(el)el.textContent=document.querySelectorAll('#pg-reg .fw.ok').length;}
+// 備貨日期的「今天／明天」快捷（送貨日期的已依需求移除，但備貨日期仍在使用）
+function qd(id,off){
+  const d=new Date();d.setDate(d.getDate()+off);
+  const el=document.getElementById(id);
+  if(!el)return;
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  el.value=`${d.getFullYear()}-${m}-${dd}`;
+  mk(el);
+}
+// 備貨登記的筆數加減 / 直接輸入
+function bq(d){BQ=Math.max(1,Math.min(50,BQ+d));document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
+function bqSetLive(v){document.getElementById('bqBtnN').textContent=(parseInt(v)||0);}
+function bqSet(v){let n=parseInt(v);if(isNaN(n)||n<1)n=1;if(n>50)n=50;BQ=n;document.getElementById('bqV').value=BQ;document.getElementById('bqBtnN').textContent=BQ;}
+// 行政端快速建立的筆數加減
+function aq(d){AQ=Math.max(1,Math.min(50,AQ+d));document.getElementById('aqV').textContent=AQ;}
+
 // ── 欄位狀態與清除鈕 ────────────────────────────────────────
 // mk()：欄位有值就標記已填（左側細線變色）並顯示清除鈕。
 function mk(el){
