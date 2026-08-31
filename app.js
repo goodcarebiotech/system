@@ -660,39 +660,43 @@ function mk(el){
   const w=el.closest('.fw');
   const v=!!(el.value&&el.value.trim()!=='');
   el.classList.toggle('on',v);
-  if(w){ w.classList.toggle('ok',v); w.classList.toggle('has-val',v); ensureClearBtn(w,el); }
+  if(w){
+    w.classList.toggle('ok',v);
+    (w.closest('.fg')||w).classList.toggle('has-val',v);
+    ensureClearBtn(w,el);
+  }
   fillCount();
 }
 // 清除鈕做成 iOS 輸入框裡那種小圓叉：貼齊欄位內緣、垂直置中、灰底白叉，
 // 不畫外框、不加陰影。之前那版掛在欄位右上角、又跟原生日曆圖示疊在一起，
 // 點下去會先觸發日曆而不是清除——現在按鈕是欄位的兄弟節點且蓋在最上層（z-index），
 // 點擊完全不會傳到輸入框，日期欄按下去就是純粹清空。
+// 清除鈕的位置：放在「欄位標籤那一行的最右邊」，而不是輸入框裡面。
+// 輸入框內部已經有原生日曆圖示、下拉箭頭、以及使用者輸入的文字在搶空間，
+// 疊上去一定會擋到內容或誤觸。標籤那一行本來就是空的，點擊區也做到 30px，
+// 手指好按、視覺上也乾淨。這是目前主流表單（Stripe、Linear、Notion）的作法。
+function makeClearBtn(onClear){
+  const b=document.createElement('button');
+  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除欄位'); b.tabIndex=-1;
+  b.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.6 6.6l6.8 6.8M13.4 6.6l-6.8 6.8"/></svg>';
+  const run=function(ev){ ev.preventDefault(); ev.stopPropagation(); onClear(); };
+  b.addEventListener('pointerdown',run);
+  b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();});
+  return b;
+}
 function ensureClearBtn(w,el){
   if(!w||el.tagName!=='INPUT')return;
-  if(w.querySelector(':scope > .fw-clear'))return;
-  const b=document.createElement('button');
-  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除欄位'); b.tabIndex=-1;
-  b.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.4 6.4l7.2 7.2M13.6 6.4l-7.2 7.2"/></svg>';
-  const clear=function(ev){
-    ev.preventDefault(); ev.stopPropagation();
-    el.value=''; mk(el);
-  };
-  // pointerdown 先攔一次：日期欄在某些瀏覽器上按下去（還沒放開）就會叫出日曆，
-  // 等到 click 才處理已經來不及了。
-  b.addEventListener('pointerdown',clear);
-  b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();});
-  w.appendChild(b);
+  const host=w.closest('.fg')||w;
+  if(host.querySelector(':scope > .fw-clear'))return;
+  host.appendChild(makeClearBtn(function(){ el.value=''; mk(el); }));
+  return;
 }
-// 下拉選擇欄位（客戶／品項／科別／賣備樣／批號）的清除鈕，樣式與行為完全一致
+// 下拉選擇欄位（客戶／品項／科別／賣備樣／批號）的清除鈕，位置與行為完全一致
 function ensurePkClearBtn(fw,k){
-  if(!fw||fw.querySelector(':scope > .fw-clear'))return;
-  const b=document.createElement('button');
-  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除欄位'); b.tabIndex=-1;
-  b.innerHTML='<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.4 6.4l7.2 7.2M13.6 6.4l-7.2 7.2"/></svg>';
-  const clear=function(ev){ ev.preventDefault(); ev.stopPropagation(); clearPk(k); };
-  b.addEventListener('pointerdown',clear);
-  b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();});
-  fw.appendChild(b);
+  if(!fw)return;
+  const host=fw.closest('.fg')||fw;
+  if(host.querySelector(':scope > .fw-clear'))return;
+  host.appendChild(makeClearBtn(function(){ clearPk(k); }));
 }
 // 頁面載入後先幫所有既有欄位備好清除鈕（預設隱藏，有值才出現），
 // 並讓日期欄位「點欄位本身就開日曆」——因為原生的日曆小圖示已經在 CSS 裡拿掉了
@@ -776,28 +780,24 @@ function pickV(v){
   if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
   s.textContent=dispItem(v);s.classList.remove('ph');b.classList.add('on');
-  const fw=b.closest('.fw'); fw.classList.add('ok'); fw.classList.add('has-val');
+  const fw=b.closest('.fw'); fw.classList.add('ok');
+  (fw.closest('.fg')||fw).classList.add('has-val');
   ensurePkClearBtn(fw,PKT);
   closePk();fillCount();}
-// 已選好的下拉欄位，右側一樣給一顆清除鈕
-function ensurePkClearBtn(fw,k){
-  if(!fw)return;
-  const host=fw.closest('.fg')||fw;
-  if(host.querySelector('.fw-clear'))return;
-  const b=document.createElement('button');
-  b.type='button'; b.className='fw-clear'; b.setAttribute('aria-label','清除'); b.textContent='✕';
-  b.addEventListener('click',function(ev){ ev.preventDefault(); ev.stopPropagation(); clearPk(k); });
-  host.appendChild(b);
-}
+// （這裡原本有第二份 ensurePkClearBtn，掛在 .fg 上、用文字 ✕。
+//   JS 的函式宣告是後面覆蓋前面，所以它會蓋掉上面那份正確的版本，
+//   而 CSS 又把 .fg 上的清除鈕隱藏了 —— 客戶名稱到批號這五個下拉欄位
+//   因此永遠不會出現叉叉。整份移除，統一使用上方那一份。）
 function clearPk(k){PKV[k]='';const b=document.getElementById('pk-'+k);if(!b)return;const s=b.querySelector('.v');
   s.textContent=PK[k].ph;s.classList.add('ph');b.classList.remove('on');
-  const fw=b.closest('.fw'); fw.classList.remove('ok'); fw.classList.remove('has-val');
+  const fw=b.closest('.fw'); fw.classList.remove('ok');
+  (fw.closest('.fg')||fw).classList.remove('has-val');
   fillCount();}
 // 開啟編輯／批次編輯視窗時，把既有值塞回下拉按鈕上
 function setPk(k,v){
   const b=document.getElementById('pk-'+k); if(!b)return;
   const fw=b.closest('.fw');
-  if(fw){ fw.classList.toggle('has-val',!!v); ensurePkClearBtn(fw,k); }
+  if(fw){ (fw.closest('.fg')||fw).classList.toggle('has-val',!!v); ensurePkClearBtn(fw,k); }
   PKV[k]=v||'';
   const sp=b.querySelector('.v');
   if(v){ sp.textContent=dispItem(v); sp.classList.remove('ph'); b.classList.add('on'); b.closest('.fw').classList.add('ok'); }
@@ -1137,7 +1137,6 @@ function renderRec(){
   document.getElementById('s2').textContent=rows.filter(x=>shipStatus(x)==='sh').length;
   document.getElementById('s3').textContent=rows.filter(x=>shipStatus(x)==='hd').length;
   document.getElementById('s4').textContent=pendRecs().length;
-  renderIB();
 }
 function tg(i){const el=document.getElementById('g'+i);if(el)el.classList.toggle('o');}
 // ── 展開後單筆列的「編輯」：改用事件委派 ──────────────────────────
@@ -1160,19 +1159,7 @@ function typeBadge(t){if(!t)return'';const cls=TYPE_COLOR[t];const label=cls?t:'
   return `<span class="tbadge${cls?' '+cls:' o'}" title="${esc(t)}">${label}</span>`;}
 function tgT(i){document.querySelectorAll(`#tgt-${i}`).forEach(r=>{r.style.display=r.style.display==='none'?'table-row':'none';});}
 function keyHtml(){return `<div class="key"><span><i style="background:var(--ok)"></i>已送貨</span><span><i style="background:var(--nav-3)"></i>未送貨</span></div>`;}
-function renderIB(){const m={};myRecs().forEach(x=>{if(!x.item)return;m[x.item]=m[x.item]||{sh:0,hd:0};m[x.item][shipStatus(x)]++});
-  const e=Object.entries(m).sort((a,b)=>byItemOrder(a[0],b[0]));
-  document.getElementById('ibRec').innerHTML=e.length?e.map(([n,v])=>{const t=v.sh+v.hd,p=Math.round(v.sh/t*100);
-    return `<div class="sp"><div class="sp-t"><span class="sp-n">${esc(n)}</span><span class="sp-v">共 <b>${t}</b> 筆</span></div>
-    <div class="stk"><div class="a" style="width:${p}%"></div><div class="b" style="width:${100-p}%"></div></div></div>`;}).join('')+keyHtml()
-    :`<div class="emp-s">本月尚無資料</div>`;}
-function pctDelta(elId,cur,prev){
-  const el=document.getElementById(elId);if(!el)return;
-  if(!prev){el.textContent=cur>0?'首次紀錄':'—';el.className='dlt';return;}
-  const pct=Math.round((cur-prev)/prev*100),up=pct>=0;
-  el.innerHTML=(up?'▲ ':'▼ ')+Math.abs(pct)+'% 較上月';
-  el.className='dlt '+(up?'up':'down');
-}
+// 「品項分佈」面板已移除：上方的品項膠囊已經帶出每個品項的筆數，資訊重複。
 
 function getPrevYM() {
   const [y, m] = CURRENT_YM.split('-').map(Number);
@@ -1262,18 +1249,21 @@ function renderStats(){
 // 分組沿用 GROUPS 陣列（renderRec 會先清空、renderPend 再往後接），
 // 因此批次編輯視窗完全共用同一套邏輯，不需要第二份程式。
 function pendSubRow(x){
-  return `<div class="rc-sr" data-editrid="${esc(x.recordId)}">
+  // 編輯鈕放在第一行的最右邊，跟「賣／客戶／待補齊」同一行，
+  // 不再獨立佔一欄——原本的作法會把整列切成左右兩塊，右邊那塊只放一顆按鈕，
+  // 中間的欄位反而被壓窄。
+  return `<div class="rc-sr rc-sr-stack" data-editrid="${esc(x.recordId)}">
     <div class="sr-main">
       <div class="sr-head">
         ${typeBadge(x.type)||'<span class="tbadge o">—</span>'}
         <span class="sr-cat">${esc(x.customer||'未填客戶')}</span>
         <span class="sr-st h">待補齊</span>
+        ${srEditBtn(x)}
       </div>
       <div class="sr-grid">${srCell(x,'batch',1)}${srCell(x,'shipDate',1)}${srCell(x,'orderNo',1)}</div>
       <div class="sr-grid">${srCell(x,'category')}${srCell(x,'invoiceDate',1)}${srCell(x,'invoiceNo',1)}</div>
       ${(x.loanOut||x.loanReturn)?`<div class="sr-grid">${srCell(x,'loanOut',1)}${srCell(x,'loanReturn',1)}<span></span></div>`:''}
     </div>
-    ${srEditBtn(x)}
   </div>`;
 }
 // 待補齊頁的品項篩選（跟「我的紀錄」上方的品項膠囊同一套操作方式）
@@ -2022,7 +2012,7 @@ function renderMgrDetailBody(){
           <span class="stkr-endv mn">${noData?'—':nf(ending)}</span>
         </div>
       </div>
-      <div class="stkr-num c-ship" data-label="本月出貨">${it.shipment===null?'—':nf(it.shipment)}<span class="rate-in">${rate===null?'':' ('+rate+'%)'}</span></div>
+      <div class="stkr-num c-ship" data-label="本月出貨">${it.shipment===null?'—':nf(it.shipment)}</div>
       <div class="stkr-num c-rate" data-label="出貨率">${rate===null?'—':rate+'%'}</div>
       <div class="stkr-num c-prev" data-label="上月庫存">${it.prevEnding===null?'—':nf(it.prevEnding)}</div>
     </div>`;
