@@ -1199,3 +1199,39 @@ input[type="date"].fb{padding-right:38px}
   stroke:var(--tx-2);stroke-width:2.2;stroke-linecap:round;fill:none;transition:stroke .15s var(--e)}
 .fg > .fw-clear:hover::before{background:var(--bad)}
 .fg > .fw-clear:hover svg{stroke:#fff}
+
+/* ═════════ Round 10 ═════════ */
+
+/* ── 2. 手機頂端列滿版 ──
+   原本 body 上有 padding-left/right:env(safe-area-inset-*)，新版 iOS Safari 的浮動
+   工具列會回報非零的安全區域值，整個 .wrap（含深藍列與分頁列）就被往內推，
+   兩側露出底色。安全區域的內距要加在「內容」上，不能加在會讓背景一起縮進去的外層。 */
+body{padding-left:0;padding-right:0}
+.wrap{width:100%}
+.bar{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+.nav-in{padding-left:max(4px,env(safe-area-inset-left));padding-right:max(4px,env(safe-area-inset-right))}
+@media(max-width:560px){
+  .bar{padding:11px max(14px,env(safe-area-inset-left)) 11px max(14px,env(safe-area-inset-right))}
+  .pg{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+}
+
+/* ── 1. 電腦版：像試算表一樣寬 ──
+   表單與卡片類頁面維持易讀寬度（過寬的表單反而難填），
+   但「我的紀錄」整頁放到最寬，清單檢視就能一次看到所有欄位。 */
+@media(min-width:900px){
+  .wrap,.bar-in,.nav-in{max-width:1440px}
+  .pg{max-width:860px;padding:22px 20px 48px}
+  #pg-rec{max-width:1440px;padding:22px 24px 48px}
+  #pg-rec .tsc{max-height:none}
+  #pg-rec table.dt{font-size:13px}
+  #pg-rec table.dt td.pad{padding:7px 10px}
+  .pk-s{max-width:860px}
+}
+@media(min-width:1500px){
+  .wrap,.bar-in,.nav-in,#pg-rec{max-width:1720px}
+}
+
+/* ── 3. 待補齊明細的編輯鈕縮到與「待補齊」標籤同尺寸 ── */
+.rc-sr.rc-sr-stack .sr-head .sr-ed{
+  margin-left:auto;padding:2px 10px;font-size:10px;font-weight:600;
+  border-radius:var(--r-pill);line-height:1.6}
