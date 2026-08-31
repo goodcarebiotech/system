@@ -3,7 +3,7 @@ const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZG
 
 /* 完美對齊您最新更新的精確寬度 */
 const COLS=[
-  {k:'stockDate',n:'備貨日期',w:95,role:'s'},
+  {k:'stockDate',n:'備貨日期',w:122,role:'s'},
   {k:'item',n:'品項',w:158,role:'s'},
   {k:'batch',n:'批號',w:95,role:'s'},
   {k:'shipDate',n:'送貨日期',w:105,role:'s'},
@@ -443,7 +443,7 @@ function proceedLogin(role){
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
     setupRoleSwitcher('salesSwitchRole');
-    loadSalesData(true); loadBatches(); 
+    loadSalesData(true); loadBatches().catch(()=>{}); 
   }
 }
 function setupRoleSwitcher(slotId){
