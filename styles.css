@@ -1063,3 +1063,18 @@ input[type="date"].fb{padding-right:38px}
   border-left:3px solid var(--bad);border-radius:0 var(--r-s) var(--r-s) 0;
   font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.7;color:var(--bad);
   white-space:pre-wrap;word-break:break-all;text-align:left;user-select:text}
+
+/* ── 開場遮罩：確認登入狀態之前先蓋住畫面 ── */
+.boot-mask{position:fixed;inset:0;z-index:9000;background:var(--nav);
+  display:flex;align-items:center;justify-content:center}
+.boot-dot{width:26px;height:26px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.28);border-top-color:#fff;
+  animation:spin .8s linear infinite}
+
+/* ── 連線狀態提示列：不中斷操作，點一下重新連線 ── */
+.session-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:8000;
+  padding:10px 16px;background:var(--ink);color:#fff;font-size:12px;
+  text-align:center;cursor:pointer;letter-spacing:.02em;
+  box-shadow:0 2px 12px rgba(16,23,32,.2)}
+.session-bar:hover{background:#000}
+.session-bar.fatal{background:var(--bad)}
