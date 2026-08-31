@@ -1,5 +1,5 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
-const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
+const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbyfpN0qV8S5eZYPL7NMjTUAN3FCc_1LGJpFB-fAUPm0tcvxDgXNsuQzaIYdcN4RU8VaLQ/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
 const COLS=[
@@ -89,9 +89,21 @@ async function api(a,p,_retried){
     try{ json=JSON.parse(text); }
     catch(parseErr){ return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定。'}; }
     if(json&&json.code==='AUTH'){
+      // 第一次失敗多半只是 token 剛好在這一秒過期，強制換發一張新的再試一次。
       if(!_retried) return api(a,p,true);
-      toast('登入已失效，請重新登入',true);
-      setTimeout(()=>{ if(typeof logout==='function') logout(); },1200);
+      // 換發之後還是不行，才代表登入狀態真的有問題。
+      // 【重要】這裡以前是直接 logout()，把使用者踢回登入畫面——那正是
+      // 「進去了又被跳出來」的來源。網路不穩、GAS 短暫逾時都會走到這裡，
+      // 為了一次暫時性的失敗就清掉整個登入狀態，代價太大。
+      // 現在改成：保留登入狀態與畫面上已載入的資料，只在頂端顯示一條可點擊的提示；
+      // 使用者可以繼續看資料，要寫入時再自己決定何時重新連線。
+      if(json.reason==='NOT_IN_ROSTER'){
+        showSessionBar('您的帳號權限已被移除，請聯絡管理員',true);
+      }else{
+        showSessionBar('與伺服器的連線階段已過期，點此重新連線');
+      }
+    }else if(json&&json.status==='success'){
+      hideSessionBar(); // 只要有任何一次請求成功，就代表連線恢復了
     }
     return json;
   }catch(e){return{status:'error',message:'連線失敗：'+e.message};}
@@ -186,6 +198,10 @@ let FIREBASE_READY=false, FIREBASE_USER=null;
 // 導致 handleAuthedUser 被跑兩次（會出現畫面閃兩下、角色選單彈兩次）。
 let SIGNIN_BUSY=false, LOGGING_OUT=false, AUTH_HANDLING=false;
 
+// 開網頁到「確認登入狀態」之間會有短暫空檔。舊版在這段期間就把登入畫面畫出來，
+// 於是已登入的人會先看到登入頁閃一下；反過來若驗證失敗，又會先進到主畫面再被彈出來。
+// 現在改成先蓋一層開場畫面，等身分確認完成再決定要顯示登入頁還是主畫面。
+function hideBoot(){ const b=document.getElementById('bootMask'); if(b)b.style.display='none'; }
 window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
   // 已改為純彈窗登入，不再有 getRedirectResult 這一段（見 firebase-init.js 的說明）。
@@ -193,10 +209,17 @@ window.addEventListener('firebase-ready', ()=>{
   // 使用者不用每次開網頁都重新登入一次。
   window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
     FIREBASE_USER=user;
-    if(LOGGING_OUT||SIGNIN_BUSY||AUTH_HANDLING) return;
-    if(user && document.getElementById('login').style.display!=='none'){ handleAuthedUser(user); }
+    if(LOGGING_OUT||SIGNIN_BUSY||AUTH_HANDLING){ hideBoot(); return; }
+    if(user && document.getElementById('login').style.display!=='none'){
+      handleAuthedUser(user).finally(hideBoot);
+    }else{
+      hideBoot(); // 沒有登入狀態，正常顯示登入畫面
+    }
   });
 });
+// 保險：萬一 Firebase 遲遲沒有回應（網路極差），最多蓋 6 秒就把開場畫面收掉，
+// 不要讓使用者對著一片空白不知道發生什麼事。
+setTimeout(hideBoot,6000);
 
 function isInAppBrowser(){ return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent||''); }
 function isMobile(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'') || window.innerWidth<900; }
@@ -295,6 +318,10 @@ async function handleAuthedUser(user){
       roles=who.roles||[];
       CUR_EMAIL=who.email||email;
       CUR=who.name||nameForEmail(email);
+      // 把後端認定的身分存起來。下次開網頁若剛好連線不穩，可以先用這份快取
+      // 直接進入畫面，不必卡在登入頁——資料權限仍然由後端把關，快取只影響「顯示哪個畫面」。
+      try{ localStorage.setItem('identity:'+email, JSON.stringify(
+        {roles:roles,name:CUR,roster:who.roster,at:Date.now()})); }catch(e){}
     }else if(who&&who.code==='AUTH'){
       // 這裡有兩種完全不同的狀況，訊息要分開講，否則會一直往名冊去找但問題根本不在那裡：
       //   NOT_IN_ROSTER → 真的不在 gas.js 的名冊上
@@ -312,11 +339,19 @@ async function handleAuthedUser(user){
       }
       return;
     }else{
-      // 後端暫時連不上（網路問題／GAS 部署中）：用本機名冊先讓畫面出來，
-      // 但任何資料請求仍然會被後端擋下，不會造成權限外洩。
-      roles=rolesForEmail(email);
-      CUR_EMAIL=email; CUR=nameForEmail(email);
-      if(roles.length) toast('目前無法連線到伺服器，資料可能無法載入',true);
+      // 後端暫時連不上（網路問題／GAS 部署中）：優先用上次成功登入時快取的身分，
+      // 讓使用者照樣進得去、看得到上次的資料，而不是被擋在登入頁外面。
+      // 任何資料請求仍然會被後端擋下，所以這不會造成權限外洩。
+      let cached=null;
+      try{ cached=JSON.parse(localStorage.getItem('identity:'+email)||'null'); }catch(e){}
+      if(cached&&cached.roles&&cached.roles.length){
+        applyRoster(cached.roster);
+        roles=cached.roles; CUR_EMAIL=email; CUR=cached.name||nameForEmail(email);
+      }else{
+        roles=rolesForEmail(email);
+        CUR_EMAIL=email; CUR=nameForEmail(email);
+      }
+      if(roles.length) showSessionBar('目前無法連線到伺服器，點此重新連線');
     }
     if(!roles||!roles.length){
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
@@ -329,6 +364,39 @@ async function handleAuthedUser(user){
   }finally{ AUTH_HANDLING=false; }
 }
 // 在登入畫面上顯示一段可以複製的診斷訊息（不會自動消失）
+// ── 連線狀態提示列 ───────────────────────────────────────────
+// 出現在畫面最上方，不會遮住內容、也不會中斷操作。點一下就試著重新取得憑證，
+// 成功就自己消失。這比把人踢回登入畫面友善得多，也不會弄丟他正在填的資料。
+function showSessionBar(msg,fatal){
+  let el=document.getElementById('sessionBar');
+  if(!el){
+    el=document.createElement('div');
+    el.id='sessionBar';
+    el.className='session-bar';
+    el.onclick=retryAuth;
+    document.body.appendChild(el);
+  }
+  el.textContent=msg;
+  el.classList.toggle('fatal',!!fatal);
+  el.style.display='block';
+}
+function hideSessionBar(){ const el=document.getElementById('sessionBar'); if(el)el.style.display='none'; }
+async function retryAuth(){
+  const el=document.getElementById('sessionBar');
+  if(el)el.textContent='重新連線中…';
+  await getIdToken(true); // 強制換發一張新的 token
+  const who=await api('whoami',{});
+  if(who&&who.status==='success'){
+    applyRoster(who.roster);
+    hideSessionBar();
+    toast('連線已恢復');
+    if(ROLE==='sales')loadSalesData(true);
+    else if(ROLE==='admin')loadAdminData();
+    else if(ROLE==='manager')refreshManager();
+  }else{
+    showSessionBar('仍無法連線，請確認網路後再試一次，或點右上角登出重新登入');
+  }
+}
 function showLoginDiag(msg){
   let el=document.getElementById('loginDiag');
   if(!el){
