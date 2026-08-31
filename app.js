@@ -443,7 +443,7 @@ function proceedLogin(role){
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
     setupRoleSwitcher('salesSwitchRole');
-    loadSalesData(true); 
+    loadSalesData(true); loadBatches(); 
   }
 }
 function setupRoleSwitcher(slotId){
@@ -519,7 +519,7 @@ function queueSalesSync(delay){
 }
 async function refreshSales(){
   const btn=document.getElementById('salesRefreshBtn');busy(btn,true);
-  await loadSalesData(false);
+  await Promise.all([loadSalesData(false),loadBatches()]);
   busy(btn,false);toast('已更新為最新資料');
 }
 
@@ -717,9 +717,12 @@ const PK={customer:{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l
   item:{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   category:{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
   type:{t:'選擇賣/備/樣',ph:'選擇或輸入',l:()=>myHistory('type')},
-  batch:{t:'選擇批號',ph:'請選擇或輸入批號',l:()=>myHistory('batch')},
-  'e-ba':{t:'選擇批號',ph:'請選擇或輸入批號',l:()=>myHistory('batch')},
-  'g-ba':{t:'選擇批號',ph:'請選擇或輸入批號',l:()=>myHistory('batch')},
+  // 批號不再取自「自己以前填過什麼」，改成從試算表的「批號」分頁抓出
+  // 該品項真正存在的批號。後端已經先用品名把其他公司的商品濾掉了。
+  // 依有效日期由近到遠排序，先進先出時最該出的排最前面。
+  batch:{t:'選擇批號',ph:'請先選擇品項',l:()=>batchListFor(PKV.item),sub:v=>batchSubLabel(PKV.item,v),empty:()=>batchEmptyMsg(PKV.item)},
+  'e-ba':{t:'選擇批號',ph:'請先選擇品項',l:()=>batchListFor(PKV['e-it']),sub:v=>batchSubLabel(PKV['e-it'],v),empty:()=>batchEmptyMsg(PKV['e-it'])},
+  'g-ba':{t:'選擇批號',ph:'請先選擇品項',l:()=>batchListFor(GED_ITEM()),sub:v=>batchSubLabel(GED_ITEM(),v),empty:()=>batchEmptyMsg(GED_ITEM())},
   'e-cu':{t:'選擇客戶名稱',ph:'請選擇或輸入客戶名稱',l:()=>myHistory('customer')},
   'e-it':{t:'選擇品項',ph:'請選擇品項',l:()=>ITEM_CATALOG},
   'e-ca':{t:'選擇科別',ph:'選擇或輸入',l:()=>myHistory('category')},
@@ -757,6 +760,7 @@ function renderPk(){
   if(q && !all.some(v=>String(v)===q)){
     h+=`<div class="pk-it pk-new" onclick="pickV('${jse(q)}')"><span>使用「<b>${esc(q)}</b>」</span><span class="pk-new-tag">新增</span></div>`;
   }
+  const sub=PK[PKT].sub;
   h+=f.map(v=>{
     // 把符合的片段標亮，一眼看得出來為什麼這一列被留下來
     let label=esc(v);
@@ -764,9 +768,10 @@ function renderPk(){
       const i=String(v).toLowerCase().indexOf(lq);
       if(i>=0) label=esc(String(v).slice(0,i))+'<mark>'+esc(String(v).slice(i,i+q.length))+'</mark>'+esc(String(v).slice(i+q.length));
     }
-    return `<div class="pk-it ${v===cur?'on':''}" onclick="pickV('${jse(v)}')">${label.replace(/ml/gi,'mL')}${v===cur?'<span>✓</span>':''}</div>`;
+    const extra=sub?sub(v):'';
+    return `<div class="pk-it ${v===cur?'on':''}" onclick="pickV('${jse(v)}')"><span class="pk-main">${label.replace(/ml/gi,'mL')}</span>${extra}${v===cur?'<span>✓</span>':''}</div>`;
   }).join('');
-  if(!f.length && !q) h+=`<div class="pk-e">尚無歷史紀錄，請直接輸入後按右上角「確認」</div>`;
+  if(!f.length && !q) h+=`<div class="pk-e">${PK[PKT].empty?PK[PKT].empty():'尚無歷史紀錄，請直接輸入後按右上角「確認」'}</div>`;
   if(!f.length && q)  h+=`<div class="pk-e">沒有符合「${esc(q)}」的既有紀錄，可直接使用上方新增</div>`;
   document.getElementById('pkL').innerHTML=h;
 }
@@ -779,6 +784,11 @@ function pickV(v){
   if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
   if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
+  // 換品項時把已選的批號清掉：批號是綁品項的，留著舊的會寫入不屬於該品項的批號
+  if((PKT==='item'&&PKV.batch)||(PKT==='e-it'&&PKV['e-ba'])||(PKT==='g-it'&&PKV['g-ba'])){
+    const bk=PKT==='item'?'batch':(PKT==='e-it'?'e-ba':'g-ba');
+    if(PKV[bk]&&PKV[bk]!==v) setTimeout(()=>{clearPk(bk);toast('品項已變更，請重新選擇批號');},0);
+  }
   s.textContent=dispItem(v);s.classList.remove('ph');b.classList.add('on');
   const fw=b.closest('.fw'); fw.classList.add('ok');
   (fw.closest('.fg')||fw).classList.add('has-val');
@@ -805,9 +815,43 @@ function setPk(k,v){
 }
 
 /* ── SALES ── */
+// ── 近效期提醒 ────────────────────────────────────────────────
+// 每次「開網頁」出現一次（不是每次登入）——因為登入狀態會長期保留，
+// 綁在登入事件上等於幾乎不會再跳出來。用一個模組層級的旗標控制，
+// 頁面重新載入才會歸零，畫面重繪不會重複彈出。
+let EXPIRY_ALERT_SHOWN=false;
+function maybeShowExpiryAlert(){
+  if(EXPIRY_ALERT_SHOWN)return;
+  const rows=nearExpiryRecs();
+  if(!rows.length)return;
+  EXPIRY_ALERT_SHOWN=true;
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('expRef').textContent=`${rows.length} 筆`;
+  document.getElementById('expBody').innerHTML=
+    `<div class="exp-lead">以下備貨尚未送貨，有效日期在 ${NEAR_EXPIRY_MONTHS} 個月內。<b>請與醫院確認先進先出貨況。</b></div>`+
+    rows.map(x=>{
+      const expired=String(x.expiryDate)<today;
+      return `<div class="exp-row" data-editrid="${esc(x.recordId)}">
+        <div class="exp-main">
+          <div class="exp-t">${esc(dispItem(x.item)||'（未指定品項）')}<span class="exp-b mn">${esc(x.batch||'無批號')}</span></div>
+          <div class="exp-m">${esc(x.customer||'未填客戶')}　備貨 ${esc(x.stockDate||'—')}</div>
+        </div>
+        <div class="exp-d ${expired?'over':''}"><span class="exp-dk">${expired?'已過期':'效期'}</span><span class="mn">${esc(x.expiryDate)}</span></div>
+      </div>`;
+    }).join('');
+  document.getElementById('expMv').classList.add('on');
+}
+function closeExpiryAlert(){ document.getElementById('expMv').classList.remove('on'); }
+function goPendNearExpiry(){
+  closeExpiryAlert();
+  PFI=''; PF_NEAR=true;
+  tab('pend',document.querySelectorAll('#salesApp .nav-b')[3]);
+  renderPend();
+}
 function initSales(){
   qd('f-sd', 0);
   renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderPend();renderLogs();fillCount();
+  maybeShowExpiryAlert();
 }
 let SALES_LOGS_LOADED=false;
 async function ensureSalesLogsLoaded(){
@@ -1075,12 +1119,14 @@ function srEditBtn(x){
 }
 function recSubRow(x){
   const sh=shipStatus(x)==='sh';
+  const nearExp=!sh&&isNearExpiry(x.expiryDate);
   return `<div class="rc-sr" data-editrid="${esc(x.recordId)}">
     <div class="sr-main">
       <div class="sr-head">
         ${typeBadge(x.type)||'<span class="tbadge o">—</span>'}
         <span class="sr-cat">${esc(x.category||'未填科別')}</span>
         <span class="sr-st ${sh?'g':'h'}">${sh?'已送貨':'未送貨'}</span>
+        ${x.expiryDate?`<span class="sr-exp${nearExp?' near':''}">效期 ${esc(x.expiryDate)}</span>`:''}
       </div>
       <div class="sr-grid">${srCell(x,'batch',1)}${srCell(x,'shipDate',1)}${srCell(x,'orderNo',1)}</div>
       ${x.remark?`<div class="sr-remark">備註 ${esc(x.remark)}</div>`:''}
@@ -1282,8 +1328,15 @@ function pendSubRow(x){
   </div>`;
 }
 // 待補齊頁的品項篩選（跟「我的紀錄」上方的品項膠囊同一套操作方式）
-let PFI='';
+let PFI='', PF_NEAR=false;
 function setPendItem(v){ PFI=v; renderPend(); }
+function togglePendNear(){ PF_NEAR=!PF_NEAR; renderPend(); }
+function renderPendNearChip(){
+  const el=document.getElementById('pendNearChips'); if(!el)return;
+  const n=pendRecs().filter(x=>isNearExpiry(x.expiryDate)).length;
+  el.innerHTML=`<button class="chip ${PF_NEAR?'on':''} chip-near" onclick="togglePendNear()">近效期（${NEAR_EXPIRY_MONTHS} 個月內）<span class="n">${n}</span></button>`+
+    (PF_NEAR?`<button class="chip" onclick="togglePendNear()">顯示全部</button>`:'');
+}
 function renderPendItemChips(){
   const el=document.getElementById('pendItemChips'); if(!el)return;
   const cnt={};
@@ -1297,14 +1350,16 @@ function renderPendItemChips(){
 function renderPend(){
   const all=pendRecs();
   renderPendItemChips();
-  const rows=PFI?(PFI==='__none__'?all.filter(x=>!x.item):all.filter(x=>x.item===PFI)):all.slice();
+  renderPendNearChip();
+  let rows=PFI?(PFI==='__none__'?all.filter(x=>!x.item):all.filter(x=>x.item===PFI)):all.slice();
+  if(PF_NEAR) rows=rows.filter(x=>isNearExpiry(x.expiryDate));
   const n=all.length;
   document.getElementById('pCnt').textContent=n;document.getElementById('pCnt2').textContent=n;
   document.getElementById('pAlert').style.display=n?'flex':'none';
   document.getElementById('pDot').style.display=n?'inline-block':'none';
   const el=document.getElementById('pendList');
   if(!n){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-t">目前沒有待補齊項目</div><div class="emp-s">所有資料都已完整</div></div></div>`;return;}
-  if(!rows.length){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-t">這個品項目前沒有待補齊項目</div><div class="emp-s">請切換上方的品項篩選</div></div></div>`;return;}
+  if(!rows.length){el.innerHTML=`<div class="pn"><div class="emp"><div class="emp-t">${PF_NEAR?'目前沒有近效期的待補齊項目':'這個品項目前沒有待補齊項目'}</div><div class="emp-s">請調整上方的篩選條件</div></div></div>`;return;}
 
   rows.sort((a,b)=>(b.stockDate||'').localeCompare(a.stockDate||'')
     ||byItemOrder(a.item||'',b.item||'')||String(a.batch||'').localeCompare(String(b.batch||'')));
@@ -1328,6 +1383,7 @@ function renderPend(){
           <span>批號 <b class="mn">${esc(f.batch||'—')}</b></span>
           <span>發票 <b class="mn">${esc(f.invoiceNo||'—')}</b></span>
           <span>借出單 <b class="mn">${esc(f.loanOut||'—')}</b></span>
+          ${f.expiryDate?`<span class="${isNearExpiry(f.expiryDate)?'exp-warn':''}">效期 <b class="mn">${esc(f.expiryDate)}</b></span>`:''}
           <span style="color:var(--bad)">共缺 <b style="color:var(--bad)">${missTotal}</b> 個欄位</span>
         </div>
         <div class="rc-sub" id="g${i}">${its.map(pendSubRow).join('')}</div>
@@ -2109,6 +2165,55 @@ function quickClearAdminFilter(col){ delete HF[col]; renderAChips(); renderGrid(
 // 行政總表跟業務「我的紀錄」共用同一套彈窗機制，用 HF_CTX 分辨目前是哪一邊：
 // HF＝行政總表的篩選狀態，RF＝業務我的紀錄的篩選狀態。[欄位]＝「要排除、不顯示」的值集合，
 // 沒有這個 key 或集合是空的＝該欄沒有篩選（全部顯示）
+// ── 批號 ↔ 有效日期 對照（來源：試算表的「批號」分頁）────────────────
+// 登入後抓一次就放著，切品項、開關視窗都不會再打 API。
+// 這張表不常變動，所以不必即時同步；按右上角「更新」時會一併重抓。
+let BATCHES={}, BATCH_LOADED=false, BATCH_UNMATCHED=[];
+async function loadBatches(){
+  const res=await api('getBatches',{});
+  if(res&&res.status==='success'){
+    BATCHES=res.items||{}; BATCH_UNMATCHED=res.unmatched||[]; BATCH_LOADED=true;
+    if(res.error) console.warn('[批號對照表]',res.error);
+  }
+}
+function batchListFor(item){
+  if(!item)return [];
+  return (BATCHES[item]||[]).map(x=>x.b);
+}
+function batchInfo(item,batch){
+  return (BATCHES[item]||[]).find(x=>x.b===batch)||null;
+}
+// 下拉選單裡每個批號右側顯示的效期。剩不到 8 個月會標紅，提醒優先出這一批。
+function batchSubLabel(item,batch){
+  const info=batchInfo(item,batch); if(!info)return '';
+  const near=isNearExpiry(info.e);
+  return `<span class="pk-exp${near?' near':''}">效期 ${esc(info.e)}${info.q?`　庫存 ${nf(info.q)}`:''}</span>`;
+}
+function batchEmptyMsg(item){
+  if(!item)return '請先選擇品項，才能列出該品項的批號';
+  if(!BATCH_LOADED)return '批號對照表載入中…';
+  return `「${esc(dispItem(item))}」在批號分頁裡找不到任何批號，可直接輸入`;
+}
+function GED_ITEM(){
+  if(PKV['g-it'])return PKV['g-it'];
+  const its=GROUPS[GEDI]; return (its&&its[0]&&its[0].item)||'';
+}
+// ── 近效期判定：有效日期距今 8 個月以內（含已過期）──────────────
+const NEAR_EXPIRY_MONTHS=8;
+function nearExpiryLimit(){
+  const d=new Date(); d.setMonth(d.getMonth()+NEAR_EXPIRY_MONTHS);
+  return d.toISOString().slice(0,10);
+}
+function isNearExpiry(exp){
+  if(!exp)return false;
+  return String(exp)<=nearExpiryLimit();
+}
+// 未送貨（沒有送貨日期）且效期在 8 個月內的自己的紀錄
+function nearExpiryRecs(){
+  return DB.records.filter(x=>x.sales===CUR && !x.shipDate && isNearExpiry(x.expiryDate))
+    .sort((a,b)=>String(a.expiryDate||'').localeCompare(String(b.expiryDate||'')));
+}
+
 let HF={},RF={};
 function hfActive(state,col){return !!(state[col] && state[col].size);}
 
