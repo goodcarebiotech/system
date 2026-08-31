@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;600;700&family=Noto+Serif+TC:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=8">
+<link rel="stylesheet" href="styles.css?v=9">
 </head>
-<script type="module" src="firebase-init.js?v=8"></script>
+<script type="module" src="firebase-init.js?v=9"></script>
 
 <body>
 
@@ -125,9 +125,10 @@
       <div class="st-u w"><div class="v" id="s4">0</div><div class="k">待補齊（全部）</div></div>
     </div>
     <div class="pn">
-      <div class="pn-h"><span class="pn-t">紀錄總覽</span>
+      <div class="pn-h pn-h-tools">
+        <div class="cf-r" id="mChips"></div>
         <div class="seg"><button class="on" id="vG" onclick="setView('group')">依日期分組</button><button id="vL" onclick="setView('list')">清單</button></div></div>
-      <div class="cf"><div class="cf-r" id="mChips"></div><div class="af-chips" id="activeFilterChips"></div></div>
+      <div class="af-chips" id="activeFilterChips" style="padding:0 16px"></div>
       <div class="cf"><div class="cf-h">品項</div><div class="cf-r" id="iChips"></div></div>
       <div id="recCards" style="padding:16px"></div>
       <div id="recTableWrap">
@@ -145,7 +146,6 @@
         </div>
       </div>
     </div>
-    <div class="pn"><div class="pn-h"><span class="pn-t">品項分佈</span></div><div class="pn-b" id="ibRec"></div></div>
   </section>
 
   <section class="pg" id="pg-stats">
@@ -505,6 +505,6 @@
   </div>
 </div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
