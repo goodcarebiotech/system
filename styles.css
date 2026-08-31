@@ -1026,7 +1026,7 @@ input[type="date"].fb{padding-right:38px}
 @media(max-width:560px){
   :root{--gut:14px}
   body{font-size:13.5px}
-  .wrap,.pg{padding-left:16px;padding-right:16px}
+  .pg{padding-left:16px;padding-right:16px} /* 修正：.wrap 不能有左右內距，否則深藍列與分頁列會跟著內縮 */
   .pn{margin-bottom:14px;border-radius:var(--r)}
   .pn-h{padding:14px 16px}
   .pn-b{padding:16px}
@@ -1128,38 +1128,13 @@ input[type="date"].fb{padding-right:38px}
 .rc-sr.rc-sr-stack .sr-head{display:flex;align-items:center;gap:8px}
 .rc-sr.rc-sr-stack .sr-head .sr-ed{margin-left:auto}
 
-/* ── 6. 左右留白收窄，把空間還給資料 ── */
-.wrap,.bar-in,.nav-in{max-width:720px}
-.pg{max-width:720px;padding:16px 14px 40px}
-.pk-s{max-width:720px}
-@media(max-width:560px){
-  .wrap,.bar-in,.nav-in,.pg{max-width:none}
-  .pg{padding:14px 10px 40px}
-  .pn-b{padding:14px 12px}
-  .pn-h{padding:12px 12px}
-  #recCards{padding:12px!important}
-  .af-chips{padding:0 12px!important}
-}
+
 
 /* ═════════ Round 9 ═════════ */
 
-/* ── 1. 桌機版維持原本的版面：統計四欄、寬度回到 520px ── */
-@media(min-width:561px){
-  .wrap,.bar-in,.nav-in{max-width:640px}
-  .pg{max-width:640px;padding:18px 16px 40px}
-  .pk-s{max-width:640px}
-  .st{display:flex}
-  .st-u{flex:1;padding:18px 8px 16px;border-bottom:none}
-  .st-u .v{font-size:24px}
-  .st-u .k{font-size:10px}
-}
 
-/* ── 3. 手機版頂端列滿版，不留左右空白 ── */
-@media(max-width:560px){
-  .bar{padding:11px 14px}
-  .bar-in{max-width:none;margin:0;width:100%}
-  .nav-in{max-width:none}
-}
+
+
 
 /* ── 4. 鉛筆鈕下方的空間讓給明細：展開後的清單向右延伸到卡片邊緣 ── */
 .rc-sub.o{margin-right:-44px;padding-right:12px}
@@ -1206,32 +1181,77 @@ input[type="date"].fb{padding-right:38px}
    原本 body 上有 padding-left/right:env(safe-area-inset-*)，新版 iOS Safari 的浮動
    工具列會回報非零的安全區域值，整個 .wrap（含深藍列與分頁列）就被往內推，
    兩側露出底色。安全區域的內距要加在「內容」上，不能加在會讓背景一起縮進去的外層。 */
-body{padding-left:0;padding-right:0}
-.wrap{width:100%}
-.bar{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
-.nav-in{padding-left:max(4px,env(safe-area-inset-left));padding-right:max(4px,env(safe-area-inset-right))}
-@media(max-width:560px){
-  .bar{padding:11px max(14px,env(safe-area-inset-left)) 11px max(14px,env(safe-area-inset-right))}
-  .pg{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
-}
+
 
 /* ── 1. 電腦版：像試算表一樣寬 ──
    表單與卡片類頁面維持易讀寬度（過寬的表單反而難填），
    但「我的紀錄」整頁放到最寬，清單檢視就能一次看到所有欄位。 */
-@media(min-width:900px){
-  .wrap,.bar-in,.nav-in{max-width:1440px}
-  .pg{max-width:860px;padding:22px 20px 48px}
-  #pg-rec{max-width:1440px;padding:22px 24px 48px}
-  #pg-rec .tsc{max-height:none}
-  #pg-rec table.dt{font-size:13px}
-  #pg-rec table.dt td.pad{padding:7px 10px}
-  .pk-s{max-width:860px}
-}
-@media(min-width:1500px){
-  .wrap,.bar-in,.nav-in,#pg-rec{max-width:1720px}
-}
+
 
 /* ── 3. 待補齊明細的編輯鈕縮到與「待補齊」標籤同尺寸 ── */
 .rc-sr.rc-sr-stack .sr-head .sr-ed{
   margin-left:auto;padding:2px 10px;font-size:10px;font-weight:600;
   border-radius:var(--r-pill);line-height:1.6}
+
+
+/* ══════════════════════════════════════════════════════════════
+   版面寬度：全站唯一的定義處
+   之前這組規則散在第 6、8、9、10 輪四個地方互相覆蓋，才會出現
+   「改了沒反應」「以為是 max-width 其實是 padding」這類問題。
+   以下是唯一的真相來源，要調寬度只改這裡。
+
+   結構前提：.bar（深藍列）與 .nav（分頁列）是 .wrap 的子元素，
+   它們的背景要滿版，所以 .wrap 絕對不可以有 max-width 以外的左右內距——
+   一加內距，背景就會跟著內縮，兩側露出底色。內距一律加在 .bar-in／.nav-in／.pg 上。
+   ══════════════════════════════════════════════════════════════ */
+.wrap{width:100%;max-width:none;padding-left:0;padding-right:0}
+body{padding-left:0;padding-right:0}
+
+/* 深藍列與分頁列：背景永遠滿版，只有內容置中 */
+.bar{padding-left:0;padding-right:0}
+.bar-in{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+.nav-in{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+
+/* 手機（≤560px）：內容區滿版，只留必要的呼吸空間 */
+@media(max-width:560px){
+  .bar{padding-top:11px;padding-bottom:11px}
+  .bar-in,.nav-in,.pg{max-width:none}
+  .pg{padding:14px max(12px,env(safe-area-inset-left)) 40px max(12px,env(safe-area-inset-right))}
+  .pn-b{padding:14px 12px}
+  .pn-h{padding:12px 12px}
+  #recCards{padding:12px!important}
+  .af-chips{padding:0 12px!important}
+  .st{display:flex}
+}
+
+/* 小螢幕筆電／平板（561–899px） */
+@media(min-width:561px) and (max-width:899px){
+  .bar-in,.nav-in,.pg{max-width:720px;margin:0 auto}
+  .pg{padding:18px 16px 40px}
+  .pk-s{max-width:720px}
+  .st{display:flex}
+  .st-u{flex:1;padding:18px 8px 16px;border-bottom:none}
+  .st-u .v{font-size:24px}
+  .st-u .k{font-size:10px}
+}
+
+/* 桌機（≥900px）：表單類頁面維持易讀寬度，「我的紀錄」放到最寬像試算表 */
+@media(min-width:900px){
+  .bar-in,.nav-in{max-width:1440px;margin:0 auto}
+  .pg{max-width:880px;margin:0 auto;padding:24px 20px 48px}
+  #pg-rec{max-width:1440px;padding:24px 24px 48px}
+  #pg-rec .tsc{max-height:none}
+  #pg-rec table.dt{font-size:13px}
+  #pg-rec table.dt td.pad{padding:7px 10px}
+  .pk-s{max-width:880px}
+  .st{display:flex}
+  .st-u{flex:1;padding:18px 8px 16px;border-bottom:none}
+  .st-u .v{font-size:24px}
+  .st-u .k{font-size:10px}
+}
+@media(min-width:1500px){
+  .bar-in,.nav-in,#pg-rec{max-width:1720px}
+}
+
+/* 行政／報表（.wrap.wide）本來就是滿版，維持不變 */
+.wrap.wide .bar-in,.wrap.wide .nav-in,.wrap.wide .pg{max-width:none}
