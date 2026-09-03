@@ -10,16 +10,38 @@
 <title>備貨管理系統</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+TC:wght@300;400;500;600;700&family=Noto+Serif+TC:wght@500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=15">
+<!-- 【字型精簡】原本載入 9 個字重（Sans TC 五個、Serif TC 兩個、Mono 兩個）。
+     中日韓字型即使有 unicode-range 分片，每多一個字重就是一整組分片檔，
+     在行動網路上是首屏最大的單一成本。現在砍到 5 個：
+       Noto Sans TC 400/500/700（原本的 300 與 600 分別用 400 與 700 承接，視覺差異極小）
+       Noto Serif TC 600（原本的 500 併入 600）
+       IBM Plex Mono 500（原本的 400 併入 500）
+     字型流量約降 45%，畫面觀感沒有可察覺的差別。 -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=16">
 </head>
-<script type="module" src="firebase-init.js?v=15"></script>
+<script type="module" src="firebase-init.js?v=16"></script>
 
 <body>
 
 <!-- ══ LOGIN ══ -->
 <!-- 開場遮罩：在確認登入狀態之前先蓋住畫面，避免「登入頁閃一下」或「進去又被彈出來」 -->
-<div id="bootMask" class="boot-mask"><div class="boot-dot"></div></div>
+<!-- 【第1波修正】開場遮罩不再由固定 6 秒的計時器掀開，改為綁定身分確認流程本身。
+     多了兩塊內容：bootStep 顯示目前進行到哪一步（驗證身分／確認權限／載入資料），
+     bootSlow 在超過門檻時出現，提供「重試」與「改用登入畫面」兩個出口——
+     舊版是時間一到就直接露出登入頁，使用者按下去卻因為驗證還在進行中而毫無反應。 -->
+<div id="bootMask" class="boot-mask">
+  <div class="boot-dot"></div>
+  <div class="boot-step" id="bootStep">正在確認登入狀態…</div>
+  <div class="boot-slow" id="bootSlow">
+    <div class="boot-slow-t">連線比平常久</div>
+    <div class="boot-slow-s">可能是網路較慢，或伺服器正在喚醒中。</div>
+    <div class="boot-slow-a">
+      <button type="button" onclick="bootRetry()">重新嘗試</button>
+      <button type="button" class="ghost" onclick="bootGiveUp()">改用登入畫面</button>
+    </div>
+  </div>
+</div>
 
 <div class="login-wrap" id="login">
   <div class="login-card">
@@ -520,6 +542,6 @@
   </div>
 </div>
 
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>
