@@ -1,5 +1,5 @@
 :root{
-  --ink:#101720; 
+  --ink:#101720;
   --paper:#FFFFFF; 
   --shell:#F0F0EB; 
   --sub:#FAFBFC;
@@ -1354,3 +1354,9 @@ body.offline-mode .session-bar{background:var(--warn,#8A5D0B)}
 .draft-bar-a button{padding:7px 13px;font-size:11.5px;font-weight:500;cursor:pointer;
   background:var(--ink);color:#fff;border:none;border-radius:var(--r-s);letter-spacing:.03em}
 .draft-bar-a button.ghost{background:transparent;color:#6E4A05;border:1px solid #E5D2A8}
+
+/* 診斷資訊面板：可框選、可截圖，不是只丟進剪貼簿 */
+.diag-text{width:100%;min-height:260px;border:1px solid var(--line);border-radius:var(--r-s);
+  padding:12px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.7;
+  color:var(--tx-2);background:var(--sub);resize:vertical;white-space:pre;overflow:auto;
+  -webkit-user-select:text;user-select:text}

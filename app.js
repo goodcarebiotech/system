@@ -1,7 +1,7 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
 // 版本號：每次發版請同步更新這裡與 index.html 的 ?v= 參數。
 // 診斷資訊會帶上它，你才分辨得出業務手上跑的到底是哪一版。
-const APP_VERSION='2026.09.03-w1.2';
+const APP_VERSION='2026.09.03-w1.3';
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
@@ -172,18 +172,51 @@ function __diag(){
 }
 window.__diag=__diag;
 
+// 【補丁 w1.3】改成把診斷資訊「顯示在畫面上」，而不是只丟進剪貼簿。
+// 舊版按下去只出現一句「已複製，請貼給系統管理員」——但你自己就是管理員，
+// 而且看不到內容、不知道複製到的是什麼，手機上也不方便貼上。
+// 現在直接開一個可以框選、可以截圖的面板，複製按鈕只是額外的方便。
 function copyDiagnostics(){
   let buf=[];
   try{ buf=JSON.parse(localStorage.getItem(ERR_BUF_KEY)||'[]'); }catch(e){}
-  const txt='【備貨系統診斷資訊】\n產生時間：'+new Date().toLocaleString('zh-TW')+
-    '\n使用者：'+(CUR_EMAIL||'(未登入)')+'　角色：'+ROLE+
-    '\n程式版本：'+APP_VERSION+'\n裝置：'+navigator.userAgent+
-    '\n\n最近 '+buf.length+' 筆錯誤：\n'+
-    (buf.length?buf.map(e=>`[${e.t}] ${e.kind}\n  ${e.detail}`).join('\n'):'（沒有紀錄）');
-  const done=()=>toast('診斷資訊已複製，請貼給系統管理員');
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(txt).then(done).catch(()=>{ prompt('請手動複製以下內容：',txt); });
-  }else{ prompt('請手動複製以下內容：',txt); }
+  const fbReady=(typeof FIREBASE_READY!=='undefined')&&FIREBASE_READY;
+  const txt='【備貨系統診斷資訊】\n'+
+    '產生時間：'+new Date().toLocaleString('zh-TW')+'\n'+
+    '程式版本：'+APP_VERSION+'\n'+
+    '使用者：'+(CUR_EMAIL||'(未登入)')+'　角色：'+ROLE+'\n'+
+    'Firebase 就緒：'+fbReady+'　離線模式：'+((typeof OFFLINE_MODE!=='undefined')&&OFFLINE_MODE)+'\n'+
+    '畫面寬度：'+window.innerWidth+'　裝置：'+navigator.userAgent+'\n'+
+    '\n最近 '+buf.length+' 筆錯誤：\n'+
+    (buf.length?buf.map(e=>'['+e.t+'] '+e.kind+'\n  '+e.detail).join('\n'):'（沒有紀錄，這是好事）');
+
+  let mv=document.getElementById('diagMv');
+  if(mv) mv.remove();
+  mv=document.createElement('div');
+  mv.id='diagMv'; mv.className='mv on';
+  const box=document.createElement('div'); box.className='mb';
+  const head=document.createElement('div'); head.className='mh';
+  const ht=document.createElement('span'); ht.className='mh-t'; ht.textContent='診斷資訊';
+  head.appendChild(ht);
+  const body=document.createElement('div'); body.className='mbd';
+  const pre=document.createElement('textarea');
+  pre.className='diag-text'; pre.readOnly=true; pre.value=txt;
+  body.appendChild(pre);
+  const act=document.createElement('div'); act.className='ma';
+  const bClose=document.createElement('button');
+  bClose.textContent='關閉'; bClose.addEventListener('click',()=>mv.remove());
+  const bCopy=document.createElement('button');
+  bCopy.className='sv'; bCopy.textContent='複製全部';
+  bCopy.addEventListener('click',()=>{
+    pre.select(); pre.setSelectionRange(0,999999);
+    let ok=false;
+    try{ ok=document.execCommand('copy'); }catch(e){}
+    if(!ok&&navigator.clipboard) navigator.clipboard.writeText(txt).catch(()=>{});
+    toast('已複製，可以貼進對話或訊息裡');
+  });
+  act.appendChild(bClose); act.appendChild(bCopy);
+  box.appendChild(head); box.appendChild(body); box.appendChild(act);
+  mv.appendChild(box);
+  document.body.appendChild(mv);
 }
 window.addEventListener('error',e=>{
   logClientError('js-error',(e.message||'')+' @ '+(e.filename||'')+':'+(e.lineno||''));
@@ -1145,27 +1178,70 @@ function loadDraftMeta(){
   return null;
 }
 function restoreDraft(){
-  const d=loadDraftMeta(); if(!d)return;
+  DRAFT_BAR_DISMISSED=true;
+  const d=loadDraftMeta();
+  if(!d){ dismissDraftBar(); toast('草稿已經不存在了',true); return; }
+  let n=0, failed=[];
+  // 先切到備貨登記頁：使用者可能是在別的分頁按下去的，還原了卻看不到，
+  // 那跟「沒反應」在體感上是同一件事。
+  try{
+    const navs=document.querySelectorAll('#salesApp .nav-b');
+    if(navs[0]&&!document.getElementById('pg-reg').classList.contains('on')) tab('reg',navs[0]);
+  }catch(e){}
   DRAFT_FIELDS_TX.forEach(id=>{
-    const e=document.getElementById(id);
-    if(e&&d.tx[id]){ e.value=d.tx[id]; mk(e); }
+    try{
+      const e=document.getElementById(id);
+      if(e&&d.tx[id]){ e.value=d.tx[id]; mk(e); n++; }
+    }catch(err){ failed.push(id+':'+err.message); }
   });
-  DRAFT_FIELDS_PK.forEach(k=>{ if(d.pk[k]) setPk(k,d.pk[k]); });
-  if(d.qty){ BQ=Math.max(1,Math.min(50,d.qty)); bq(0); }
-  fillCount(); dismissDraftBar(); toast('已還原上次未送出的內容');
+  DRAFT_FIELDS_PK.forEach(k=>{
+    try{ if(d.pk[k]){ setPk(k,d.pk[k]); n++; } }
+    catch(err){ failed.push(k+':'+err.message); }
+  });
+  try{ if(d.qty){ BQ=Math.max(1,Math.min(50,d.qty)); bq(0); } }catch(e){}
+  try{ fillCount(); }catch(e){}
+  dismissDraftBar();
+  if(failed.length){
+    logClientError('draft-restore','部分欄位還原失敗：'+failed.join('｜'));
+    toast('草稿還原時有 '+failed.length+' 個欄位出錯，請按「診斷」回報',true);
+  }else if(n===0){
+    // 草稿存在但沒有任何內容可還原 —— 代表存檔那一端有問題，不是還原這一端。
+    logClientError('draft-empty','草稿存在但無可還原內容：'+JSON.stringify(d));
+    toast('這份草稿是空的，已清除',true);
+    clearDraft();
+  }else{
+    toast('已還原 '+n+' 個欄位');
+  }
 }
 function dismissDraftBar(){ const el=document.getElementById('draftBar'); if(el)el.remove(); }
-function discardDraft(){ clearDraft(); dismissDraftBar(); toast('草稿已捨棄'); }
+function discardDraft(){ DRAFT_BAR_DISMISSED=true; clearDraft(); dismissDraftBar(); toast('草稿已捨棄'); }
+// 【補丁 w1.3】草稿列改用 addEventListener 直接綁定，不再用 inline onclick。
+// inline onclick 依賴「函式掛得到全域」這個假設，而這個假設在不同瀏覽器、不同載入
+// 狀態下不一定成立，出事時又完全不會報錯——按下去就是沒反應，最難查。
+// 直接把函式參考綁在元素上，就沒有這層不確定性。
+//
+// DRAFT_BAR_DISMISSED：initSales 每次背景靜默同步都會被呼叫一次，如果不擋，
+// 使用者剛按完「接續填寫」，下一次同步又會把草稿列重新畫出來，看起來就像沒作用。
+let DRAFT_BAR_DISMISSED=false;
 function maybeShowDraftBar(){
+  if(DRAFT_BAR_DISMISSED)return;
   const d=loadDraftMeta(); if(!d)return;
   dismissDraftBar();
   const host=document.getElementById('pg-reg'); if(!host)return;
   const el=document.createElement('div');
   el.id='draftBar'; el.className='draft-bar';
   const when=new Date(d.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-  el.innerHTML='<div class="draft-bar-t">有一份未送出的草稿（'+when+'）</div>'+
-    '<div class="draft-bar-a"><button type="button" onclick="restoreDraft()">接續填寫</button>'+
-    '<button type="button" class="ghost" onclick="discardDraft()">捨棄</button></div>';
+  const t=document.createElement('div');
+  t.className='draft-bar-t'; t.textContent='有一份未送出的草稿（'+when+'）';
+  const a=document.createElement('div'); a.className='draft-bar-a';
+  const bOk=document.createElement('button');
+  bOk.type='button'; bOk.textContent='接續填寫';
+  bOk.addEventListener('click',restoreDraft);
+  const bNo=document.createElement('button');
+  bNo.type='button'; bNo.className='ghost'; bNo.textContent='捨棄';
+  bNo.addEventListener('click',discardDraft);
+  a.appendChild(bOk); a.appendChild(bNo);
+  el.appendChild(t); el.appendChild(a);
   host.insertBefore(el,host.firstChild);
 }
 
