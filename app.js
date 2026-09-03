@@ -1,4 +1,7 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
+// 版本號：每次發版請同步更新這裡與 index.html 的 ?v= 參數。
+// 診斷資訊會帶上它，你才分辨得出業務手上跑的到底是哪一版。
+const APP_VERSION='2026.09.03-w1';
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
@@ -80,14 +83,28 @@ async function getIdToken(forceRefresh){
 // 每一次 API 呼叫都把 token 一起送出，由後端驗證身分並決定能看／能改哪些資料。
 // 後端回 code:'AUTH' 時（token 剛好在這一秒過期是最常見的情況），
 // 自動強制換發一張新的再重試一次；還是不行才請使用者重新登入。
+// ── 【第1波修正 · 項目3】請求逾時 ────────────────────────────
+// 舊版的 fetch 沒有任何逾時機制。Apps Script 塞住、或行動網路處於「連得上但傳不動」
+// 的半死狀態時，這個 Promise 既不會 resolve 也不會 reject —— 使用者看到的就是一顆
+// 永遠轉不完的圈，而且完全不知道要等還是要重按。這是「連不到」體感最差的一種形式。
+//
+// 現在用 AbortController 設一個上限。GAS 冷啟動確實可能要 8～10 秒，所以門檻不能太短，
+// 但也不能沒有：25 秒之後一律視為逾時，回傳一個明確的錯誤讓呼叫端決定要不要重試。
+const API_TIMEOUT_MS=25000;
 async function api(a,p,_retried){
+  const ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+  const timer=ctrl?setTimeout(()=>ctrl.abort(),API_TIMEOUT_MS):null;
   try{
     const idToken=await getIdToken(_retried===true);
-    const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p,idToken})});
+    const res=await fetch(CFG.GAS_URL,{method:'POST',body:JSON.stringify({action:a,...p,idToken}),
+      signal:ctrl?ctrl.signal:undefined});
     const text=await res.text();
     let json;
     try{ json=JSON.parse(text); }
-    catch(parseErr){ return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定。'}; }
+    catch(parseErr){
+      logClientError('api-parse','action='+a+' 回傳非 JSON，前 200 字：'+String(text).slice(0,200));
+      return{status:'error',message:'伺服器回傳了非預期的內容，請檢查 GAS 部署設定。'};
+    }
     if(json&&json.code==='AUTH'){
       // 第一次失敗多半只是 token 剛好在這一秒過期，強制換發一張新的再試一次。
       if(!_retried) return api(a,p,true);
@@ -104,10 +121,57 @@ async function api(a,p,_retried){
       }
     }else if(json&&json.status==='success'){
       hideSessionBar(); // 只要有任何一次請求成功，就代表連線恢復了
+      if(typeof OFFLINE_MODE!=='undefined'&&OFFLINE_MODE) exitOfflineMode();
     }
     return json;
-  }catch(e){return{status:'error',message:'連線失敗：'+e.message};}
+  }catch(e){
+    if(e&&e.name==='AbortError'){
+      logClientError('api-timeout','action='+a+' 超過 '+(API_TIMEOUT_MS/1000)+' 秒未回應');
+      return{status:'error',code:'TIMEOUT',message:'伺服器超過 '+(API_TIMEOUT_MS/1000)+' 秒沒有回應，請稍後再試一次'};
+    }
+    logClientError('api-network','action='+a+'：'+(e&&e.message||e));
+    return{status:'error',code:'NETWORK',message:'連線失敗：'+(e&&e.message||e)};
+  }finally{ if(timer)clearTimeout(timer); }
 }
+
+// ── 【第1波修正 · 項目14】前端錯誤蒐集 ───────────────────────
+// 現在系統出問題，只能靠業務口頭說「怪怪的」，而「怪怪的」永遠無法重現。
+// 這裡把錯誤留在本機的環狀緩衝區（最多 30 筆，超過就丟掉最舊的），
+// 業務端可以按「複製診斷資訊」把它整包複製給你。
+//
+// 註：把錯誤自動送回 LOG 分頁需要後端新增一個 action，屬於第 2 波；
+// 這一波先做「留得下來、拿得出來」，不動 GAS，才能獨立部署與回退。
+const ERR_BUF_KEY='clientErrors:v1', ERR_BUF_MAX=30;
+function logClientError(kind,detail){
+  try{
+    const buf=JSON.parse(localStorage.getItem(ERR_BUF_KEY)||'[]');
+    buf.push({t:new Date().toISOString(),kind:kind,detail:String(detail||'').slice(0,500),
+      who:CUR_EMAIL||'(未登入)',role:ROLE,ua:navigator.userAgent.slice(0,120)});
+    while(buf.length>ERR_BUF_MAX) buf.shift();
+    localStorage.setItem(ERR_BUF_KEY,JSON.stringify(buf));
+  }catch(e){ /* 隱私模式下 storage 可能停用，忽略 */ }
+  if(window.console&&console.warn) console.warn('[診斷]',kind,detail);
+}
+function copyDiagnostics(){
+  let buf=[];
+  try{ buf=JSON.parse(localStorage.getItem(ERR_BUF_KEY)||'[]'); }catch(e){}
+  const txt='【備貨系統診斷資訊】\n產生時間：'+new Date().toLocaleString('zh-TW')+
+    '\n使用者：'+(CUR_EMAIL||'(未登入)')+'　角色：'+ROLE+
+    '\n程式版本：'+APP_VERSION+'\n裝置：'+navigator.userAgent+
+    '\n\n最近 '+buf.length+' 筆錯誤：\n'+
+    (buf.length?buf.map(e=>`[${e.t}] ${e.kind}\n  ${e.detail}`).join('\n'):'（沒有紀錄）');
+  const done=()=>toast('診斷資訊已複製，請貼給系統管理員');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(done).catch(()=>{ prompt('請手動複製以下內容：',txt); });
+  }else{ prompt('請手動複製以下內容：',txt); }
+}
+window.addEventListener('error',e=>{
+  logClientError('js-error',(e.message||'')+' @ '+(e.filename||'')+':'+(e.lineno||''));
+});
+window.addEventListener('unhandledrejection',e=>{
+  const r=e&&e.reason;
+  logClientError('promise-reject',(r&&(r.stack||r.message))||String(r));
+});
 
 function nowT(){
   const d = new Date();
@@ -127,7 +191,7 @@ let ROLE='sales',CUR='王大明',CUR_EMAIL='',VIEW='group',BQ=1,AQ=1,PKT=null,PK
 function renderModeBadges(){
   // ↻ 用獨立的 span 包起來，忙碌時直接讓這個字轉圈（見 .is-busy .ico-glyph），
   // 不再另外插入一顆白色的 loading 圈——手機上按鈕小，多一顆圈看起來就是「旁邊多一塊白白的」。
-  const html = `<div class="bar-out ico" id="__REFRESH__" title="重新整理" aria-label="重新整理"><span class="ico-glyph">↻</span></div><div class="bar-out" onclick="logout()">登出</div>`;
+  const html = `<div class="bar-out ico" id="__REFRESH__" title="重新整理" aria-label="重新整理"><span class="ico-glyph">↻</span></div><div class="bar-out" onclick="copyDiagnostics()" title="複製診斷資訊">診斷</div><div class="bar-out" onclick="logout()">登出</div>`;
   const slot1 = document.getElementById('modeBadgeSlot1');
   const slot2 = document.getElementById('modeBadgeSlot2');
   const slot3 = document.getElementById('modeBadgeSlot3');
@@ -148,37 +212,39 @@ function hideLoad(){document.getElementById('loadOverlay').style.display='none';
 // 登入後前端會呼叫 whoami，由後端回傳權威版本並覆寫這份資料（applyRoster）。
 // 所以新增／異動人員請改 gas.js 的 ROSTERS；這份不更新也不影響權限，
 // 因為所有資料權限都是後端依驗證後的信箱決定的，前端名冊只用來決定要顯示哪個畫面。
-let ROSTERS={
-  sales:[
-    {name:'翁培文',email:'mavish@goodcare-biotech.com.tw'},{name:'劉仲元',email:'marcus@goodcare-biotech.com.tw'},
-    {name:'郭其融',email:'lucas@goodcare-biotech.com.tw'},{name:'謝羽宸',email:'daphne-hsieh@goodcare-biotech.com.tw'},
-    {name:'羅彩鳳',email:'ran@goodcare-biotech.com.tw'},{name:'李雪梅',email:'mandy@goodcare-biotech.com.tw'},
-    {name:'李靜宜',email:'ella@goodcare-biotech.com.tw'},{name:'陳玉屏',email:'maggie@goodcare-biotech.com.tw'},
-    {name:'陳怡伶',email:'rita@goodcare-biotech.com.tw'},{name:'陳嬿伊',email:'amychen@goodcare-biotech.com.tw'},
-    {name:'李姸慧',email:'gina@goodcare-biotech.com.tw'},{name:'孫郁婷',email:'sunny@goodcare-biotech.com.tw'},
-    {name:'李佩盈',email:'patty@goodcare-biotech.com.tw'},{name:'徐純慧',email:'una@goodcare-biotech.com.tw'},
-    {name:'許智評',email:'deva@goodcare-biotech.com.tw'},{name:'陳文嬛',email:'renee@goodcare-biotech.com.tw'},
-    {name:'涂宇萱',email:'hannah@goodcare-biotech.com.tw'},{name:'楊智凱',email:'joseph@goodcare-biotech.com.tw'},
-    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
-  ],
-  admin:[
-    {name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},{name:'顧晨馨',email:'chenhsin@goodcare-biotech.com.tw'},
-    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},{name:'邱馨儀',email:'shinyi@goodcare-biotech.com.tw'},
-    {name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},{name:'李翊瑄',email:'vera@goodcare-biotech.com.tw'},
-    {name:'楊筱筠',email:'sherry@goodcare-biotech.com.tw'},{name:'盧語璇',email:'zoe@goodcare-biotech.com.tw'},
-    {name:'詹琇竹',email:'vicky@goodcare-biotech.com.tw'},{name:'江翰屏',email:'vicky-chiang@goodcare-biotech.com.tw'}
-  ],
-  manager:[
-    {name:'妙玉姐',email:'kelly@goodcare-biotech.com.tw'},{name:'陳家祈',email:'joanne@goodcare-biotech.com.tw'},
-    {name:'吳靜婷',email:'ivy@goodcare-biotech.com.tw'},{name:'周姝彣',email:'lala@goodcare-biotech.com.tw'},
-    {name:'謝昶明',email:'liam@goodcare-biotech.com.tw'}
-  ]
-};
+// ═══════════════════════════════════════════════════════════
+// 【第1波修正 · 項目15】名冊單一來源
+//
+// ── 舊版的問題 ──
+// 這裡原本硬寫了一份完整的人員名冊（19 位業務 + 10 位行政 + 5 位主管），
+// 跟 gas.js 那份是「兩份會各自漂移的正本」。人員異動要記得改兩個地方，
+// 而漏改前端這份的後果，配合離線快取放行，會讓已離職的人還進得到畫面。
+//
+// ── 現在的做法 ──
+// 前端不再保留任何人名與信箱。名冊一律由後端 whoami 回傳（applyRoster 寫入），
+// 或由 localStorage 的 identity 快取提供（那份也是後端給的，只是存了一份副本）。
+// 兩者都拿不到時，rolesForEmail() 會回傳空陣列 —— 也就是「不放行」，
+// 這正是安全的預設值：寧可擋住，也不要靠一份可能過期的名冊猜角色。
+//
+// 【維運提醒】人員異動請只改 gas.js 的 ROSTERS，這裡不需要、也不應該再新增任何人。
+// ═══════════════════════════════════════════════════════════
+let ROSTERS={ sales:[], admin:[], manager:[] };
 const ROLE_LABEL={sales:'業務登入',admin:'行政登入',manager:'報表'};
 function applyRoster(r){
-  if(!r||!r.sales||!r.sales.length)return;
+  if(!r)return;
+  // 前端名冊現在預設是空的（見上方說明），所以這裡不再要求 sales 非空才覆寫——
+  // 只要後端有回名冊就照單全收，避免「後端回了但前端沒採用」這種難查的落差。
   ROSTERS={sales:r.sales||[],admin:r.admin||[],manager:r.manager||[]};
+  try{ localStorage.setItem('roster:v1',JSON.stringify(ROSTERS)); }catch(e){}
 }
+// 開頁時先把上次的名冊讀回來當暫時值。它只影響「顯示哪個畫面」與角色切換鈕，
+// 真正的資料權限一律由後端依驗證後的信箱決定，所以這份快取不構成權限風險。
+(function restoreRoster(){
+  try{
+    const r=JSON.parse(localStorage.getItem('roster:v1')||'null');
+    if(r&&(r.sales||r.admin||r.manager)) ROSTERS={sales:r.sales||[],admin:r.admin||[],manager:r.manager||[]};
+  }catch(e){}
+})();
 function rolesForEmail(email){
   const roles=new Set(Object.keys(ROSTERS).filter(k=>ROSTERS[k].some(p=>p.email===email)));
   if(roles.has('manager')) roles.add('admin');
@@ -202,24 +268,85 @@ let SIGNIN_BUSY=false, LOGGING_OUT=false, AUTH_HANDLING=false;
 // 於是已登入的人會先看到登入頁閃一下；反過來若驗證失敗，又會先進到主畫面再被彈出來。
 // 現在改成先蓋一層開場畫面，等身分確認完成再決定要顯示登入頁還是主畫面。
 function hideBoot(){ const b=document.getElementById('bootMask'); if(b)b.style.display='none'; }
+function bootStep(msg){ const e=document.getElementById('bootStep'); if(e)e.textContent=msg; }
+
+// ═══════════════════════════════════════════════════════════
+// 【第1波修正 · 項目1】開場遮罩競態
+//
+// ── 舊版的問題 ──
+// 舊版有一行 setTimeout(hideBoot, 6000)，跟身分驗證流程完全沒有連動。
+// 而 whoami 是一次 Apps Script 的 POST，冷啟動時 3～8 秒是常態，於是：
+//   6 秒到 → 遮罩掀開 → 業務看到登入頁 → 以為要按登入 → 按下去
+//   → handleAuthedUser 因為 AUTH_HANDLING 鎖住而「靜默 return，什麼都不做」
+//   → 業務覺得按了沒反應 → 幾秒後前一次驗證跑完，畫面自己跳進去
+// 這就是「還沒跑完 Google 登入，畫面就自己進去了」的完整成因。
+//
+// ── 現在的做法 ──
+// 1. 遮罩只由「身分確認流程本身」收掉，不再有任何獨立的計時器去掀它。
+// 2. 逾時（12 秒）不掀開登入頁，而是在遮罩上換成「連線比平常久 + 重試 / 改用登入畫面」，
+//    把選擇權明確交給使用者，而不是讓他對著一個按了沒反應的按鈕。
+// 3. handleAuthedUser 重入時回傳「同一個進行中的 Promise」，不再靜默 return，
+//    所以就算使用者真的按了登入，也會正確地等到同一次驗證的結果。
+// ═══════════════════════════════════════════════════════════
+const BOOT_SLOW_MS=12000;
+let _bootSlowTimer=null, _bootDone=false;
+function bootShowSlow(){
+  const el=document.getElementById('bootSlow');
+  if(el&&!_bootDone) el.classList.add('on');
+}
+function bootArm(){
+  clearTimeout(_bootSlowTimer);
+  _bootSlowTimer=setTimeout(bootShowSlow,BOOT_SLOW_MS);
+}
+function bootFinish(){
+  _bootDone=true;
+  clearTimeout(_bootSlowTimer);
+  hideBoot();
+}
+// 「重新嘗試」：不重整整頁（重整會再付一次資源載入成本），只重跑一次身分確認。
+function bootRetry(){
+  const el=document.getElementById('bootSlow'); if(el)el.classList.remove('on');
+  bootStep('重新確認登入狀態…');
+  bootArm();
+  const u=window.__fb&&window.__fb.auth&&window.__fb.auth.currentUser;
+  if(u){ handleAuthedUser(u).finally(bootFinish); }
+  else { bootFinish(); }
+}
+// 「改用登入畫面」：使用者明確表示不想再等了。這時才露出登入頁，
+// 而且會把進行中的驗證標記為放棄，避免它稍後跑完又把畫面搶走。
+function bootGiveUp(){
+  AUTH_ABANDONED=true;
+  AUTH_HANDLING=false; _authInFlight=null;
+  bootFinish();
+}
+let AUTH_ABANDONED=false;
+
 window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
+  bootArm();
   // 已改為純彈窗登入，不再有 getRedirectResult 這一段（見 firebase-init.js 的說明）。
   // onAuthStateChanged 會在頁面重新載入、且先前登入狀態仍有效時自動觸發，
   // 使用者不用每次開網頁都重新登入一次。
   window.__fb.onAuthStateChanged(window.__fb.auth, (user)=>{
     FIREBASE_USER=user;
-    if(LOGGING_OUT||SIGNIN_BUSY||AUTH_HANDLING){ hideBoot(); return; }
+    if(LOGGING_OUT||SIGNIN_BUSY||AUTH_HANDLING){ return; } // 不在這裡收遮罩，交給流程本身收
     if(user && document.getElementById('login').style.display!=='none'){
-      handleAuthedUser(user).finally(hideBoot);
+      bootStep('確認使用權限…');
+      handleAuthedUser(user).finally(bootFinish);
     }else{
-      hideBoot(); // 沒有登入狀態，正常顯示登入畫面
+      bootFinish(); // 沒有登入狀態，正常顯示登入畫面
     }
   });
 });
-// 保險：萬一 Firebase 遲遲沒有回應（網路極差），最多蓋 6 秒就把開場畫面收掉，
-// 不要讓使用者對著一片空白不知道發生什麼事。
-setTimeout(hideBoot,6000);
+// 保險：Firebase SDK 本身載入失敗（CDN 被擋、企業防火牆）時，firebase-ready 永遠不會發出。
+// 這種情況下遮罩要收掉並顯示登入頁，讓使用者至少看得到錯誤說明，而不是對著一片深藍色。
+setTimeout(()=>{
+  if(!FIREBASE_READY&&!_bootDone){
+    bootFinish();
+    logClientError('firebase-init','15 秒內未收到 firebase-ready 事件，SDK 可能載入失敗');
+    showLoginDiag('無法載入 Google 登入服務。\n請確認網路可以連上 gstatic.com，或改用其他網路後重新整理。');
+  }
+},15000);
 
 function isInAppBrowser(){ return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent||''); }
 function isMobile(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'') || window.innerWidth<900; }
@@ -268,7 +395,11 @@ async function googleSignIn(btn){
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
     }
     const provider = window.__fb.makeProvider(); // 每次都是全新的 provider
+    setGoogleBtnText('等待 Google 驗證…');
     const result = await window.__fb.signInWithPopup(window.__fb.auth, provider);
+    // 【項目5】分段文案：使用者知道系統正在做什麼，就不會以為當機了。
+    // 這段等待通常是整個流程最久的一段（whoami + 載入資料），沒有敘事最容易被誤判成壞掉。
+    setGoogleBtnText('確認使用權限…');
     await handleAuthedUser(result.user);
   }catch(err){
     const code=(err&&err.code)||'';
@@ -304,14 +435,24 @@ async function googleSignIn(btn){
     setGoogleBtnText('使用 Google 帳號登入');
   }
 }
-async function handleAuthedUser(user){
-  if(AUTH_HANDLING) return;
+// 【第1波修正 · 項目1的另一半】重入時回傳「同一個進行中的 Promise」。
+// 舊版是 `if(AUTH_HANDLING) return;` —— 直接靜默結束，呼叫端拿到一個立刻 resolve 的
+// undefined，以為驗證做完了，但其實什麼都沒發生。這正是「按登入沒反應」的那一行。
+let _authInFlight=null;
+function handleAuthedUser(user){
+  if(_authInFlight) return _authInFlight;
+  _authInFlight=_handleAuthedUser(user).finally(()=>{ _authInFlight=null; });
+  return _authInFlight;
+}
+async function _handleAuthedUser(user){
   AUTH_HANDLING=true;
   try{
     const email=user.email||'';
+    bootStep('確認使用權限…');
     // 角色改由後端認定：前端把 token 送過去，後端驗證信箱後回傳這個人真正的角色與名冊。
     // 前端自己算的角色只在後端連不上時當備援用（那種情況下也拿不到任何資料，所以沒有風險）。
     let roles=null;
+    bootStep('確認使用權限…');
     const who=await api('whoami',{});
     if(who&&who.status==='success'){
       applyRoster(who.roster);
@@ -339,19 +480,47 @@ async function handleAuthedUser(user){
       }
       return;
     }else{
-      // 後端暫時連不上（網路問題／GAS 部署中）：優先用上次成功登入時快取的身分，
-      // 讓使用者照樣進得去、看得到上次的資料，而不是被擋在登入頁外面。
-      // 任何資料請求仍然會被後端擋下，所以這不會造成權限外洩。
+      // ═══════════════════════════════════════════════════════
+      // 【第1波修正 · 項目2】離線放行的三道約束
+      //
+      // ── 舊版的問題 ──
+      // 後端連不上時，舊版直接讀 localStorage 的快取身分放行進主畫面。動機是好的
+      // （不要把人擋在門外），但實際效果是：進去了、畫面一片空白、所有按鈕還都能按。
+      // 業務按送出只會生出一筆失敗紀錄。這就是「進去的畫面又連不到」。
+      //
+      // ── 現在的三道約束 ──
+      // (a) 快取超過 24 小時視為失效 —— 隔夜的角色資訊不該再拿來決定看到什麼畫面，
+      //     而且過期快取配合離職未更新的名冊，會讓已離職的人還進得到畫面。
+      // (b) 進入後設定 OFFLINE_MODE，全域停用所有寫入按鈕（見 applyOfflineMode），
+      //     業務不會白做工，也不會製造需要事後清理的失敗紀錄。
+      // (c) 橫幅從舊版那條容易忽略的細線，改成明確的離線狀態列。
+      // ═══════════════════════════════════════════════════════
+      const CACHE_TTL=24*60*60*1000;
       let cached=null;
       try{ cached=JSON.parse(localStorage.getItem('identity:'+email)||'null'); }catch(e){}
-      if(cached&&cached.roles&&cached.roles.length){
+      const fresh=cached&&cached.at&&(Date.now()-cached.at)<CACHE_TTL;
+      if(cached&&!fresh){
+        // 快取過期就不放行了：擋在登入頁至少狀態是清楚的，
+        // 放進去卻什麼都不能做，只會讓人以為系統壞了。
+        logClientError('auth-cache-expired','快取身分已超過 24 小時：'+email);
+        toast('目前無法連線到伺服器，且上次的登入資訊已過期，請稍後再試',true);
+        showLoginDiag('無法連線到伺服器（'+(who&&who.message||'原因不明')+'）\n'+
+          '上次成功登入是在 24 小時前，基於安全考量不沿用。\n請確認網路後點「使用 Google 帳號登入」重試。');
+        return;
+      }
+      if(fresh&&cached.roles&&cached.roles.length){
         applyRoster(cached.roster);
         roles=cached.roles; CUR_EMAIL=email; CUR=cached.name||nameForEmail(email);
+        OFFLINE_MODE=true;
+        logClientError('auth-offline','以 24 小時內的快取身分進入唯讀模式：'+email);
       }else{
-        roles=rolesForEmail(email);
-        CUR_EMAIL=email; CUR=nameForEmail(email);
+        // 連快取都沒有：這是第一次在這台裝置登入，卻剛好連不上後端。
+        // 沒有任何可信的角色資訊，不放行。
+        toast('目前無法連線到伺服器，請確認網路後再試一次',true);
+        showLoginDiag('無法連線到伺服器（'+(who&&who.message||'原因不明')+'）\n'+
+          '這台裝置沒有可用的登入紀錄，請確認網路後重試。');
+        return;
       }
-      if(roles.length) showSessionBar('目前無法連線到伺服器，點此重新連線');
     }
     if(!roles||!roles.length){
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
@@ -367,6 +536,33 @@ async function handleAuthedUser(user){
 // ── 連線狀態提示列 ───────────────────────────────────────────
 // 出現在畫面最上方，不會遮住內容、也不會中斷操作。點一下就試著重新取得憑證，
 // 成功就自己消失。這比把人踢回登入畫面友善得多，也不會弄丟他正在填的資料。
+// ── 【第1波修正 · 項目2】唯讀（離線）模式 ────────────────────
+// OFFLINE_MODE 為真時，代表這個 session 是靠本機快取的身分進來的，後端從頭到尾
+// 沒有確認過。這時資料是舊的、寫入一定會失敗，所以把所有會產生寫入的按鈕停用，
+// 讓業務一眼就知道「現在只能看，不能改」，而不是按了才發現白做工。
+//
+// 一旦任何一次請求成功（retryAuth 或任何 api 呼叫），就自動解除。
+let OFFLINE_MODE=false;
+const WRITE_BTN_SELECTOR='.btn-p,.btn-d,.sv,.del,.btn-log-export';
+function applyOfflineMode(){
+  document.querySelectorAll(WRITE_BTN_SELECTOR).forEach(b=>{
+    if(OFFLINE_MODE){ b.disabled=true; b.classList.add('is-offline'); }
+    else { b.disabled=false; b.classList.remove('is-offline'); }
+  });
+  document.body.classList.toggle('offline-mode',OFFLINE_MODE);
+}
+function exitOfflineMode(){
+  if(!OFFLINE_MODE)return;
+  OFFLINE_MODE=false; applyOfflineMode(); hideSessionBar();
+  toast('已恢復連線，現在可以正常操作');
+}
+// 寫入類操作的統一守門員。所有會寫資料的進入點都先問過它。
+function blockedByOffline(){
+  if(!OFFLINE_MODE)return false;
+  toast('目前處於離線唯讀模式，無法儲存。請點上方橫幅重新連線',true);
+  return true;
+}
+
 function showSessionBar(msg,fatal){
   let el=document.getElementById('sessionBar');
   if(!el){
@@ -389,6 +585,7 @@ async function retryAuth(){
   if(who&&who.status==='success'){
     applyRoster(who.roster);
     hideSessionBar();
+    OFFLINE_MODE=false; applyOfflineMode();
     toast('連線已恢復');
     if(ROLE==='sales')loadSalesData(true);
     else if(ROLE==='admin')loadAdminData();
@@ -417,6 +614,8 @@ function showRoleChooser(roles){
   document.getElementById('roleChooser').style.display='block';
 }
 function proceedLogin(role){
+  bootStep('載入您的資料…');
+  setGoogleBtnText('載入您的資料…');
   // 資料隔離的最後一道前端防線：只允許進入「這個信箱在名冊上真的擁有」的角色。
   // 業務端的資料本來就由後端依 salesName 過濾（salesInit／getLogs／getStockReport），
   // 但如果有人在瀏覽器主控台直接呼叫 proceedLogin('admin')，舊版會直接把行政總表畫面打開
@@ -444,6 +643,11 @@ function proceedLogin(role){
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
     setupRoleSwitcher('salesSwitchRole');
     loadSalesData(true); loadBatches().catch(()=>{}); 
+  }
+  // 離線唯讀模式的視覺與行為，要在畫面切換完成之後才套用（按鈕這時才在 DOM 上）
+  if(OFFLINE_MODE){
+    applyOfflineMode();
+    showSessionBar('離線唯讀模式：顯示的是上次的資料，暫時無法儲存。點此重新連線');
   }
 }
 function setupRoleSwitcher(slotId){
@@ -657,6 +861,7 @@ function aq(d){AQ=Math.max(1,Math.min(50,AQ+d));document.getElementById('aqV').t
 // ── 欄位狀態與清除鈕 ────────────────────────────────────────
 // mk()：欄位有值就標記已填（左側細線變色）並顯示清除鈕。
 function mk(el){
+  if(typeof scheduleDraftSave==='function') scheduleDraftSave();
   const w=el.closest('.fw');
   const v=!!(el.value&&el.value.trim()!=='');
   el.classList.toggle('on',v);
@@ -781,6 +986,7 @@ function confirmCustomPk(){
   pickV(v);
 }
 function pickV(v){
+  if(typeof scheduleDraftSave==='function') setTimeout(scheduleDraftSave,0);
   if(PKT==='admin-sales-filter'){closePk();ASales=v;renderAChips();renderGrid();return;}
   if(PKT==='admin-item-filter'){closePk();AItem=v;renderAChips();renderGrid();return;}
   PKV[PKT]=v;const b=document.getElementById('pk-'+PKT),s=b.querySelector('.v');
@@ -849,9 +1055,69 @@ function goPendNearExpiry(){
   tab('pend',document.querySelectorAll('#salesApp .nav-b')[3]);
   renderPend();
 }
+// ═══════════════════════════════════════════════════════════
+// 【第1波修正 · 項目17】備貨登記表單的草稿保護
+//
+// 業務常在醫院、地下室、電梯口填這張表，九個欄位填到一半訊號一斷、或不小心
+// 切走 App 讓分頁被系統回收，資料就整份消失、要從頭再填一次。
+//
+// 現在每次改動都把目前的表單內容寫進 localStorage（依信箱分開存，換人登入不會串），
+// 送出成功才清掉。下次回到登記頁如果偵測到草稿，會提示「有未送出的草稿」讓使用者
+// 自己決定要不要接續 —— 不自動蓋回去，因為使用者可能已經在別的裝置填完送出了。
+// ═══════════════════════════════════════════════════════════
+let _draftTimer=null;
+function scheduleDraftSave(){ clearTimeout(_draftTimer); _draftTimer=setTimeout(saveDraft,600); }
+const DRAFT_FIELDS_TX=['f-sd','f-hd','f-on','f-rm'];
+const DRAFT_FIELDS_PK=['customer','item','category','type','batch'];
+function draftKey(){ return 'draft:reg:'+(CUR_EMAIL||'anon'); }
+function saveDraft(){
+  try{
+    const d={tx:{},pk:{},qty:BQ,at:Date.now()};
+    DRAFT_FIELDS_TX.forEach(id=>{const e=document.getElementById(id); if(e)d.tx[id]=e.value||'';});
+    DRAFT_FIELDS_PK.forEach(k=>{ d.pk[k]=PKV[k]||''; });
+    const hasContent=Object.values(d.pk).some(v=>v)||d.tx['f-hd']||d.tx['f-on']||d.tx['f-rm'];
+    if(!hasContent){ localStorage.removeItem(draftKey()); return; }
+    localStorage.setItem(draftKey(),JSON.stringify(d));
+  }catch(e){}
+}
+function clearDraft(){ try{ localStorage.removeItem(draftKey()); }catch(e){} }
+function loadDraftMeta(){
+  try{
+    const d=JSON.parse(localStorage.getItem(draftKey())||'null');
+    // 超過 7 天的草稿不再提示，那多半是忘了處理的殘留，跳出來只會造成困擾
+    if(d&&d.at&&(Date.now()-d.at)<7*24*60*60*1000) return d;
+  }catch(e){}
+  return null;
+}
+function restoreDraft(){
+  const d=loadDraftMeta(); if(!d)return;
+  DRAFT_FIELDS_TX.forEach(id=>{
+    const e=document.getElementById(id);
+    if(e&&d.tx[id]){ e.value=d.tx[id]; mk(e); }
+  });
+  DRAFT_FIELDS_PK.forEach(k=>{ if(d.pk[k]) setPk(k,d.pk[k]); });
+  if(d.qty){ BQ=Math.max(1,Math.min(50,d.qty)); bq(0); }
+  fillCount(); dismissDraftBar(); toast('已還原上次未送出的內容');
+}
+function dismissDraftBar(){ const el=document.getElementById('draftBar'); if(el)el.remove(); }
+function discardDraft(){ clearDraft(); dismissDraftBar(); toast('草稿已捨棄'); }
+function maybeShowDraftBar(){
+  const d=loadDraftMeta(); if(!d)return;
+  dismissDraftBar();
+  const host=document.getElementById('pg-reg'); if(!host)return;
+  const el=document.createElement('div');
+  el.id='draftBar'; el.className='draft-bar';
+  const when=new Date(d.at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  el.innerHTML='<div class="draft-bar-t">有一份未送出的草稿（'+when+'）</div>'+
+    '<div class="draft-bar-a"><button type="button" onclick="restoreDraft()">接續填寫</button>'+
+    '<button type="button" class="ghost" onclick="discardDraft()">捨棄</button></div>';
+  host.insertBefore(el,host.firstChild);
+}
+
 function initSales(){
   qd('f-sd', 0);
   renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderPend();renderLogs();fillCount();
+  maybeShowDraftBar();
   maybeShowExpiryAlert();
 }
 let SALES_LOGS_LOADED=false;
@@ -1076,6 +1342,7 @@ function openRecDiff(){
 let DIFF_CTX='admin';
 function commitDiff(btn){ return DIFF_CTX==='rec'?commitRecGrid(btn):commitGrid(btn); }
 async function commitRecGrid(btn){
+  if(blockedByOffline())return;
   if(btn&&btn.disabled)return;
   const by=buildRecDiffs(),ks=Object.keys(by);
   if(!ks.length){closeDiff();return;}
@@ -1590,6 +1857,7 @@ function exportLogs(mode) {
 // ── 以下為原本新增備貨等按鈕邏輯 ──
 async function submitReg(btn){
   if(btn.disabled)return;
+  if(blockedByOffline())return;
   const item={customer:PKV.customer||'',item:PKV.item||'',category:PKV.category||'',type:PKV.type||'',
     batch:PKV.batch||'',stockDate:val('f-sd'),shipDate:val('f-hd'),orderNo:val('f-on'),remark:val('f-rm')};
   if(!item.customer||!item.item){
@@ -1627,6 +1895,7 @@ async function submitReg(btn){
     // 伺服器回傳的筆數若比暫存少（極少見），把多出來的暫存收回
     DB.records=DB.records.filter(r=>!(r._tmp&&tmpIds.includes(r.recordId)));
     renderRec();renderStats();renderPend();
+    clearDraft(); dismissDraftBar();
     toast(`已建立 ${res.createdCount} 筆備貨紀錄`);
     queueSalesSync();
   }else{
@@ -1729,6 +1998,7 @@ function closeGroupConfirm(){document.getElementById('gCfMv').classList.remove('
 // 很簡單的欄位卻卡很久」的原因。改成呼叫既有的 batchUpdate，不論幾筆都只送一次請求，
 // 後端也只讀一次試算表、LOG 一次寫入。送出後直接更新本機資料重繪，背景再靜默同步。
 async function doGroupEdit(btn){
+  if(blockedByOffline())return;
   if(btn&&btn.disabled)return;
   if(!GED_PENDING)return;
   const changes=GED_PENDING.changes, targets=GED_PENDING.targets;
@@ -1756,6 +2026,7 @@ async function doGroupEdit(btn){
   }
 }
 async function saveEd(btn){
+  if(blockedByOffline())return;
   if(btn&&btn.disabled)return;
   const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
   const nv={customer:PKV['e-cu']||'',item:PKV['e-it']||'',category:PKV['e-ca']||'',type:PKV['e-ty']||'',
@@ -1791,6 +2062,7 @@ async function saveEd(btn){
   }
 }
 async function delRec(btn){
+  if(blockedByOffline())return;
   if(btn&&btn.disabled)return;
   const x=DB.records.find(v=>v.recordId===EDID);if(!x)return;
   // 同樣採樂觀更新：先從畫面移除，失敗再放回去
@@ -2507,6 +2779,7 @@ function openDiff(){const by=buildDiffs(),ks=Object.keys(by);if(!ks.length)retur
   document.getElementById('dfMv').classList.add('on');}
 function closeDiff(){document.getElementById('dfMv').classList.remove('on');}
 async function commitGrid(btn){
+  if(blockedByOffline())return;
   if(btn&&btn.disabled)return;
   const by=buildDiffs(),ks=Object.keys(by);
   const updates=ks.map(rid=>{const ch={};by[rid].list.forEach(d=>ch[d.key]=d.after);return{recordId:rid,changes:ch};});
@@ -2524,6 +2797,7 @@ async function commitGrid(btn){
     busy(btn,false);
   }}
 async function adminCreate(btn){
+  if(blockedByOffline())return;
   if(btn&&btn.disabled)return;
   const item=PKV['ac-item'],sales=PKV['ac-sales']||'';
   if(!item){addLog({act:'快速建立',ok:false,desc:'嘗試快速建立備貨資料',err:'未選擇品項',src:'行政端網頁'});
