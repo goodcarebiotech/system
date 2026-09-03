@@ -1,7 +1,7 @@
-/* ══ CONFIG：GAS 部署網址 ══ */
+/* ══ CONFIG：GAS 部署網址 ══ */
 // 版本號：每次發版請同步更新這裡與 index.html 的 ?v= 參數。
 // 診斷資訊會帶上它，你才分辨得出業務手上跑的到底是哪一版。
-const APP_VERSION='2026.09.03-w1.1';
+const APP_VERSION='2026.09.03-w1.2';
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
@@ -152,6 +152,26 @@ function logClientError(kind,detail){
   }catch(e){ /* 隱私模式下 storage 可能停用，忽略 */ }
   if(window.console&&console.warn) console.warn('[診斷]',kind,detail);
 }
+// 【補丁 w1.2】卡住時的現場診斷。在瀏覽器 Console 輸入 __diag() 即可，
+// 一行就能看出流程停在哪一段，不用再靠猜的。
+function __diag(){
+  const d={
+    版本:APP_VERSION,
+    'Firebase SDK 就緒':FIREBASE_READY,
+    '__fb 物件存在':!!(window.__fb),
+    '目前登入者':(window.__fb&&window.__fb.auth&&window.__fb.auth.currentUser&&window.__fb.auth.currentUser.email)||'(無)',
+    '開場流程結束':_bootDone,
+    '驗證進行中':AUTH_HANDLING,
+    '登入按鈕忙碌中':SIGNIN_BUSY,
+    '遮罩步驟文字':(document.getElementById('bootStep')||{}).textContent,
+    '離線唯讀模式':(typeof OFFLINE_MODE!=='undefined')&&OFFLINE_MODE,
+    '角色':ROLE, '姓名':CUR, '信箱':CUR_EMAIL||'(未登入)'
+  };
+  console.table(d);
+  return d;
+}
+window.__diag=__diag;
+
 function copyDiagnostics(){
   let buf=[];
   try{ buf=JSON.parse(localStorage.getItem(ERR_BUF_KEY)||'[]'); }catch(e){}
@@ -321,9 +341,18 @@ function bootGiveUp(){
 }
 let AUTH_ABANDONED=false;
 
+// 【補丁 w1.2】逃生出口必須在最外層啟動。
+// 上一版我把 bootArm() 寫在 firebase-ready 的處理函式「裡面」——如果 Firebase SDK
+// 根本沒就緒（CDN 被擋、公司防火牆擋 gstatic.com、行動網路擋 Google 網域），
+// 那段程式碼從來不會執行，逃生出口也就永遠不會出現，使用者只能對著一顆轉不完的圈。
+// 安全網不能放在它要保護的那條路徑裡面。現在一載入就啟動。
+bootStep('正在載入登入服務…');
+bootArm();
+
 window.addEventListener('firebase-ready', ()=>{
   FIREBASE_READY=true;
-  bootArm();
+  bootStep('正在確認登入狀態…');
+  bootArm(); // 重新計時：SDK 已就緒，接下來等的是驗證，重新給一次完整的耐心額度
   // 已改為純彈窗登入，不再有 getRedirectResult 這一段（見 firebase-init.js 的說明）。
   // onAuthStateChanged 會在頁面重新載入、且先前登入狀態仍有效時自動觸發，
   // 使用者不用每次開網頁都重新登入一次。
@@ -343,10 +372,15 @@ window.addEventListener('firebase-ready', ()=>{
 setTimeout(()=>{
   if(!FIREBASE_READY&&!_bootDone){
     bootFinish();
-    logClientError('firebase-init','15 秒內未收到 firebase-ready 事件，SDK 可能載入失敗');
-    showLoginDiag('無法載入 Google 登入服務。\n請確認網路可以連上 gstatic.com，或改用其他網路後重新整理。');
+    logClientError('firebase-init','10 秒內未收到 firebase-ready 事件，SDK 可能載入失敗');
+    showLoginDiag('無法載入 Google 登入服務（10 秒內沒有回應）。\n\n'+
+      '最常見的三個原因：\n'+
+      '1. 網路擋住了 gstatic.com（公司防火牆、或部分電信商的兒少保護模式）\n'+
+      '2. 從 LINE／Facebook 的內建瀏覽器開啟\n'+
+      '3. 瀏覽器擴充功能（廣告阻擋器）擋住了 Google 網域\n\n'+
+      '請改用 Safari 或 Chrome 直接開啟，或換一個網路（例如切換到手機行動網路）再試。');
   }
-},15000);
+},10000);
 
 function isInAppBrowser(){ return /Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent||''); }
 function isMobile(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'') || window.innerWidth<900; }
