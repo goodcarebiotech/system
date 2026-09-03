@@ -1317,3 +1317,40 @@ body{padding-left:0;padding-right:0}
 
 /* ── 4. 提醒文案：紅色那句獨立成一行 ── */
 .exp-lead-cta{display:block;margin-top:6px;color:var(--bad);font-weight:600}
+
+/* ═════════ 第 1 波：登入穩定性相關樣式 ═════════ */
+
+/* ── 開場遮罩：加上步驟文字與「連線比平常久」的出口 ──
+   舊版遮罩只有一顆轉圈的點，而且固定 6 秒就掀開露出登入頁。現在遮罩由流程本身收，
+   逾時則在原地換成下面這塊，把選擇權交給使用者。 */
+.boot-mask{flex-direction:column;gap:18px}
+.boot-step{font-size:12px;color:rgba(255,255,255,.72);letter-spacing:.06em;
+  font-weight:400;transition:opacity .2s}
+.boot-slow{display:none;max-width:300px;margin-top:6px;padding:18px 20px;text-align:center;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:var(--r-s)}
+.boot-slow.on{display:block;animation:fadeIn .3s ease}
+.boot-slow-t{font-family:'Noto Serif TC',serif;font-size:14px;font-weight:600;color:#fff;margin-bottom:7px}
+.boot-slow-s{font-size:11.5px;line-height:1.75;color:rgba(255,255,255,.62);margin-bottom:15px}
+.boot-slow-a{display:flex;gap:8px}
+.boot-slow-a button{flex:1;padding:9px 10px;font-size:11.5px;font-weight:500;cursor:pointer;
+  background:#fff;color:var(--nav);border:none;border-radius:var(--r-s);letter-spacing:.04em}
+.boot-slow-a button.ghost{background:transparent;color:rgba(255,255,255,.72);
+  border:1px solid rgba(255,255,255,.24)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ── 離線唯讀模式 ──
+   靠本機快取身分進來的 session：資料是舊的、寫入必定失敗，
+   所以把所有寫入按鈕停用並做視覺標示，讓業務一眼就知道現在只能看。 */
+.is-offline{opacity:.4!important;cursor:not-allowed!important;filter:grayscale(1)}
+body.offline-mode .dock{opacity:.55}
+body.offline-mode .session-bar{background:var(--warn,#8A5D0B)}
+
+/* ── 表單草稿提示列 ── */
+.draft-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:14px;padding:12px 15px;background:var(--warn-tint,#FBF6EA);
+  border:1px solid #E5D2A8;border-radius:var(--r-s)}
+.draft-bar-t{flex:1;min-width:150px;font-size:12px;color:#6E4A05;font-weight:500;letter-spacing:.02em}
+.draft-bar-a{display:flex;gap:8px;flex:none}
+.draft-bar-a button{padding:7px 13px;font-size:11.5px;font-weight:500;cursor:pointer;
+  background:var(--ink);color:#fff;border:none;border-radius:var(--r-s);letter-spacing:.03em}
+.draft-bar-a button.ghost{background:transparent;color:#6E4A05;border:1px solid #E5D2A8}
