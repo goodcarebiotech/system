@@ -1,7 +1,7 @@
-/* ══ CONFIG：GAS 部署網址 ══ */
+/* ══ CONFIG：GAS 部署網址 ══ */
 // 版本號：每次發版請同步更新這裡與 index.html 的 ?v= 參數。
 // 診斷資訊會帶上它，你才分辨得出業務手上跑的到底是哪一版。
-const APP_VERSION='2026.09.03-w1';
+const APP_VERSION='2026.09.03-w1.1';
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
@@ -526,9 +526,9 @@ async function _handleAuthedUser(user){
       try{ await window.__fb.signOut(window.__fb.auth); }catch(e){}
       toast('此帳號尚未開通使用權限：'+email, true); return;
     }
-    if(roles.length===1){ proceedLogin(roles[0]); return; }
+    if(roles.length===1){ await proceedLogin(roles[0]); return; }
     const remembered=localStorage.getItem('lastRole:'+email);
-    if(remembered && roles.includes(remembered)){ proceedLogin(remembered); return; }
+    if(remembered && roles.includes(remembered)){ await proceedLogin(remembered); return; }
     showRoleChooser(roles);
   }finally{ AUTH_HANDLING=false; }
 }
@@ -613,7 +613,17 @@ function showRoleChooser(roles){
   document.getElementById('googleStep').style.display='none';
   document.getElementById('roleChooser').style.display='block';
 }
-function proceedLogin(role){
+// 【第1波修正 · 補丁 w1.1】proceedLogin 改為 async 並回傳初次載入的 Promise。
+//
+// ── 原本漏掉的問題 ──
+// 舊版（含我第一次的修正）在這裡是 `loadSalesData(true);` —— 發出請求就直接 return。
+// 於是 handleAuthedUser 立刻結束、遮罩立刻收掉，但資料還在路上。使用者看到的是
+// 一個空的主畫面，兩三秒後資料到了才「啪」地一次全部長出來，效期提醒也跟著彈出來——
+// 感覺就像「還沒登入完就跳提醒」。
+//
+// 遮罩要等的不是「確認你是誰」，是「畫面上真的有東西了」。現在把初次載入的 Promise
+// 一路回傳出去，由 _handleAuthedUser 等它完成之後才收遮罩。
+async function proceedLogin(role){
   bootStep('載入您的資料…');
   setGoogleBtnText('載入您的資料…');
   // 資料隔離的最後一道前端防線：只允許進入「這個信箱在名冊上真的擁有」的角色。
@@ -629,26 +639,34 @@ function proceedLogin(role){
   document.getElementById('salesApp').style.display='none';
   document.getElementById('adminApp').style.display='none';
   document.getElementById('managerApp').style.display='none';
+  let firstLoad=Promise.resolve();
   if(role==='admin'){
     document.getElementById('adminApp').style.display='block';
     setupRoleSwitcher('adminSwitchRole');
-    loadAdminData();
+    firstLoad=loadAdminData();
   }else if(role==='manager'){
     document.getElementById('managerApp').style.display='block';
     document.getElementById('mgrName').textContent=CUR;
     setupRoleSwitcher('mgrSwitchRole');
-    initManagerScreen();
+    firstLoad=Promise.resolve(initManagerScreen());
   }else{
     document.getElementById('salesApp').style.display='block';
     document.getElementById('nmT').textContent=CUR;document.getElementById('avT').textContent=CUR.slice(0,1);
     setupRoleSwitcher('salesSwitchRole');
-    loadSalesData(true); loadBatches().catch(()=>{}); 
+    // 批號表是次要資料（只有開下拉選單才需要），不擋首屏，失敗也不影響主流程
+    loadBatches().catch(()=>{});
+    firstLoad=loadSalesData(true);
   }
   // 離線唯讀模式的視覺與行為，要在畫面切換完成之後才套用（按鈕這時才在 DOM 上）
   if(OFFLINE_MODE){
     applyOfflineMode();
     showSessionBar('離線唯讀模式：顯示的是上次的資料，暫時無法儲存。點此重新連線');
   }
+  try{ await firstLoad; }catch(e){ logClientError('first-load',String(e&&e.message||e)); }
+  // 資料到位之後才允許彈出效期提醒（見 initSales 的說明）
+  BOOT_SETTLED=true;
+  if(ROLE==='sales') maybeShowExpiryAlert();
+  return firstLoad;
 }
 function setupRoleSwitcher(slotId){
   const el=document.getElementById(slotId); if(!el)return;
@@ -1026,6 +1044,9 @@ function setPk(k,v){
 // 綁在登入事件上等於幾乎不會再跳出來。用一個模組層級的旗標控制，
 // 頁面重新載入才會歸零，畫面重繪不會重複彈出。
 let EXPIRY_ALERT_SHOWN=false;
+// 開場流程（驗證 → 載入 → 收遮罩）是否已經走完。走完之前一律不彈任何對話框，
+// 避免使用者在還看不懂畫面的狀態下被一個彈窗打斷。
+let BOOT_SETTLED=false;
 function maybeShowExpiryAlert(){
   if(EXPIRY_ALERT_SHOWN)return;
   const rows=nearExpiryRecs();
@@ -1118,7 +1139,11 @@ function initSales(){
   qd('f-sd', 0);
   renderRecHead();renderMChips();renderIChips();renderRec();renderStats();renderPend();renderLogs();fillCount();
   maybeShowDraftBar();
-  maybeShowExpiryAlert();
+  // 【補丁 w1.1】效期提醒不在這裡彈。initSales 每次靜默同步都會被呼叫一次，
+  // 而登入當下遮罩可能都還沒收，這時彈出一個對話框，使用者的感受就是
+  // 「還沒登入完就跳提醒」。改由 proceedLogin 在「資料確定到位、遮罩準備收掉」
+  // 之後才觸發一次，BOOT_SETTLED 確保它只在開場流程走完後生效。
+  if(BOOT_SETTLED) maybeShowExpiryAlert();
 }
 let SALES_LOGS_LOADED=false;
 async function ensureSalesLogsLoaded(){
