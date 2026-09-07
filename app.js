@@ -1,7 +1,7 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
 // 版本號：每次發版請同步更新這裡與 index.html 的 ?v= 參數。
 // 診斷資訊會帶上它，你才分辨得出業務手上跑的到底是哪一版。
-const APP_VERSION='2026.09.03-w1.3';
+const APP_VERSION='2026.09.07-w1.4';
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
@@ -165,7 +165,8 @@ function __diag(){
     '登入按鈕忙碌中':SIGNIN_BUSY,
     '遮罩步驟文字':(document.getElementById('bootStep')||{}).textContent,
     '離線唯讀模式':(typeof OFFLINE_MODE!=='undefined')&&OFFLINE_MODE,
-    '角色':ROLE, '姓名':CUR, '信箱':CUR_EMAIL||'(未登入)'
+    '角色':ROLE, '姓名':CUR, '信箱':CUR_EMAIL||'(未登入)',
+    '批號表已載入':BATCH_LOADED, '批號表品項數':Object.keys(BATCHES||{}).length
   };
   console.table(d);
   return d;
@@ -511,11 +512,101 @@ function handleAuthedUser(user){
   _authInFlight=_handleAuthedUser(user).finally(()=>{ _authInFlight=null; });
   return _authInFlight;
 }
+// ═══════════════════════════════════════════════════════════
+// 【w1.4 · 項目A】樂觀顯示：畫面出現的時間不再等 GAS 冷啟動
+//
+// ── 舊版的問題 ──
+// 重開網頁時流程是：Firebase 確認身分（幾乎瞬間）→ 一定要等 api('whoami') 回來
+// → 才決定顯示哪個畫面。而 whoami 是一次 Apps Script 的 POST，冷啟動 3～8 秒是常態。
+// 於是業務的體感就是「明明已經登入了，每次開網頁還是要對著遮罩等好幾秒」。
+//
+// ── 現在的做法 ──
+// 這台裝置上如果有 24 小時內、後端發過的身分快取，就「先用它把畫面開起來」，
+// 同時在背景打一次 whoami 去確認。確認結果回來後：
+//   ・角色沒變 → 什麼都不做（使用者全程無感，只是快了好幾秒）
+//   ・角色變了／已被移除 → 立刻更正畫面或請他重新登入
+//   ・連不上後端 → 轉入原本就有的離線唯讀模式，停用所有寫入按鈕
+//
+// 安全性為什麼不受影響：資料權限從頭到尾都是後端依「驗證過的信箱」決定的。
+// 快取只影響「先顯示哪個畫面」，就算有人竄改 localStorage 把自己改成 admin，
+// 後端該擋的還是會擋，他只會看到一個什麼資料都撈不到的空畫面。
+// ═══════════════════════════════════════════════════════════
+const IDENTITY_TTL=24*60*60*1000;
+function readIdentity(email){
+  try{ return JSON.parse(localStorage.getItem('identity:'+email)||'null'); }catch(e){ return null; }
+}
+function saveIdentity(email,o){
+  try{ localStorage.setItem('identity:'+email, JSON.stringify(o)); }catch(e){}
+}
+function identityFresh(c){
+  return !!(c && c.at && (Date.now()-c.at)<IDENTITY_TTL && c.roles && c.roles.length);
+}
+// 依「只有一個角色」或「上次選過的角色」決定要不要跳過角色選擇畫面
+function autoRole(roles,email){
+  if(roles.length===1) return roles[0];
+  const remembered=localStorage.getItem('lastRole:'+email);
+  return (remembered && roles.includes(remembered)) ? remembered : null;
+}
+
+// 背景重新驗證。不擋畫面、不擋操作，錯了才出手。
+async function revalidateIdentity(email){
+  const who=await api('whoami',{lean:true});
+  if(who&&who.status==='success'){
+    applyRoster(who.roster);
+    const roles=who.roles||[];
+    CUR_EMAIL=who.email||email;
+    if(who.name) CUR=who.name;
+    saveIdentity(email,{roles:roles,name:CUR,roster:who.roster||ROSTERS,at:Date.now()});
+    if(!roles.length){
+      toast('您的帳號權限已被移除，請聯絡管理員',true);
+      setTimeout(logout,1500); return;
+    }
+    if(ROLE && !roles.includes(ROLE)){
+      // 角色被改掉了（例如行政改成業務）。不要讓他繼續停在一個已經沒有權限的畫面上。
+      toast('您的角色已變更，正在切換畫面…');
+      const next=autoRole(roles,email)||roles[0];
+      proceedLogin(next);
+    }
+    return;
+  }
+  if(who&&who.code==='AUTH'){
+    if(who.reason==='NOT_IN_ROSTER'){
+      toast('此帳號的使用權限已被移除',true);
+      showSessionBar('您的帳號權限已被移除，請聯絡管理員',true);
+      setTimeout(logout,1500);
+    }else{
+      showSessionBar('伺服器無法驗證登入身分，點此重新連線',true);
+    }
+    return;
+  }
+  // 純粹是連不上（網路差／GAS 掛了）。沿用原本的離線唯讀模式：能看不能改。
+  OFFLINE_MODE=true; applyOfflineMode();
+  showSessionBar('離線唯讀模式：顯示的是上次的資料，暫時無法儲存。點此重新連線');
+  logClientError('auth-revalidate-failed', String(who&&who.message||'原因不明'));
+}
+
 async function _handleAuthedUser(user){
   AUTH_HANDLING=true;
   try{
     const email=user.email||'';
     bootStep('確認使用權限…');
+
+    // ── 快路徑：有 24 小時內的身分快取，直接開畫面，背景再確認 ──
+    const cachedId=readIdentity(email);
+    if(identityFresh(cachedId) && !AUTH_ABANDONED){
+      applyRoster(cachedId.roster);
+      CUR_EMAIL=email;
+      CUR=cachedId.name||nameForEmail(email);
+      OFFLINE_MODE=false;
+      const role=autoRole(cachedId.roles,email);
+      // 背景確認不 await：它慢它的，畫面照開
+      revalidateIdentity(email).catch(e=>logClientError('auth-revalidate',String(e&&e.message||e)));
+      if(role){ await proceedLogin(role); }
+      else { showRoleChooser(cachedId.roles); }
+      return;
+    }
+
+    // ── 慢路徑：這台裝置沒有可用的快取（第一次登入／隔太久），照舊等後端 ──
     // 角色改由後端認定：前端把 token 送過去，後端驗證信箱後回傳這個人真正的角色與名冊。
     // 前端自己算的角色只在後端連不上時當備援用（那種情況下也拿不到任何資料，所以沒有風險）。
     let roles=null;
@@ -528,8 +619,7 @@ async function _handleAuthedUser(user){
       CUR=who.name||nameForEmail(email);
       // 把後端認定的身分存起來。下次開網頁若剛好連線不穩，可以先用這份快取
       // 直接進入畫面，不必卡在登入頁——資料權限仍然由後端把關，快取只影響「顯示哪個畫面」。
-      try{ localStorage.setItem('identity:'+email, JSON.stringify(
-        {roles:roles,name:CUR,roster:who.roster,at:Date.now()})); }catch(e){}
+      saveIdentity(email,{roles:roles,name:CUR,roster:who.roster||ROSTERS,at:Date.now()});
     }else if(who&&who.code==='AUTH'){
       // 這裡有兩種完全不同的狀況，訊息要分開講，否則會一直往名冊去找但問題根本不在那裡：
       //   NOT_IN_ROSTER → 真的不在 gas.js 的名冊上
@@ -2588,20 +2678,79 @@ function quickClearAdminFilter(col){ delete HF[col]; renderAChips(); renderGrid(
 // ── 批號 ↔ 有效日期 對照（來源：試算表的「批號」分頁）────────────────
 // 登入後抓一次就放著，切品項、開關視窗都不會再打 API。
 // 這張表不常變動，所以不必即時同步；按右上角「更新」時會一併重抓。
-let BATCHES={}, BATCH_LOADED=false, BATCH_UNMATCHED=[];
-async function loadBatches(){
-  const res=await api('getBatches',{});
-  if(res&&res.status==='success'){
-    BATCHES=res.items||{}; BATCH_UNMATCHED=res.unmatched||[]; BATCH_LOADED=true;
-    if(res.error) console.warn('[批號對照表]',res.error);
+let BATCHES={}, BATCH_LOADED=false, BATCH_UNMATCHED=[], BATCH_LOADING=null;
+
+// ═══════════════════════════════════════════════════════════
+// 【w1.4 · 項目B】批號明明填好了，選單卻抓不到
+//
+// ── 成因 ──
+// 舊版是 BATCHES[item] —— 拿畫面上的品項字串，去對照表裡做「一字不差的完全相符」查表。
+// 只要「批號」分頁裡的品名跟「備貨紀錄」用的品名有任何一點點不一樣，就查不到，
+// 而且畫面上兩個字串「看起來完全一樣」，所以怎麼看都看不出問題在哪。實務上最常見的四種：
+//   1. 從別處貼過來時多了前後空白或全形空白（'速原10ml-2級 '）
+//   2. 大小寫不同（'速原10ML-2級' vs '速原10ml-2級'）
+//   3. 全形英數字（'速原１０ｍｌ-２級'）——Excel 輸入法切換時很容易發生
+//   4. 括號一個是半形一個是全形（'薇基因(盒裝)' vs '薇基因（盒裝）'）
+// 這四種在試算表裡都長得幾乎一模一樣，肉眼幾乎不可能發現。
+//
+// ── 修法 ──
+// 查表改成兩段：先試完全相符（最快、最精準），沒中才用「正規化後的鍵」再查一次。
+// 正規化＝全形轉半形、去掉所有空白、統一小寫。資料本身一個字都不動
+// （試算表的比對邏輯仍然依賴原字串，絕不能改），只是查表時寬容一點。
+//
+// 批號本身（x.b）也套同一套比對，因為批號常有 'A1234 ' 這種尾隨空白。
+// ═══════════════════════════════════════════════════════════
+function normKey(s){
+  return String(s==null?'':s)
+    .replace(/[\uFF01-\uFF5E]/g, ch=>String.fromCharCode(ch.charCodeAt(0)-0xFEE0)) // 全形英數字／括號 → 半形
+    .replace(/[\s\u3000\u200B]/g,'')                                               // 去掉所有空白（含全形空白、零寬空白）
+    .toLowerCase();
+}
+let BATCH_INDEX={};
+function rebuildBatchIndex(){
+  BATCH_INDEX={};
+  Object.keys(BATCHES).forEach(k=>{ BATCH_INDEX[normKey(k)]=BATCHES[k]; });
+}
+// 取得某品項的批號清單。完全相符優先，再退回寬鬆比對。
+function batchesOf(item){
+  if(!item)return [];
+  if(BATCHES[item]) return BATCHES[item];
+  const hit=BATCH_INDEX[normKey(item)];
+  if(hit){
+    // 留下診斷紀錄：這代表試算表兩個分頁的品名其實不一致，值得回頭整理，
+    // 但使用者當下不必被打斷，選單照常出得來。
+    logClientError('batch-loose-match','品項「'+item+'」是靠寬鬆比對才對到批號，兩個分頁的品名寫法不一致');
+    return hit;
   }
+  return [];
+}
+async function loadBatches(){
+  // 同時被呼叫多次時共用同一個請求，避免開兩次下拉選單就打兩次 API
+  if(BATCH_LOADING) return BATCH_LOADING;
+  BATCH_LOADING=(async()=>{
+    const res=await api('getBatches',{});
+    if(res&&res.status==='success'){
+      BATCHES=res.items||{}; BATCH_UNMATCHED=res.unmatched||[]; BATCH_LOADED=true;
+      rebuildBatchIndex();
+      if(res.error) console.warn('[批號對照表]',res.error);
+    }else{
+      logClientError('batch-load',String(res&&res.message||'未知錯誤'));
+    }
+    BATCH_LOADING=null;
+  })();
+  return BATCH_LOADING;
 }
 function batchListFor(item){
-  if(!item)return [];
-  return (BATCHES[item]||[]).map(x=>x.b);
+  // 【補強】選單開得比批號表載入還快時（冷啟動時很常見），舊版只會顯示一片空白，
+  // 業務就以為「批號沒建」。現在補打一次載入，回來之後自動把選單重畫。
+  if(!BATCH_LOADED && !BATCH_LOADING){
+    loadBatches().then(()=>{ if(document.getElementById('pkBg').classList.contains('on')) renderPk(); });
+  }
+  return batchesOf(item).map(x=>x.b);
 }
 function batchInfo(item,batch){
-  return (BATCHES[item]||[]).find(x=>x.b===batch)||null;
+  const list=batchesOf(item);
+  return list.find(x=>x.b===batch) || list.find(x=>normKey(x.b)===normKey(batch)) || null;
 }
 // 下拉選單裡每個批號右側顯示的效期。剩不到 8 個月會標紅，提醒優先出這一批。
 function batchSubLabel(item,batch){
@@ -2612,7 +2761,15 @@ function batchSubLabel(item,batch){
 function batchEmptyMsg(item){
   if(!item)return '請先選擇品項，才能列出該品項的批號';
   if(!BATCH_LOADED)return '批號對照表載入中…';
-  return `「${esc(dispItem(item))}」在批號分頁裡找不到任何批號，可直接輸入`;
+  // 對照表載進來了、也有其他品項的批號，卻獨獨這個品項是空的 —— 這通常不是「沒建批號」，
+  // 而是兩個分頁的品名寫法對不起來。把這件事直接講出來，不要讓人去猜。
+  const hasAny=Object.keys(BATCHES).length>0;
+  if(hasAny){
+    return `「${esc(dispItem(item))}」在批號分頁裡找不到批號。<br>`+
+           `請確認批號分頁的品名與此處<b>完全一致</b>（常見是多了空白、全形字或大小寫不同）。<br>`+
+           `也可以直接輸入批號後按右上角「確認」。`;
+  }
+  return `批號分頁目前沒有讀到任何資料，可直接輸入批號後按右上角「確認」`;
 }
 function GED_ITEM(){
   if(PKV['g-it'])return PKV['g-it'];
