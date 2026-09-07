@@ -1,7 +1,7 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
 // 版本號：每次發版請同步更新這裡與 index.html 的 ?v= 參數。
 // 診斷資訊會帶上它，你才分辨得出業務手上跑的到底是哪一版。
-const APP_VERSION='2026.09.07-w1.4';
+const APP_VERSION='2026.09.07-w1.5';
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
@@ -898,7 +898,7 @@ function queueSalesSync(delay){
 }
 async function refreshSales(){
   const btn=document.getElementById('salesRefreshBtn');busy(btn,true);
-  await Promise.all([loadSalesData(false),loadBatches()]);
+  await Promise.all([loadSalesData(false),loadBatches(true)]);
   busy(btn,false);toast('已更新為最新資料');
 }
 
@@ -2724,21 +2724,42 @@ function batchesOf(item){
   }
   return [];
 }
-async function loadBatches(){
+// 【w1.5】後端回傳的 error／diag 以前只被 console.warn 吞掉，
+// 畫面上一個字都不會顯示——批號讀不到卻查不出原因，這個黑洞是主因之一。
+// 現在留下來，選單空的時候直接把後端說的原因秀給使用者看。
+let BATCH_ERROR='', BATCH_DIAG=null;
+async function loadBatches(refresh){
   // 同時被呼叫多次時共用同一個請求，避免開兩次下拉選單就打兩次 API
   if(BATCH_LOADING) return BATCH_LOADING;
   BATCH_LOADING=(async()=>{
-    const res=await api('getBatches',{});
+    // refresh:true 會讓後端略過 10 分鐘快取。按右上角「更新」時用得到——
+    // 剛在試算表改好品名卻還是看到舊結果，很容易誤判成「改了沒用」。
+    const res=await api('getBatches',refresh?{refresh:true}:{});
     if(res&&res.status==='success'){
       BATCHES=res.items||{}; BATCH_UNMATCHED=res.unmatched||[]; BATCH_LOADED=true;
+      BATCH_ERROR=res.error||''; BATCH_DIAG=res.diag||null;
       rebuildBatchIndex();
-      if(res.error) console.warn('[批號對照表]',res.error);
+      if(res.error){
+        console.warn('[批號對照表]',res.error,res.diag);
+        logClientError('batch-index',String(res.error));
+      }
     }else{
+      BATCH_ERROR='無法讀取批號對照表：'+String(res&&res.message||'未知錯誤');
       logClientError('batch-load',String(res&&res.message||'未知錯誤'));
     }
     BATCH_LOADING=null;
   })();
   return BATCH_LOADING;
+}
+// 在瀏覽器 Console 輸入 __batchDiag() 就能看到後端讀批號分頁的完整結果
+function __batchDiag(){
+  return loadBatches(true).then(()=>{
+    console.log('【錯誤】',BATCH_ERROR||'(無)');
+    console.log('【後端診斷】',BATCH_DIAG);
+    console.log('【讀到的品項】',Object.keys(BATCHES));
+    console.log('【被當成別家商品略過的品名】',BATCH_UNMATCHED);
+    return {error:BATCH_ERROR,diag:BATCH_DIAG,items:Object.keys(BATCHES),unmatched:BATCH_UNMATCHED};
+  });
 }
 function batchListFor(item){
   // 【補強】選單開得比批號表載入還快時（冷啟動時很常見），舊版只會顯示一片空白，
@@ -2761,6 +2782,18 @@ function batchSubLabel(item,batch){
 function batchEmptyMsg(item){
   if(!item)return '請先選擇品項，才能列出該品項的批號';
   if(!BATCH_LOADED)return '批號對照表載入中…';
+  // 後端明確說了讀不到（分頁找不到、表頭欄位認不出來…）就直接把原因講出來，
+  // 不要讓使用者對著一個空選單猜是「沒建批號」還是「系統壞了」。
+  if(BATCH_ERROR) return esc(BATCH_ERROR);
+  // 這個品項的品名出現在「被當成別家商品」的清單裡 —— 這是最常見的情況，
+  // 直接指名道姓告訴他要去改什麼。
+  if(BATCH_UNMATCHED&&BATCH_UNMATCHED.length){
+    const near=BATCH_UNMATCHED.filter(u=>normKey(u).indexOf(normKey(String(item).slice(0,2)))>=0);
+    if(near.length){
+      return `批號分頁裡有 <b>${esc(near.slice(0,3).join('、'))}</b>，但寫法跟系統的「<b>${esc(dispItem(item))}</b>」對不起來，<br>`+
+             `所以被當成其他公司的商品略過了。請把批號分頁的品名改成與此處完全一致。`;
+    }
+  }
   // 對照表載進來了、也有其他品項的批號，卻獨獨這個品項是空的 —— 這通常不是「沒建批號」，
   // 而是兩個分頁的品名寫法對不起來。把這件事直接講出來，不要讓人去猜。
   const hasAny=Object.keys(BATCHES).length>0;
