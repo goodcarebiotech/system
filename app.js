@@ -1,7 +1,7 @@
 /* ══ CONFIG：GAS 部署網址 ══ */
 // 版本號：每次發版請同步更新這裡與 index.html 的 ?v= 參數。
 // 診斷資訊會帶上它，你才分辨得出業務手上跑的到底是哪一版。
-const APP_VERSION='2026.09.07-w1.5';
+const APP_VERSION='2026.09.07-w1.6';
 const CFG={GAS_URL:'https://script.google.com/macros/s/AKfycbxXefWE9-VOwblzVVaZGmRBgvrvcrS_4qw7P07UhedF6AzNZMQv_b4ZQH-BA_HleTaS/exec'};
 
 /* 完美對齊您最新更新的精確寬度 */
@@ -1734,6 +1734,114 @@ function getPrevYM() {
   return py + '-' + String(pm).padStart(2, '0');
 }
 
+// ═══════════════════════════════════════════════════════════
+// 【w1.6】業務端「品項庫存明細」加上月份切換
+//
+// 成本說明（為什麼這件事很輕）：
+//  ・本月：登入時 salesInit 就已經把 DB.stock 一併帶回來了，切回本月直接用記憶體那份，
+//         連 API 都不會打。
+//  ・過去月份：那些月份都已經跑過月結算（settled=true），後端的 getStockReport_ 會走
+//         needLive=false 這條路，完全不會去整份讀「備貨紀錄」表，只讀「庫存資料」那個
+//         小分頁（一列一個業務×品項×類型）。所以切月份比按一次「更新」輕得多。
+//  ・同一個月份只會真的抓一次：沿用主管端就在用的 STOCK_RPT_CACHE。
+//  ・權限不必動：gas.js 的 enforcePermission_ 對 getStockReport 已經強制
+//         「不是主管或行政就把 salesName 換成自己」，業務只拿得到自己的數字。
+// ═══════════════════════════════════════════════════════════
+let SALES_STOCK_YM='', SALES_STOCK_BUSY=false;
+
+function changeSalesStockMonth(delta){
+  const next=shiftYM(SALES_STOCK_YM||CURRENT_YM,delta);
+  // 不讓他往未來翻——未來的月份不可能有結算資料，翻過去只會看到一片「尚未結算」
+  if(next>CURRENT_YM){ toast('已經是最新的月份'); return; }
+  SALES_STOCK_YM=next;
+  renderItemStock();
+}
+function pickSalesStockMonth(v){
+  if(!v) return;
+  if(v>CURRENT_YM){ toast('無法查看未來的月份'); return; }
+  SALES_STOCK_YM=v;
+  renderItemStock();
+}
+
+// 取得某個月份、屬於這位業務的庫存資料。
+// 本月直接用登入時帶回來的那份；其他月份才呼叫 API（並由 STOCK_RPT_CACHE 去重）。
+async function salesStockItems(ym){
+  if(ym===CURRENT_YM) return ((DB.stock&&DB.stock.items)||[]);
+  const res=await fetchStockReport(ym);
+  // 後端已經依身分把資料限制成自己的，這裡再依 sales 過濾一次純粹是保險
+  return (res.items||[]).filter(it=>!it.sales||it.sales===CUR);
+}
+
+async function renderItemStock(){
+  const ym=SALES_STOCK_YM||CURRENT_YM;
+  const lab=document.getElementById('salesStockMonthLabel');
+  if(lab) lab.textContent=monthLabel(ym);
+  const pick=document.getElementById('salesStockMonthPicker');
+  if(pick) pick.value=ym;
+  const note=document.getElementById('ibStatNote');
+  const box=document.getElementById('ibStat');
+  if(!box) return;
+
+  if(note){
+    note.textContent = (ym===CURRENT_YM)
+      ? '即時：上月月底庫存－本月至今出貨＋本月庫存增加'
+      : monthLabel(ym)+' 月結算後的月底庫存';
+  }
+
+  let items;
+  if(ym===CURRENT_YM){
+    items=await salesStockItems(ym);
+  }else{
+    // 過去月份要打一次 API。先把載入狀態顯示出來，不要讓畫面停在舊月份的數字上，
+    // 那會讓人以為切換沒有生效。
+    if(SALES_STOCK_BUSY) return;
+    SALES_STOCK_BUSY=true;
+    box.innerHTML=`<div class="emp-s" style="padding:20px 0;text-align:center">讀取 ${monthLabel(ym)} 庫存資料中…</div>`;
+    try{ items=await salesStockItems(ym); }
+    catch(e){
+      SALES_STOCK_BUSY=false;
+      box.innerHTML=`<div class="emp-s" style="padding:20px 0;text-align:center">讀取失敗：${esc(String(e&&e.message||e))}</div>`;
+      return;
+    }
+    SALES_STOCK_BUSY=false;
+    if(ym!==(SALES_STOCK_YM||CURRENT_YM)) return; // 使用者已經又切走了，這份結果不要覆蓋新的
+  }
+
+  const stockByItem={};
+  (items||[]).forEach(it=>{ stockByItem[it.item]=it; });
+  const fam={};
+  PRODUCT_FAMILIES.forEach(f=>{
+    fam[f.key]={name:f.name,color:f.color,items:{}};
+    f.items.forEach(itemName=>{fam[f.key].items[itemName]=stockByItem[itemName]||null;});
+  });
+  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]);
+
+  // 這個月完全沒有任何一個品項有數字＝該月還沒跑月結算（或那時還沒有這位業務的資料）。
+  // 直接講清楚，不要顯示一整排「—」讓人以為是系統壞了。
+  const hasAny=famList.some(f=>Object.values(f.items).some(it=>it&&it.thisEnding!==null));
+  if(!hasAny && ym!==CURRENT_YM){
+    box.innerHTML=`<div class="emp" style="padding:24px 0">
+      <div class="emp-t">${monthLabel(ym)} 尚無庫存結算資料</div>
+      <div class="emp-s">月底庫存由系統每月 1 號自動結算。這個月份沒有數字，代表當時還沒有結算資料，或那時尚未有你的庫存基準。</div>
+    </div>`;
+    return;
+  }
+
+  box.innerHTML=`<div class="fam-page-grid">`+famList.map((f,i)=>{
+    const entries=Object.entries(f.items);
+    let famTotal=0;entries.forEach(([,it])=>{ if(it&&it.thisEnding!==null)famTotal+=Math.max(0,it.thisEnding); });
+    const specCells=entries.map(([n,it])=>{
+      const val=(it&&it.thisEnding!==null)?Math.max(0,it.thisEnding):null;
+      return `<div class="fam-spec-cell"><div class="fsn">${esc(shortItemName(n))}</div><div class="fsv">${val===null?'—':val}</div></div>`;
+    }).join('');
+    return `<div class="fam-card ${i===0?'fam-card-wide':''}" style="border-top-color:${f.color}">
+      <div class="fam-card-head"><span class="fam-swatch" style="background:${f.color}"></span><span class="fam-card-name">${esc(f.name)}</span></div>
+      <div class="fam-card-total" style="color:${f.color}">${famTotal}</div>
+      <div class="fam-spec-row">${specCells}</div>
+    </div>`;
+  }).join('')+`</div>`;
+}
+
 function renderStats(){
   const rows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(CURRENT_YM));
   const prevRows=DB.records.filter(x=>x.sales===CUR&&x.stockDate&&x.stockDate.startsWith(getPrevYM()));
@@ -1760,30 +1868,10 @@ function renderStats(){
   if(chX) chX.innerHTML=myMonths.map(ym=>`<span>${+ym.slice(5)}月</span>`).join('');
 
   // 品項庫存明細：改成真正的「目前庫存」，不是本月備貨紀錄的筆數。
-  // 資料來自登入時 salesInit 已經一次帶回的 DB.stock（見 gas.js getStockReport_），
-  // 本月如果還沒跑月結算，後端會用「上月月底庫存－即時出貨＋本月庫存增加」即時試算一個
-  // 目前參考值（estimated:true），所以這裡看到的永遠是最新狀態，不用等到月底才有數字。
-  const stockByItem={};
-  ((DB.stock&&DB.stock.items)||[]).forEach(it=>{ stockByItem[it.item]=it; });
-  const fam={};
-  PRODUCT_FAMILIES.forEach(f=>{
-    fam[f.key]={name:f.name,color:f.color,items:{}};
-    f.items.forEach(itemName=>{fam[f.key].items[itemName]=stockByItem[itemName]||null;});
-  });
-  const famList=PRODUCT_FAMILIES.map(f=>fam[f.key]);
-  document.getElementById('ibStat').innerHTML=`<div class="fam-page-grid">`+famList.map((f,i)=>{
-    const entries=Object.entries(f.items);
-    let famTotal=0;entries.forEach(([,it])=>{ if(it&&it.thisEnding!==null)famTotal+=Math.max(0,it.thisEnding); });
-    const specCells=entries.map(([n,it])=>{
-      const val=(it&&it.thisEnding!==null)?Math.max(0,it.thisEnding):null;
-      return `<div class="fam-spec-cell"><div class="fsn">${esc(shortItemName(n))}</div><div class="fsv">${val===null?'—':val}</div></div>`;
-    }).join('');
-    return `<div class="fam-card ${i===0?'fam-card-wide':''}" style="border-top-color:${f.color}">
-      <div class="fam-card-head"><span class="fam-swatch" style="background:${f.color}"></span><span class="fam-card-name">${esc(f.name)}</span></div>
-      <div class="fam-card-total" style="color:${f.color}">${famTotal}</div>
-      <div class="fam-spec-row">${specCells}</div>
-    </div>`;
-  }).join('')+`</div>`;
+  // 資料來源見 renderItemStock()：本月用登入時 salesInit 已經帶回的 DB.stock，
+  // 過去月份才會另外去抓（已結算的月份後端只讀「庫存資料」小分頁，成本很低）。
+  if(!SALES_STOCK_YM) SALES_STOCK_YM=CURRENT_YM;
+  renderItemStock();
 
   const cm={};rows.forEach(x=>{if(x.customer)cm[x.customer]=(cm[x.customer]||0)+1;});
   const rank=Object.entries(cm).sort((a,b)=>b[1]-a[1]).slice(0,6);

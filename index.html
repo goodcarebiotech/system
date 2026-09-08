@@ -18,9 +18,9 @@
        IBM Plex Mono 500（原本的 400 併入 500）
      字型流量約降 45%，畫面觀感沒有可察覺的差別。 -->
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=19">
 </head>
-<script type="module" src="firebase-init.js?v=18"></script>
+<script type="module" src="firebase-init.js?v=19"></script>
 
 <body>
 
@@ -173,8 +173,16 @@
   <section class="pg" id="pg-stats">
     <!-- 品項庫存明細 -->
     <div class="pn elevated">
-      <div class="pn-h"><span class="pn-t">品項庫存明細</span><span class="pn-n">即時：上月月底庫存－本月至今出貨＋本月庫存增加</span></div>
-      <div class="pn-b" id="ibStat"></div>
+      <div class="pn-h"><span class="pn-t">品項庫存明細</span><span class="pn-n" id="ibStatNote">即時：上月月底庫存－本月至今出貨＋本月庫存增加</span></div>
+      <div class="pn-b">
+        <div class="mgr-month-nav">
+          <button type="button" class="mgr-month-btn" onclick="changeSalesStockMonth(-1)">‹ 上一月</button>
+          <span class="mgr-month-pick"><span class="mgr-month-label" id="salesStockMonthLabel">—</span><span class="mgr-month-ico">▾</span>
+            <input type="month" id="salesStockMonthPicker" class="ym-native-overlay" onchange="pickSalesStockMonth(this.value)"></span>
+          <button type="button" class="mgr-month-btn" onclick="changeSalesStockMonth(1)">下一月 ›</button>
+        </div>
+        <div id="ibStat"></div>
+      </div>
     </div>
     <div class="st">
       <div class="st-u"><div class="v" id="t1">0</div><div class="k">當月備貨</div><div class="dlt" id="t1d"></div></div>
@@ -542,6 +550,6 @@
   </div>
 </div>
 
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>
